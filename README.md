@@ -53,7 +53,7 @@ We welcome contributions! Please open an issue or PR.
 
 - Email: [LinkWorldone@outlook.com]
 - Telegram: [https://t.me/LinkWorldone]
-- Twitter / X: [LinkWorldone]
+- Twitter / X: [@LinkWorldone]
 
 ---
 
