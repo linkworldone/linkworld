@@ -1,4 +1,3 @@
-# linkworld
 # Link World - Decentralized Universal Telecommunication Service
 
 Link World is a Web3-native communication service platform built on the **0G (ZeroGravity)** ecosystem. We bridge the gap between global telecom operators and users, providing seamless, no-KYC, and cost-effective mobile data and voice services through Decentralized Physical Infrastructure Networks (DePIN).
