@@ -17,7 +17,7 @@ LinkWorld allows users to:
 - Search and connect to local operators in any region instantly
 - Get a virtual number or eSIM without buying physical SIM cards
 - **Pay after use** — usage is tracked transparently, billed at month-end (or anytime manually)
-- Deposit a small security bond (e.g. 0.1 ETH) instead of traditional credit checks
+- Deposit a small security bond (e.g. 0.001 ETH) instead of traditional credit checks
 - Enjoy service with **zero KYC** — your wallet address + security deposit is enough
 
 **Core Promise**: Anytime, anywhere — make LinkWorld your first choice for global connectivity.
