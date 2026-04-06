@@ -1,55 +1,65 @@
-# Link World - Decentralized Universal Telecommunication Protocol
+# LinkWorld
 
-Link World is a Web3-native communication service platform built on **0G (ZeroGravity)**. We bridge global telecom operators with Web3 users, providing **No-KYC, Post-paid, and Seamless Cross-border** data and voice services through a Decentralized Physical Infrastructure Network (DePIN).
+**Global Seamless Communication — Pay After Use, No KYC**
+
+A decentralized mobile data & calling platform that connects users with local operators worldwide. Built for travelers, digital nomads, and cross-border workers who need affordable, flexible connectivity without expensive roaming fees or complicated KYC processes.
+
+## ✨ Problem We Solve
+
+- High international roaming costs
+- Inflexible data plans that don’t match real usage
+- Complicated KYC requirements that slow down access
+- Difficulty getting local numbers when traveling or working abroad
+
+## 🚀 Solution
+
+LinkWorld allows users to:
+- Search and connect to local operators in any region instantly
+- Get a virtual number or eSIM without buying physical SIM cards
+- **Pay after use** — usage is tracked transparently, billed at month-end (or anytime manually)
+- Deposit a small security bond (e.g. 0.1 ETH) instead of traditional credit checks
+- Enjoy service with **zero KYC** — your wallet address + security deposit is enough
+
+**Core Promise**: Anytime, anywhere — make LinkWorld your first choice for global connectivity.
+
+## 🛠️ How It Works
+
+1. **Connect & Deposit** — Provide wallet address + email, deposit small security bond
+2. **Choose Region** — Search destination and get matched with trusted local operators
+3. **Use & Pay Later** — Start using data/calls immediately. Billing stops on the last day of the month. Pay within 2 weeks or settle manually anytime.
+
+## 🌐 Built on 0G Infrastructure
+
+LinkWorld is proudly built using **0G** — the modular AI-ready Layer 1 blockchain.
+
+We leverage **0G** for:
+- **Decentralized Storage** — Secure, scalable storage of usage records and operator matching data
+- **Data Availability Layer** — Ensures all consumption data is verifiable and tamper-proof
+- **High-throughput settlement** — Reliable on-chain billing and security deposit management
+- **Future AI enhancements** — Potential for intelligent operator matching and fraud detection using 0G’s compute capabilities
+
+This integration gives LinkWorld true decentralization, transparency, and the scalability needed for global telecom infrastructure.
+
+
+## Team
+
+We are a small, focused team passionate about making global connectivity accessible and decentralized.
+
+## Contributing
+
+We welcome contributions! Please open an issue or PR.
+
+## Contact & Community
+
+- Email: [LinkWorldone@outlook.com]
+- Telegram: [https://t.me/LinkWorldone]
+- Twitter / X: [LinkWorldone]
 
 ---
 
-## 🌟 Vision
-To provide global travelers, digital nomads, and Web3 users with affordable and convenient communication services, where your **wallet address is your identity**.
+**LinkWorld — Connecting the world, one region at a time.**
 
-## 🚀 Core Features
-- **Post-paid Model:** Authorize your wallet, deposit a base collateral, and start using services immediately. Settle at the end of the month.
-- **No KYC Required:** Privacy-first approach. No bank accounts or ID verification; only a wallet address and smart contract-based credit.
-- **Global Roaming & eSIM:** Switch networks instantly across different regions via eSIM activation or virtual numbers without buying local physical SIM cards.
-- **On-chain Credit:** Build your communication credit history through timely bill settlements.
-
----
-
-## 🛠 Integration with 0G Infrastructure
-
-To ensure high performance and verifiable billing, Link World leverages the **0G Stack**:
-
-1. **0G Storage (Billing Evidence):** 
-   Telecommunication usage data is high-frequency. We store encrypted traffic usage snapshots on **0G Storage**. This ensures that every MB of data consumed is backed by immutable proof for end-of-month settlement, significantly reducing storage costs compared to traditional L1s.
-   
-2. **0G DA (Data Availability):** 
-   During the settlement phase (monthly on the last day at 12:59), the smart contract retrieves state roots via **0G DA** to verify billing integrity, preventing any data manipulation between the operator and the user.
-
----
-
-## 📂 Project Structure
-
-```text
-├── frontend/             # Responsive Web3 UI (HTML/CSS/JS)
-│   ├── index.html        # Region selection & Wallet connection
-│   ├── dashboard.html    # Real-time data usage & settlement panel
-│   └── collateral.html   # Collateral management & eSIM activation
-├── contracts/            # Smart Contracts (Solidity)
-│   ├── Settlement.sol    # Logic for monthly billing & collateral slashing
-│   └── Identity.sol      # Wallet-based identity management
-└── scripts/              # 0G SDK Integration (In-progress)
-    └── upload_usage.js   # Script to push usage logs to 0G Storage nodes
-
-
-👥 Team
-Team Name: Link World
-
-Contact: [LinkWorldone@outlook.com]
-
-📄 License
-This project is licensed under the MIT License.
-
----
+Built with ❤️ for the 0G Hackathon & beyond.
 
 ## 📄 License
 This project is licensed under the MIT License.
