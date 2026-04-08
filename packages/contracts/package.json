@@ -1,0 +1,22 @@
+{
+  "name": "@linkworld/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:0g-testnet": "hardhat run scripts/deploy.ts --network og_testnet",
+    "deploy:0g": "hardhat run scripts/deploy.ts --network og_mainnet",
+    "clean": "hardhat clean && rm -rf typechain-types"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.1.0"
+  }
+}

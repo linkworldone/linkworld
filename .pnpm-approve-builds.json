@@ -1,0 +1,1 @@
+{"@nestjs/core": true, "bufferutil": true, "esbuild": true, "keccak": true, "secp256k1": true, "utf-8-validate": true}

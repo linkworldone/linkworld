@@ -1,0 +1,30 @@
+{
+  "name": "linkworld",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LinkWorld - Global Seamless Communication Platform",
+  "scripts": {
+    "dev:web": "pnpm -F @linkworld/web dev",
+    "dev:server": "pnpm -F @linkworld/server start:dev",
+    "build:web": "pnpm -F @linkworld/web build",
+    "build:server": "pnpm -F @linkworld/server build",
+    "compile": "pnpm -F @linkworld/contracts compile",
+    "test:contracts": "pnpm -F @linkworld/contracts test",
+    "clean": "pnpm -r exec rm -rf node_modules dist .turbo"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=8"
+  },
+  "pnpm": {
+    "onlyBuiltDependenciesCanIgnoreRoots": true,
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "bufferutil",
+      "esbuild",
+      "keccak",
+      "secp256k1",
+      "utf-8-validate"
+    ]
+  }
+}

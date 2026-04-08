@@ -1,1 +1,38 @@
+# Dependencies
+node_modules/
 
+# Build outputs
+dist/
+build/
+.next/
+
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+coverage.json
+
+# Misc
+*.tsbuildinfo
+.turbo/
+tasks/
