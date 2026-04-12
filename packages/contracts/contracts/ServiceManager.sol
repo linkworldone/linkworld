@@ -4,13 +4,35 @@ pragma solidity ^0.8.27;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IServiceManager.sol";
 
-/// @title ServiceManager - 运营商信息存储与管理
+/// @title ServiceManager - 运营商信息存储管理与用户服务
 contract ServiceManager is IServiceManager, Ownable {
     uint256 private _nextOperatorId;
     mapping(uint256 => Operator) private _operators;
     uint256[] private _activeOperatorIds;
 
-    constructor() Ownable(msg.sender) {}
+    mapping(address => UserService) private _userServices;
+
+    constructor() Ownable(msg.sender) {
+        _nextOperatorId = 1;
+        _operators[1] = Operator({
+            id: 1,
+            name: "T-Mobile US",
+            region: "United States",
+            requiredDeposit: 0.01 ether,
+            isActive: true
+        });
+        _activeOperatorIds.push(1);
+
+        _operators[2] = Operator({
+            id: 2,
+            name: "Vodafone UK",
+            region: "United Kingdom",
+            requiredDeposit: 0.008 ether,
+            isActive: true
+        });
+        _activeOperatorIds.push(2);
+        _nextOperatorId = 3;
+    }
 
     function addOperator(
         string calldata name,
@@ -70,5 +92,34 @@ contract ServiceManager is IServiceManager, Ownable {
             }
         }
         return result;
+    }
+
+    function activateService(uint256 operatorId, string calldata virtualNumber, string calldata password) external {
+        require(_operators[operatorId].isActive, "Operator not found");
+        require(!_userServices[msg.sender].isActive, "Service already active");
+
+        _userServices[msg.sender] = UserService({
+            user: msg.sender,
+            operatorId: operatorId,
+            virtualNumber: virtualNumber,
+            password: password,
+            activatedAt: block.timestamp,
+            isActive: true
+        });
+
+        emit UserServiceActivated(msg.sender, operatorId, virtualNumber);
+    }
+
+    function deactivateService() external {
+        require(_userServices[msg.sender].isActive, "No active service");
+
+        uint256 operatorId = _userServices[msg.sender].operatorId;
+        _userServices[msg.sender].isActive = false;
+
+        emit UserServiceDeactivated(msg.sender, operatorId);
+    }
+
+    function getUserService(address user) external view returns (UserService memory) {
+        return _userServices[user];
     }
 }

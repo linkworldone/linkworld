@@ -36,3 +36,19 @@ coverage.json
 *.tsbuildinfo
 .turbo/
 tasks/
+
+# Go
+vendor/
+*.test
+coverage.txt
+*.out
+bin/
+go.work
+
+# Backend specific
+packages/backend/data/
+packages/backend/config.local.yaml
+packages/backend/*.exe
+packages/backend/linkworld-backend
+
+需求说明书.txt

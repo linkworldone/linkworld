@@ -112,4 +112,34 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
         }
         return result;
     }
+
+    /// @notice 自动结算（月底触发，将预言机数据生成账单发送给用户）
+    function autoSettle(
+        address[] calldata users,
+        uint256[] calldata operatorIds,
+        uint256[] calldata amounts
+    ) external onlyOracle {
+        require(users.length == operatorIds.length, "Length mismatch");
+        require(users.length == amounts.length, "Length mismatch");
+
+        for (uint256 i = 0; i < users.length; i++) {
+            if (amounts[i] > 0) {
+                uint256 fee = feeManager.calculateFee(amounts[i]);
+                uint256 billId = _nextBillId++;
+
+                _bills[billId] = Bill({
+                    id: billId,
+                    user: users[i],
+                    operatorId: operatorIds[i],
+                    amount: amounts[i],
+                    platformFee: fee,
+                    createdAt: block.timestamp,
+                    isPaid: false
+                });
+                _userBillIds[users[i]].push(billId);
+
+                emit BillCreated(billId, users[i], amounts[i], fee);
+            }
+        }
+    }
 }

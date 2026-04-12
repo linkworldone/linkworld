@@ -9,4 +9,5 @@ interface IDeposit {
     function withdraw() external;
     function getDepositAmount(address user) external view returns (uint256);
     function getRequiredDeposit(uint256 operatorId) external view returns (uint256);
+    function setServiceManager(address _serviceManager) external;
 }

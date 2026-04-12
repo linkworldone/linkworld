@@ -6,11 +6,13 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./interfaces/IDeposit.sol";
 import "./interfaces/IUserRegistry.sol";
 import "./interfaces/IPayment.sol";
+import "./interfaces/IServiceManager.sol";
 
 /// @title Deposit - 用户保证金管理
 contract Deposit is IDeposit, Ownable, ReentrancyGuard {
     IUserRegistry public userRegistry;
     IPayment public payment;
+    IServiceManager public serviceManager;
 
     mapping(address => uint256) private _deposits;
     mapping(uint256 => uint256) private _operatorRequiredDeposit;
@@ -21,6 +23,10 @@ contract Deposit is IDeposit, Ownable, ReentrancyGuard {
 
     function setPayment(address _payment) external onlyOwner {
         payment = IPayment(_payment);
+    }
+
+    function setServiceManager(address _serviceManager) external onlyOwner {
+        serviceManager = IServiceManager(_serviceManager);
     }
 
     function setRequiredDeposit(uint256 operatorId, uint256 amount) external onlyOwner {
@@ -38,7 +44,11 @@ contract Deposit is IDeposit, Ownable, ReentrancyGuard {
     function withdraw() external nonReentrant {
         require(_deposits[msg.sender] > 0, "No deposit");
 
-        // 检查是否有未结账单
+        if (address(serviceManager) != address(0)) {
+            IServiceManager.UserService memory service = serviceManager.getUserService(msg.sender);
+            require(!service.isActive, "Service still active");
+        }
+
         if (address(payment) != address(0)) {
             IPayment.Bill[] memory unpaid = payment.getUnpaidBills(msg.sender);
             require(unpaid.length == 0, "Has unpaid bills");
