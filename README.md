@@ -51,9 +51,9 @@ We welcome contributions! Please open an issue or PR.
 
 ## Contact & Community
 
-- Email: [LinkWorldone@outlook.com]
+- Email: [LinkWorldTeam@outlook.com]
 - Telegram: [https://t.me/LinkWorldone]
-- Twitter / X: [@LinkWorldone]
+- Twitter / X: [@linkworldteam]
 
 ---
 
