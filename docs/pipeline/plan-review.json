@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "round": 1,
+  "pages": [
+    {
+      "id": "task-00",
+      "name": "Infrastructure Setup",
+      "figmaPages": [],
+      "components": ["shadcn/Button", "shadcn/Badge", "shadcn/Tabs", "vaul/Drawer"],
+      "colors": ["surface-DEFAULT", "surface-card", "surface-secondary", "brand-blue", "brand-purple", "brand-cyan", "status-success", "status-warning", "status-danger", "text-primary", "text-secondary", "text-muted", "border-DEFAULT"],
+      "resources": []
+    },
+    {
+      "id": "task-01",
+      "name": "Types + Mock Services",
+      "figmaPages": [],
+      "components": [],
+      "colors": [],
+      "resources": []
+    },
+    {
+      "id": "task-02",
+      "name": "React Query Hooks",
+      "figmaPages": [],
+      "components": [],
+      "colors": [],
+      "resources": []
+    },
+    {
+      "id": "task-03",
+      "name": "Shared Components + AppLayout",
+      "figmaPages": [],
+      "components": ["StatusBadge", "AmountDisplay", "GuardCard", "EmptyState", "Header", "TabBar", "AppLayout"],
+      "colors": ["surface-DEFAULT", "surface-card", "brand-blue", "brand-purple", "status-success", "status-warning", "status-danger", "text-primary", "text-secondary", "text-muted"],
+      "resources": []
+    },
+    {
+      "id": "task-04",
+      "name": "Wallet + Landing + Router",
+      "figmaPages": [],
+      "components": ["ConnectButton", "RegisterSheet"],
+      "colors": ["brand-blue", "brand-purple", "surface-secondary"],
+      "resources": []
+    },
+    {
+      "id": "task-05",
+      "name": "Dashboard Page",
+      "figmaPages": [],
+      "components": ["StatusBadge", "AmountDisplay"],
+      "colors": ["surface-gradient-from", "surface-gradient-to", "brand-blue", "brand-purple", "status-success", "status-warning", "status-danger"],
+      "resources": []
+    },
+    {
+      "id": "task-06",
+      "name": "Deposit Page",
+      "figmaPages": [],
+      "components": ["AmountDisplay", "Button", "Drawer"],
+      "colors": ["status-success", "surface-gradient-from", "surface-gradient-to"],
+      "resources": []
+    },
+    {
+      "id": "task-07",
+      "name": "Services + RegionDetail",
+      "figmaPages": [],
+      "components": ["EmptyState", "Button", "Drawer"],
+      "colors": ["brand-blue", "surface-card", "status-success"],
+      "resources": []
+    },
+    {
+      "id": "task-08",
+      "name": "Billing + BillDetail",
+      "figmaPages": [],
+      "components": ["Badge", "Button", "Drawer"],
+      "colors": ["status-danger", "brand-blue", "status-success"],
+      "resources": []
+    },
+    {
+      "id": "task-09",
+      "name": "Notifications",
+      "figmaPages": [],
+      "components": ["EmptyState"],
+      "colors": ["brand-blue", "status-success", "status-danger", "text-muted"],
+      "resources": []
+    },
+    {
+      "id": "task-10",
+      "name": "Final Integration",
+      "figmaPages": [],
+      "components": [],
+      "colors": [],
+      "resources": []
+    }
+  ]
+}
