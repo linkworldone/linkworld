@@ -31,7 +31,7 @@ All hooks match spec Section 8 service interfaces. useUnreadCount has 30s refetc
 N/A — all new files
 
 ### 设计稿对照
-N/A — data layer only
+N/A — 纯数据层，无视觉输出。5 个 hooks 对应 spec Section 8 的 5 个 service 接口，refetchInterval 30000ms 匹配 spec 要求。
 
 ### 偏差记录
 无偏差
