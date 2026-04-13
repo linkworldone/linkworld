@@ -2,7 +2,7 @@
 
 > **完成时间**: 2026-04-13
 
-## 产出文件
+### 产出文件
 - src/types/index.ts (全部接口定义)
 - src/utils/format.ts (格式化工具)
 - src/services/mock/delay.ts (延迟模拟)
@@ -14,33 +14,33 @@
 - src/services/mock/notificationService.ts
 - src/services/index.ts (统一导出)
 
-## git commit
-pending — will commit now
+### git commit
+8dc3341
 
-## TDD
+### TDD
 N/A — mock service layer, tested via tsc type check
 
-## Figma 还原
+### Figma 还原
 N/A
 
-## 测试结果
+### 测试结果
 npx tsc --noEmit: PASS (0 errors)
 
-## code-simplifier
+### code-simplifier
 N/A — data layer, follows plan exactly
 
-## spec review
+### spec review
 - getUserProfile returns User|null (arch-review fix)
 - sendVerificationCode added (arch-review fix)
 - Bill amounts use string not number (arch-review risk fix)
 - VirtualNumber has credentials field (eSIM/VoIP)
 - All services have delay() for loading state testing
 
-## 复用检查
+### 复用检查
 N/A — all new files
 
-## 设计稿对照
+### 设计稿对照
 接口签名与设计规格 Section 8 完全一致。
 
-## 偏差记录
+### 偏差记录
 无偏差。
