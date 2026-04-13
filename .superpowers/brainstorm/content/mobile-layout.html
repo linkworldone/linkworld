@@ -1,0 +1,206 @@
+<h2>移动端页面布局</h2>
+<p class="subtitle">底部 Tab Bar + 单列布局 + 移动端优先</p>
+
+<div class="split">
+  <!-- Landing Page -->
+  <div class="mockup">
+    <div class="mockup-header">Landing Page (未连接钱包)</div>
+    <div class="mockup-body" style="width: 320px; height: 580px; margin: 0 auto; background: linear-gradient(180deg, #0a0a14 0%, #0f1a2e 100%); border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; font-size: 12px;">
+      <!-- Status Bar Mock -->
+      <div style="height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 16px;">
+        <span style="font-size: 10px; color: #888;">9:41</span>
+      </div>
+      <!-- Nav -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 20px;">
+        <div>
+          <span style="font-weight: 700; font-size: 18px; color: #fff;">Link</span><span style="font-weight: 700; font-size: 18px; color: #3b82f6;">World</span>
+        </div>
+        <div style="background: #3b82f6; color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;">Connect Wallet</div>
+      </div>
+      <!-- Hero -->
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 24px;">
+        <div style="font-size: 10px; color: #3b82f6; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px;">Powered by 0G Chain</div>
+        <div style="font-size: 24px; font-weight: 700; color: #fff; line-height: 1.3;">Global Seamless<br>Communication</div>
+        <div style="font-size: 13px; color: #888; margin-top: 14px; line-height: 1.6;">No KYC. No bank account.<br>Just your wallet.</div>
+        <div style="background: #3b82f6; color: #fff; padding: 14px 40px; border-radius: 12px; font-size: 15px; font-weight: 600; margin-top: 28px; width: 100%; text-align: center;">Get Started</div>
+        <div style="border: 1px solid #333; color: #ccc; padding: 14px 40px; border-radius: 12px; font-size: 15px; margin-top: 10px; width: 100%; text-align: center;">Learn More</div>
+      </div>
+      <!-- Stats -->
+      <div style="display: flex; justify-content: space-around; padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.05);">
+        <div style="text-align: center;">
+          <div style="font-size: 18px; font-weight: 700; color: #3b82f6;">50+</div>
+          <div style="font-size: 10px; color: #888;">Countries</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 18px; font-weight: 700; color: #3b82f6;">2.5%</div>
+          <div style="font-size: 10px; color: #888;">Fee</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 18px; font-weight: 700; color: #3b82f6;">0</div>
+          <div style="font-size: 10px; color: #888;">KYC</div>
+        </div>
+      </div>
+      <div style="height: 20px;"></div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="mockup">
+    <div class="mockup-header">Dashboard (登录后主页)</div>
+    <div class="mockup-body" style="width: 320px; height: 580px; margin: 0 auto; background: #0a0a14; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; font-size: 12px;">
+      <!-- Status Bar + Header -->
+      <div style="padding: 44px 20px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px;">
+          <div>
+            <div style="font-size: 13px; color: #888;">Welcome back</div>
+            <div style="font-size: 11px; color: #555; margin-top: 2px;">0x1a2b...3c4d</div>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="position: relative;">
+              <span style="color: #888; font-size: 16px;">🔔</span>
+              <span style="position: absolute; top: -4px; right: -6px; background: #ef4444; color: #fff; font-size: 8px; border-radius: 50%; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;">3</span>
+            </div>
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; font-weight: 600;">LW</div>
+          </div>
+        </div>
+      </div>
+      <!-- Scrollable Content -->
+      <div style="flex: 1; overflow-y: auto; padding: 0 16px;">
+        <!-- Status Card -->
+        <div style="background: linear-gradient(135deg, #1a2a4a, #1a1a3a); border-radius: 14px; padding: 18px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div>
+              <div style="font-size: 11px; color: #888;">Account Status</div>
+              <div style="display: flex; align-items: center; gap: 5px; margin-top: 4px;">
+                <div style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e;"></div>
+                <span style="font-size: 15px; font-weight: 600; color: #86efac;">Active</span>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 11px; color: #888;">Deposit</div>
+              <div style="font-size: 15px; font-weight: 600; color: #fcd34d; margin-top: 4px;">50.00 <span style="font-size: 11px; color: #999;">USDT</span></div>
+            </div>
+          </div>
+          <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; display: flex; justify-content: space-between;">
+            <div>
+              <div style="font-size: 10px; color: #888;">Virtual Number</div>
+              <div style="font-size: 13px; color: #93c5fd; margin-top: 2px;">+81 90-1234-5678</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 10px; color: #888;">Region</div>
+              <div style="font-size: 13px; color: #e0e0e0; margin-top: 2px;">🇯🇵 Japan</div>
+            </div>
+          </div>
+        </div>
+        <!-- This Month -->
+        <div style="background: #0f0f1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 14px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 13px; font-weight: 600; color: #e0e0e0;">This Month</span>
+            <span style="font-size: 11px; color: #888;">18 days left</span>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1; background: #1a1a2e; border-radius: 8px; padding: 10px; text-align: center;">
+              <div style="font-size: 16px; font-weight: 600; color: #3b82f6;">2.4 GB</div>
+              <div style="font-size: 10px; color: #888; margin-top: 2px;">Data Used</div>
+            </div>
+            <div style="flex: 1; background: #1a1a2e; border-radius: 8px; padding: 10px; text-align: center;">
+              <div style="font-size: 16px; font-weight: 600; color: #8b5cf6;">45 min</div>
+              <div style="font-size: 10px; color: #888; margin-top: 2px;">Calls</div>
+            </div>
+            <div style="flex: 1; background: #1a1a2e; border-radius: 8px; padding: 10px; text-align: center;">
+              <div style="font-size: 16px; font-weight: 600; color: #e0e0e0;">$12.40</div>
+              <div style="font-size: 10px; color: #888; margin-top: 2px;">Est. Bill</div>
+            </div>
+          </div>
+        </div>
+        <!-- Quick Actions -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+          <div style="background: #0f0f1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 14px; text-align: center;">
+            <div style="font-size: 20px; margin-bottom: 4px;">💰</div>
+            <div style="font-size: 11px; color: #93c5fd;">Top Up</div>
+          </div>
+          <div style="background: #0f0f1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 14px; text-align: center;">
+            <div style="font-size: 20px; margin-bottom: 4px;">🌍</div>
+            <div style="font-size: 11px; color: #93c5fd;">Switch Region</div>
+          </div>
+          <div style="background: #0f0f1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 14px; text-align: center;">
+            <div style="font-size: 20px; margin-bottom: 4px;">📄</div>
+            <div style="font-size: 11px; color: #93c5fd;">Bills</div>
+          </div>
+          <div style="background: #0f0f1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 14px; text-align: center;">
+            <div style="font-size: 20px; margin-bottom: 4px;">⚡</div>
+            <div style="font-size: 11px; color: #93c5fd;">Pay Now</div>
+          </div>
+        </div>
+        <div style="height: 70px;"></div>
+      </div>
+      <!-- Tab Bar -->
+      <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: #0f0f1a; border-top: 1px solid #1a1a2e; display: flex; justify-content: space-around; align-items: center; border-radius: 0 0 20px 20px;">
+        <div style="text-align: center; color: #3b82f6;">
+          <div style="font-size: 18px;">🏠</div>
+          <div style="font-size: 9px; margin-top: 2px;">Home</div>
+        </div>
+        <div style="text-align: center; color: #888;">
+          <div style="font-size: 18px;">📱</div>
+          <div style="font-size: 9px; margin-top: 2px;">Services</div>
+        </div>
+        <div style="text-align: center; color: #888;">
+          <div style="font-size: 18px;">💰</div>
+          <div style="font-size: 9px; margin-top: 2px;">Deposit</div>
+        </div>
+        <div style="text-align: center; color: #888;">
+          <div style="font-size: 18px;">📄</div>
+          <div style="font-size: 9px; margin-top: 2px;">Bills</div>
+        </div>
+        <div style="text-align: center; color: #888; position: relative;">
+          <div style="font-size: 18px;">🔔</div>
+          <div style="font-size: 9px; margin-top: 2px;">Alerts</div>
+          <span style="position: absolute; top: -2px; right: -2px; background: #ef4444; width: 8px; height: 8px; border-radius: 50%;"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Inner Pages -->
+<div class="section" style="margin-top: 24px;">
+  <h3>底部 Tab Bar 导航结构</h3>
+  <div style="background: #0d1117; border: 1px solid #333; border-radius: 8px; padding: 20px; font-size: 13px; line-height: 2;">
+    <div style="display: flex; justify-content: space-around; margin-bottom: 16px;">
+      <div style="text-align: center; color: #3b82f6; font-weight: 600;">
+        <div style="font-size: 22px;">🏠</div>Home
+      </div>
+      <div style="text-align: center; color: #8b5cf6; font-weight: 600;">
+        <div style="font-size: 22px;">📱</div>Services
+      </div>
+      <div style="text-align: center; color: #f59e0b; font-weight: 600;">
+        <div style="font-size: 22px;">💰</div>Deposit
+      </div>
+      <div style="text-align: center; color: #ef4444; font-weight: 600;">
+        <div style="font-size: 22px;">📄</div>Bills
+      </div>
+      <div style="text-align: center; color: #06b6d4; font-weight: 600;">
+        <div style="font-size: 22px;">🔔</div>Alerts
+      </div>
+    </div>
+    <div style="border-top: 1px solid #333; padding-top: 12px; color: #999;">
+      <div><span style="color: #3b82f6;">Home</span> → Dashboard 概览（状态 + 用量 + 快捷入口）</div>
+      <div><span style="color: #8b5cf6;">Services</span> → 地区选择 → 运营商列表 → 号码申请 → 我的号码</div>
+      <div><span style="color: #f59e0b;">Deposit</span> → 余额卡片 + 存入/提取操作 + 历史记录</div>
+      <div><span style="color: #ef4444;">Bills</span> → 未结/历史账单列表 → 账单详情 → 支付</div>
+      <div><span style="color: #06b6d4;">Alerts</span> → 通知列表（账单、状态变更、系统通知）</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>移动端设计要点</h3>
+  <div style="background: #0d1117; border: 1px solid #333; border-radius: 8px; padding: 20px; font-size: 13px; color: #999; line-height: 1.8;">
+    <div>&bull; <strong style="color: #e0e0e0;">底部 Tab Bar</strong> — 5 个 Tab，固定底部，当前 Tab 高亮蓝色</div>
+    <div>&bull; <strong style="color: #e0e0e0;">顶部 Header</strong> — 页面标题 + 钱包头像 + 通知入口（Dashboard 特殊：显示欢迎语）</div>
+    <div>&bull; <strong style="color: #e0e0e0;">卡片式布局</strong> — 所有信息以圆角卡片呈现，间距 12-16px</div>
+    <div>&bull; <strong style="color: #e0e0e0;">全屏弹窗</strong> — 存入押金、支付账单等操作使用底部弹出的 Sheet 而非新页面</div>
+    <div>&bull; <strong style="color: #e0e0e0;">触控优化</strong> — 最小点击区域 44x44px，按钮宽度 100%</div>
+    <div>&bull; <strong style="color: #e0e0e0;">安全区域</strong> — 底部 Tab Bar 适配 iOS safe area</div>
+  </div>
+</div>

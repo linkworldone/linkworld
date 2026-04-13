@@ -1,0 +1,148 @@
+<h2>LinkWorld 前端架构总览</h2>
+<p class="subtitle">确认整体架构方向和页面结构</p>
+
+<div class="section">
+  <h3>技术栈</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0;">
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 12px; text-align: center;">
+      <div style="font-size: 13px; color: #888; margin-bottom: 4px;">Framework</div>
+      <div style="font-weight: 600; color: #e0e0e0;">React 19 + Vite</div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 12px; text-align: center;">
+      <div style="font-size: 13px; color: #888; margin-bottom: 4px;">Styling</div>
+      <div style="font-weight: 600; color: #e0e0e0;">TailwindCSS + shadcn/ui</div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 12px; text-align: center;">
+      <div style="font-size: 13px; color: #888; margin-bottom: 4px;">Web3</div>
+      <div style="font-weight: 600; color: #e0e0e0;">wagmi + RainbowKit</div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 12px; text-align: center;">
+      <div style="font-size: 13px; color: #888; margin-bottom: 4px;">Data</div>
+      <div style="font-weight: 600; color: #e0e0e0;">React Query + Context</div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 12px; text-align: center;">
+      <div style="font-size: 13px; color: #888; margin-bottom: 4px;">Mock</div>
+      <div style="font-weight: 600; color: #e0e0e0;">Service 层 Mock</div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 12px; text-align: center;">
+      <div style="font-size: 13px; color: #888; margin-bottom: 4px;">Chain</div>
+      <div style="font-weight: 600; color: #e0e0e0;">0G Chain (16600)</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>页面结构 & 路由</h3>
+  <div style="background: #0d1117; border: 1px solid #333; border-radius: 8px; padding: 20px; font-family: monospace; font-size: 13px; line-height: 2;">
+    <div style="color: #7ee787;">/</div>
+    <div style="padding-left: 20px;">
+      <div style="color: #e0e0e0;">├── <span style="color: #79c0ff;">/</span> <span style="color: #888;">Landing Page (未连接钱包)</span></div>
+      <div style="color: #e0e0e0;">├── <span style="color: #79c0ff;">/dashboard</span> <span style="color: #888;">用户 Dashboard (主页)</span></div>
+      <div style="color: #e0e0e0;">├── <span style="color: #79c0ff;">/deposit</span> <span style="color: #888;">押金管理</span></div>
+      <div style="color: #e0e0e0;">├── <span style="color: #79c0ff;">/services</span> <span style="color: #888;">地区 & 运营商浏览</span></div>
+      <div style="color: #e0e0e0;">│   └── <span style="color: #79c0ff;">/services/:operatorId</span> <span style="color: #888;">运营商详情 & 号码申请</span></div>
+      <div style="color: #e0e0e0;">├── <span style="color: #79c0ff;">/numbers</span> <span style="color: #888;">虚拟号码管理</span></div>
+      <div style="color: #e0e0e0;">├── <span style="color: #79c0ff;">/billing</span> <span style="color: #888;">账单列表</span></div>
+      <div style="color: #e0e0e0;">│   └── <span style="color: #79c0ff;">/billing/:billId</span> <span style="color: #888;">账单详情 & 支付</span></div>
+      <div style="color: #e0e0e0;">└── <span style="color: #79c0ff;">/notifications</span> <span style="color: #888;">通知中心</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>数据流架构</h3>
+  <div style="background: #0d1117; border: 1px solid #333; border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 12px; align-items: center;">
+    <!-- UI Layer -->
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+      <div style="background: #1f3a5f; border: 1px solid #3b82f6; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #93c5fd;">Pages</div>
+      <div style="background: #1f3a5f; border: 1px solid #3b82f6; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #93c5fd;">Components</div>
+    </div>
+    <div style="color: #555; font-size: 18px;">↓</div>
+    <!-- Hook Layer -->
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+      <div style="background: #2d1f4e; border: 1px solid #8b5cf6; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #c4b5fd;">useUser</div>
+      <div style="background: #2d1f4e; border: 1px solid #8b5cf6; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #c4b5fd;">useDeposit</div>
+      <div style="background: #2d1f4e; border: 1px solid #8b5cf6; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #c4b5fd;">useBilling</div>
+      <div style="background: #2d1f4e; border: 1px solid #8b5cf6; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #c4b5fd;">useOperator</div>
+      <div style="background: #2d1f4e; border: 1px solid #8b5cf6; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #c4b5fd;">useNotification</div>
+    </div>
+    <div style="color: #555; font-size: 14px;">React Query hooks</div>
+    <div style="color: #555; font-size: 18px;">↓</div>
+    <!-- Service Layer -->
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+      <div style="background: #1f3d2b; border: 1px solid #22c55e; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #86efac;">userService</div>
+      <div style="background: #1f3d2b; border: 1px solid #22c55e; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #86efac;">depositService</div>
+      <div style="background: #1f3d2b; border: 1px solid #22c55e; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #86efac;">billingService</div>
+      <div style="background: #1f3d2b; border: 1px solid #22c55e; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #86efac;">operatorService</div>
+      <div style="background: #1f3d2b; border: 1px solid #22c55e; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #86efac;">notificationService</div>
+    </div>
+    <div style="color: #555; font-size: 14px;">Mock Service 层 (当前) → 未来替换为真实 API / 合约调用</div>
+    <div style="color: #555; font-size: 18px;">↓</div>
+    <!-- Data Layer -->
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+      <div style="background: #3d2b1f; border: 1px solid #f59e0b; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #fcd34d;">Mock Data</div>
+      <div style="background: #3d2b1f; border: 1px solid #f59e0b; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #fcd34d; opacity: 0.4;">0G Chain</div>
+      <div style="background: #3d2b1f; border: 1px solid #f59e0b; border-radius: 6px; padding: 8px 14px; font-size: 12px; color: #fcd34d; opacity: 0.4;">Backend API</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>6 大功能模块</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 12px;">
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #3b82f6; margin-bottom: 8px;">1. 钱包连接 & 注册</div>
+      <div style="font-size: 13px; color: #999; line-height: 1.6;">
+        RainbowKit ConnectButton<br>
+        钱包地址 + 邮箱注册<br>
+        UserRegistry 合约 mock<br>
+        登录态 Context
+      </div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #8b5cf6; margin-bottom: 8px;">2. 用户 Dashboard</div>
+      <div style="font-size: 13px; color: #999; line-height: 1.6;">
+        账户状态卡片（活跃/暂停）<br>
+        押金余额 & 最低要求<br>
+        当前虚拟号码<br>
+        实时用量图表
+      </div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #22c55e; margin-bottom: 8px;">3. 押金管理</div>
+      <div style="font-size: 13px; color: #999; line-height: 1.6;">
+        存入押金（USDT/ETH）<br>
+        提取押金（条件校验）<br>
+        押金历史记录<br>
+        Deposit 合约 mock
+      </div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #f59e0b; margin-bottom: 8px;">4. 虚拟号码 & 地区</div>
+      <div style="font-size: 13px; color: #999; line-height: 1.6;">
+        国家/地区选择<br>
+        运营商列表 & 详情<br>
+        号码申请流程<br>
+        ServiceManager 合约 mock
+      </div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #ef4444; margin-bottom: 8px;">5. 账单管理</div>
+      <div style="font-size: 13px; color: #999; line-height: 1.6;">
+        未结 & 历史账单列表<br>
+        账单详情（运营商费 + 手续费）<br>
+        账单支付 & 提前结账<br>
+        Payment 合约 mock
+      </div>
+    </div>
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px;">
+      <div style="font-weight: 600; color: #06b6d4; margin-bottom: 8px;">6. 通知中心</div>
+      <div style="font-size: 13px; color: #999; line-height: 1.6;">
+        账单到期通知<br>
+        服务状态变更通知<br>
+        已读/未读管理<br>
+        Header 角标提示
+      </div>
+    </div>
+  </div>
+</div>

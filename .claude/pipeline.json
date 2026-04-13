@@ -1,0 +1,99 @@
+{
+  "description": "LinkWorld 前端 Web 应用实现 —— 基于 0G Chain 的去中心化全球通信平台，React 19 + Vite 6 + TailwindCSS + shadcn/ui + wagmi/RainbowKit，Mock 数据驱动，移动端优先",
+  "techStack": "React 19, Vite 6, TailwindCSS 3.4, shadcn/ui, wagmi 2.14, viem 2.21, RainbowKit 2.2, TanStack React Query 5.62, pnpm monorepo",
+  "round": 1,
+  "gates": [
+    {
+      "id": "gate-1",
+      "name": "Think",
+      "category": "think",
+      "status": "completed"
+    },
+    {
+      "id": "gate-2",
+      "name": "Build",
+      "category": "build",
+      "status": "completed"
+    },
+    {
+      "id": "gate-3",
+      "name": "Ship",
+      "category": "ship",
+      "status": "active"
+    }
+  ],
+  "stages": [
+    {
+      "id": "requirement",
+      "name": "需求探索",
+      "gate": "gate-1",
+      "status": "completed",
+      "completedAt": "2026-04-12",
+      "dependsOn": []
+    },
+    {
+      "id": "design",
+      "name": "设计分析",
+      "gate": "gate-1",
+      "status": "completed",
+      "completedAt": "2026-04-12",
+      "dependsOn": []
+    },
+    {
+      "id": "arch-review",
+      "name": "三角色架构审查",
+      "gate": "gate-1",
+      "status": "completed",
+      "completedAt": "2026-04-13",
+      "dependsOn": ["design"]
+    },
+    {
+      "id": "plan",
+      "name": "任务拆解",
+      "gate": "gate-2",
+      "status": "completed",
+      "completedAt": "2026-04-13",
+      "dependsOn": []
+    },
+    {
+      "id": "implement",
+      "name": "编码实现",
+      "gate": "gate-2",
+      "status": "completed",
+      "completedAt": "2026-04-13",
+      "dependsOn": ["plan"]
+    },
+    {
+      "id": "test",
+      "name": "测试",
+      "gate": "gate-3",
+      "status": "completed",
+      "completedAt": "2026-04-13",
+      "dependsOn": ["implement"]
+    },
+    {
+      "id": "review",
+      "name": "代码审查",
+      "gate": "gate-3",
+      "status": "completed",
+      "completedAt": "2026-04-13",
+      "dependsOn": ["test"]
+    }
+  ],
+  "currentStage": "review",
+  "projectSkills": {
+    "stageMapping": {
+      "requirement": ["office-hours", "brainstorming"],
+      "design": ["plan-design-review", "design-consultation"],
+      "arch-review": ["plan-ceo-review", "plan-eng-review", "autoplan"],
+      "plan": ["writing-plans"],
+      "implement": ["subagent-driven-development", "test-driven-development", "code-simplifier"],
+      "test": ["verification-before-completion"],
+      "review": ["requesting-code-review"]
+    }
+  },
+  "specFiles": [
+    ".superpowers/brainstorm/specs/linkworld.md",
+    ".superpowers/brainstorm/specs/2026-04-12-linkworld-frontend-design.md"
+  ]
+}
