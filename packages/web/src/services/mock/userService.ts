@@ -1,11 +1,12 @@
 import type { User } from "@/types";
 import { delay } from "./delay";
-import { mockUser, setMockUser } from "./data";
+import { getMockUser, setMockUser } from "./data";
 
 export const userService = {
   async getUserProfile(address: string): Promise<User | null> {
     await delay();
-    return mockUser && mockUser.address === address ? { ...mockUser } : null;
+    const user = getMockUser();
+    return user && user.address === address ? { ...user } : null;
   },
   async register(address: string, email: string): Promise<User> {
     await delay(800);

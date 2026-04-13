@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
-import { Drawer } from "vaul";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/shared/BottomSheet";
 import { useBills, usePayBill } from "@/hooks/useBilling";
 import { formatDate, formatUSD } from "@/utils/format";
 import { Badge } from "@/components/ui/badge";
@@ -90,32 +90,26 @@ export default function Billing() {
         ))}
       </div>
 
-      <Drawer.Root open={payingBillId !== null} onOpenChange={(o) => !o && setPayingBillId(null)}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="fixed bottom-0 left-0 right-0 max-w-mobile mx-auto bg-surface-card rounded-t-2xl z-50 p-6">
-            <div className="w-12 h-1 bg-surface-secondary rounded-full mx-auto mb-6" />
-            <h2 className="text-lg font-bold mb-4">Confirm Payment</h2>
-            {payingBill && (
-              <>
-                <div className="p-3 bg-surface-secondary rounded-xl space-y-2 mb-4">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-muted">Amount</span>
-                    <span className="font-bold">{formatUSD(payingBill.totalAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-muted">Source</span>
-                    <span>Deposit Balance</span>
-                  </div>
-                </div>
-                <Button onClick={handlePay} disabled={payBill.isPending} className="w-full py-3">
-                  {payBill.isPending ? "Processing..." : "Confirm Payment"}
-                </Button>
-              </>
-            )}
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+      <BottomSheet open={payingBillId !== null} onOpenChange={(o) => !o && setPayingBillId(null)}>
+        <h2 className="text-lg font-bold mb-4">Confirm Payment</h2>
+        {payingBill && (
+          <>
+            <div className="p-3 bg-surface-secondary rounded-xl space-y-2 mb-4">
+              <div className="flex justify-between text-xs">
+                <span className="text-text-muted">Amount</span>
+                <span className="font-bold">{formatUSD(payingBill.totalAmount)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-text-muted">Source</span>
+                <span>Deposit Balance</span>
+              </div>
+            </div>
+            <Button onClick={handlePay} disabled={payBill.isPending} className="w-full py-3">
+              {payBill.isPending ? "Processing..." : "Confirm Payment"}
+            </Button>
+          </>
+        )}
+      </BottomSheet>
     </div>
   );
 }

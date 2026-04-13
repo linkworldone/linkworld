@@ -2,6 +2,12 @@ export function shortenAddress(address: string, chars = 4): string {
   return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
 }
 
+export function parseUnits(value: string, decimals = 18): bigint {
+  const [whole = "0", fraction = ""] = value.split(".");
+  const paddedFraction = fraction.slice(0, decimals).padEnd(decimals, "0");
+  return BigInt(whole + paddedFraction);
+}
+
 export function formatAmount(wei: bigint, decimals = 18, displayDecimals = 2): string {
   const divisor = 10n ** BigInt(decimals);
   const whole = wei / divisor;

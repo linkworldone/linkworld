@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAccount } from "wagmi";
-import { Drawer } from "vaul";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/shared/BottomSheet";
 import { useOperatorsByRegion, useApplyNumber, useRegions } from "@/hooks/useOperator";
 import { formatAmount } from "@/utils/format";
 
@@ -61,31 +61,25 @@ export default function RegionDetail() {
         </div>
       ))}
 
-      <Drawer.Root open={selectedOp !== null} onOpenChange={(o) => !o && setSelectedOp(null)}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="fixed bottom-0 left-0 right-0 max-w-mobile mx-auto bg-surface-card rounded-t-2xl z-50 p-6">
-            <div className="w-12 h-1 bg-surface-secondary rounded-full mx-auto mb-6" />
-            <h2 className="text-lg font-bold mb-2">Apply for Virtual Number</h2>
-            {selectedOperator && (
-              <>
-                <div className="text-sm text-text-secondary mb-4">
-                  {region?.flag} {region?.name} · {selectedOperator.name}
-                </div>
-                <div className="p-3 bg-surface-secondary rounded-xl mb-4">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-muted">Required Deposit</span>
-                    <span className="font-semibold">{formatAmount(selectedOperator.requiredDeposit)} USDT</span>
-                  </div>
-                </div>
-                <Button onClick={handleApply} disabled={applyNumber.isPending} className="w-full py-3">
-                  {applyNumber.isPending ? "Applying..." : "Confirm Application"}
-                </Button>
-              </>
-            )}
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+      <BottomSheet open={selectedOp !== null} onOpenChange={(o) => !o && setSelectedOp(null)}>
+        <h2 className="text-lg font-bold mb-2">Apply for Virtual Number</h2>
+        {selectedOperator && (
+          <>
+            <div className="text-sm text-text-secondary mb-4">
+              {region?.flag} {region?.name} · {selectedOperator.name}
+            </div>
+            <div className="p-3 bg-surface-secondary rounded-xl mb-4">
+              <div className="flex justify-between text-xs">
+                <span className="text-text-muted">Required Deposit</span>
+                <span className="font-semibold">{formatAmount(selectedOperator.requiredDeposit)} USDT</span>
+              </div>
+            </div>
+            <Button onClick={handleApply} disabled={applyNumber.isPending} className="w-full py-3">
+              {applyNumber.isPending ? "Applying..." : "Confirm Application"}
+            </Button>
+          </>
+        )}
+      </BottomSheet>
     </div>
   );
 }

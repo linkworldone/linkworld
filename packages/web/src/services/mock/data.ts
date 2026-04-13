@@ -70,9 +70,11 @@ const mockNotifications: Notification[] = [
   { id: "notif-5", type: "system", title: "System Update", message: "New regions added: South Korea, Singapore.", read: true, createdAt: "2026-03-25T08:00:00Z" },
 ];
 
-export { mockUser, mockDeposit, mockDepositHistory, mockRegions, mockOperators, mockNumbers, mockBills, mockNotifications };
+export { mockDepositHistory, mockRegions, mockOperators, mockNumbers, mockBills, mockNotifications };
 
+export function getMockUser(): User | null { return mockUser; }
 export function setMockUser(user: User | null) { mockUser = user; }
+export function getMockDeposit(): DepositInfo { return mockDeposit; }
 export function setMockDeposit(deposit: DepositInfo) { mockDeposit = deposit; }
 export function addMockDepositRecord(record: DepositRecord) { mockDepositHistory.unshift(record); }
 export function addMockNumber(num: VirtualNumber) { mockNumbers.push(num); }

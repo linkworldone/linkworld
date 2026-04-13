@@ -20,8 +20,10 @@ export function AppLayout() {
     );
   }
 
+  if (!user) return <Navigate to="/" replace />;
+
   const path = location.pathname;
-  const status = user?.status;
+  const status = user.status;
 
   if (status === "inactive") {
     const restricted = ["/services", "/billing", "/notifications"];

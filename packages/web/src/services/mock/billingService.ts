@@ -1,6 +1,6 @@
 import type { Bill, MonthEstimate } from "@/types";
 import { delay } from "./delay";
-import { mockBills, updateMockBill } from "./data";
+import { mockBills, updateMockBill, getMockUser, setMockUser } from "./data";
 
 export const billingService = {
   async getBills(_address: string, filter?: "unpaid" | "paid"): Promise<Bill[]> {
@@ -18,6 +18,13 @@ export const billingService = {
   async payBill(billId: string): Promise<Bill> {
     await delay(1200);
     updateMockBill(billId, { status: "paid", paidAt: new Date().toISOString() });
+
+    const hasUnpaid = mockBills.some((b) => b.id !== billId && (b.status === "unpaid" || b.status === "overdue"));
+    const user = getMockUser();
+    if (!hasUnpaid && user?.status === "suspended") {
+      setMockUser({ ...user, status: "active" });
+    }
+
     return { ...mockBills.find((b) => b.id === billId)! };
   },
   async getCurrentMonthEstimate(_address: string): Promise<MonthEstimate> {

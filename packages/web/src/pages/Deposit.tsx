@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import { Drawer } from "vaul";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/shared/BottomSheet";
 import { useDeposit, useDepositHistory, useDepositMutation, useWithdrawMutation } from "@/hooks/useDeposit";
 import { AmountDisplay } from "@/components/shared/AmountDisplay";
-import { formatAmount, formatDate } from "@/utils/format";
+import { formatAmount, formatDate, parseUnits } from "@/utils/format";
 
 type SheetMode = "deposit" | "withdraw" | null;
 
@@ -25,7 +25,7 @@ export default function Deposit() {
 
   const handleConfirm = async () => {
     if (!address || !amount) return;
-    const wei = BigInt(Math.floor(parseFloat(amount) * 1e18));
+    const wei = parseUnits(amount);
     if (sheetMode === "deposit") {
       await depositMutation.mutateAsync({ address, amount: wei, currency });
     } else {
@@ -88,43 +88,37 @@ export default function Deposit() {
       </div>
 
       {/* Deposit/Withdraw Sheet */}
-      <Drawer.Root open={sheetMode !== null} onOpenChange={(o) => !o && setSheetMode(null)}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
-          <Drawer.Content className="fixed bottom-0 left-0 right-0 max-w-mobile mx-auto bg-surface-card rounded-t-2xl z-50 p-6">
-            <div className="w-12 h-1 bg-surface-secondary rounded-full mx-auto mb-6" />
-            <h2 className="text-lg font-bold mb-4">{sheetMode === "deposit" ? "Deposit Funds" : "Withdraw Funds"}</h2>
+      <BottomSheet open={sheetMode !== null} onOpenChange={(o) => !o && setSheetMode(null)}>
+        <h2 className="text-lg font-bold mb-4">{sheetMode === "deposit" ? "Deposit Funds" : "Withdraw Funds"}</h2>
 
-            {sheetMode === "deposit" && (
-              <div className="flex gap-2 mb-4">
-                {(["USDT", "ETH"] as const).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setCurrency(c)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${
-                      currency === c ? "border-brand-blue bg-brand-blue/10 text-brand-blue" : "border-border text-text-secondary"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
+        {sheetMode === "deposit" && (
+          <div className="flex gap-2 mb-4">
+            {(["USDT", "ETH"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCurrency(c)}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${
+                  currency === c ? "border-brand-blue bg-brand-blue/10 text-brand-blue" : "border-border text-text-secondary"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
 
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Enter amount"
-              className="w-full px-4 py-3 bg-surface-secondary rounded-xl text-text-primary text-sm outline-none border border-border focus:border-brand-blue mb-4"
-            />
+        <input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Enter amount"
+          className="w-full px-4 py-3 bg-surface-secondary rounded-xl text-text-primary text-sm outline-none border border-border focus:border-brand-blue mb-4"
+        />
 
-            <Button onClick={handleConfirm} disabled={!amount || isPending} className="w-full py-3">
-              {isPending ? "Processing..." : "Confirm"}
-            </Button>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+        <Button onClick={handleConfirm} disabled={!amount || isPending} className="w-full py-3">
+          {isPending ? "Processing..." : "Confirm"}
+        </Button>
+      </BottomSheet>
     </div>
   );
 }
