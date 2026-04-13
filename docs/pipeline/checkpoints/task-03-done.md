@@ -36,7 +36,12 @@ Components are focused and minimal, each under 80 lines
 N/A — all new files
 
 ### 设计稿对照
-Layout structure matches mobile mockups
+- AppLayout: max-w-mobile = 430px (spec: 430px), min-h-screen
+- TabBar: fixed bottom-0, py-2, 5 tabs, min-w-[44px] min-h-[44px] touch targets (spec: 44px), badge size w-3.5 h-3.5 text-[8px]
+- Header dashboard: px-4 py-3, address text-[15px] font-semibold, muted text-[11px], avatar w-8 h-8 rounded-full
+- Header generic: px-4 py-3, title text-[17px] font-bold
+- TabBar label: text-[9px], icon text-xl, active color brand-blue
+- Main content: pb-[80px] for TabBar clearance
 
 ### 偏差记录
 无偏差
