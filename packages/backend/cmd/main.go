@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"math/rand"
+	"time"
 
 	"linkworld-backend/internal/config"
 	"linkworld-backend/internal/handlers"
@@ -13,6 +15,7 @@ import (
 )
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	db, err := config.InitDB()
 	if err != nil {
 		log.Fatal(err)
@@ -32,6 +35,7 @@ func main() {
 	billRepo := repository.NewBillRepository(db)
 	userServiceRepo := repository.NewUserServiceRepository(db)
 	depositRepo := repository.NewDepositRepository(db)
+	usageRepo := repository.NewUsageDataRepository(db)
 
 	userService := services.NewUserService(userRepo)
 	operatorService := services.NewOperatorService(operatorRepo)
@@ -40,8 +44,12 @@ func main() {
 	notificationService := services.NewNotificationService(userRepo)
 	depositService := services.NewDepositService(depositRepo, userRepo)
 	userServiceService := services.NewUserServiceService(userServiceRepo, operatorRepo, userRepo)
+	virtualGen := services.NewVirtualNumberGenerator()
+	operatorAPI := services.NewOperatorAPISimulator()
+	oracleV2 := services.NewOracleServiceV2(operatorAPI, userRepo, billRepo, usageRepo)
+	usageService := services.NewUsageService(oracleV2, usageRepo, userRepo)
 
-	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService)
+	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService, virtualGen, oracleV2, usageService)
 
 	r := gin.Default()
 
@@ -50,11 +58,16 @@ func main() {
 	r.GET("/api/operators", handler.GetOperators)
 	r.POST("/api/service/activate", handler.ActivateService)
 	r.POST("/api/service/deactivate", handler.DeactivateService)
+	r.GET("/api/service/:wallet", handler.GetUserService)
 	r.GET("/api/bills/:wallet", handler.GetBills)
 	r.POST("/api/bills/pay", handler.PayBill)
 	r.POST("/api/deposit", handler.Deposit)
 	r.GET("/api/deposit/:wallet", handler.GetDeposit)
 	r.POST("/api/withdraw", handler.Withdraw)
+	r.POST("/api/virtual-number/generate", handler.GenerateVirtualNumber)
+	r.GET("/api/countries", handler.GetCountryList)
+	r.GET("/api/usage/:wallet", handler.GetUsage)
+	r.POST("/api/oracle/monthly-bill", handler.TriggerMonthlyBill)
 
 	r.Run(":8080")
 }

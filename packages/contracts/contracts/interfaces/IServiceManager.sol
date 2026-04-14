@@ -6,6 +6,7 @@ interface IServiceManager {
         uint256 id;
         string name;
         string region;
+        string countryCode;
         uint256 requiredDeposit;
         bool isActive;
     }
@@ -25,9 +26,10 @@ interface IServiceManager {
     event UserServiceActivated(address indexed user, uint256 operatorId, string virtualNumber);
     event UserServiceDeactivated(address indexed user, uint256 operatorId);
 
-    function addOperator(string calldata name, string calldata region, uint256 requiredDeposit) external;
+    function addOperator(string calldata name, string calldata region, string calldata countryCode, uint256 requiredDeposit) external;
     function getOperator(uint256 operatorId) external view returns (Operator memory);
     function getActiveOperators() external view returns (Operator[] memory);
+    function getOperatorsByCountry(string calldata countryCode) external view returns (Operator[] memory);
     
     function activateService(uint256 operatorId, string calldata virtualNumber, string calldata password) external;
     function deactivateService() external;

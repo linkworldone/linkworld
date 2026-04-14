@@ -142,3 +142,27 @@ func (r *DepositRepository) GetTotalByUserID(userID uint) (string, error) {
 	err := r.db.Model(&models.Deposit{}).Select("COALESCE(SUM(amount), '0') as total").Where("user_id = ?", userID).Scan(&result).Error
 	return result.Total, err
 }
+
+type UsageDataRepository struct {
+	db *gorm.DB
+}
+
+func NewUsageDataRepository(db *gorm.DB) *UsageDataRepository {
+	return &UsageDataRepository{db: db}
+}
+
+func (r *UsageDataRepository) Create(usage *models.UsageData) error {
+	return r.db.Create(usage).Error
+}
+
+func (r *UsageDataRepository) FindByUserID(userID uint) ([]models.UsageData, error) {
+	var usageData []models.UsageData
+	err := r.db.Where("user_id = ?", userID).Find(&usageData).Error
+	return usageData, err
+}
+
+func (r *UserRepository) FindAll() ([]models.User, error) {
+	var users []models.User
+	err := r.db.Where("is_active = ?", true).Find(&users).Error
+	return users, err
+}

@@ -50,5 +50,7 @@ packages/backend/data/
 packages/backend/config.local.yaml
 packages/backend/*.exe
 packages/backend/linkworld-backend
+packages/backend/.env
 
 需求说明书.txt
+需求说明书2.txt

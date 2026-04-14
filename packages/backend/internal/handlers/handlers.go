@@ -16,6 +16,9 @@ type Handler struct {
 	notificationService *services.NotificationService
 	depositService      *services.DepositService
 	userServiceService  *services.UserServiceService
+	virtualGen          *services.VirtualNumberGenerator
+	oracleV2            *services.OracleServiceV2
+	usageService        *services.UsageService
 }
 
 func NewHandler(
@@ -26,6 +29,9 @@ func NewHandler(
 	notificationService *services.NotificationService,
 	depositService *services.DepositService,
 	userServiceService *services.UserServiceService,
+	virtualGen *services.VirtualNumberGenerator,
+	oracleV2 *services.OracleServiceV2,
+	usageService *services.UsageService,
 ) *Handler {
 	return &Handler{
 		userService:         userService,
@@ -35,6 +41,9 @@ func NewHandler(
 		notificationService: notificationService,
 		depositService:      depositService,
 		userServiceService:  userServiceService,
+		virtualGen:          virtualGen,
+		oracleV2:            oracleV2,
+		usageService:        usageService,
 	}
 }
 
@@ -170,4 +179,65 @@ func (h *Handler) GetBills(c *gin.Context) {
 
 func (h *Handler) PayBill(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Bill paid"})
+}
+
+type GenerateVirtualNumberRequest struct {
+	CountryCode string `json:"country_code" binding:"required"`
+}
+
+func (h *Handler) GenerateVirtualNumber(c *gin.Context) {
+	var req GenerateVirtualNumberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	number, password, err := h.virtualGen.Generate(req.CountryCode)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"virtual_number": number,
+		"password":       password,
+	})
+}
+
+func (h *Handler) GetUsage(c *gin.Context) {
+	wallet := c.Param("wallet")
+	dataUsage, callUsage, signature, err := h.usageService.QueryUsage(wallet)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"data_usage": dataUsage,
+		"call_usage": callUsage,
+		"signature":  signature,
+	})
+}
+
+func (h *Handler) TriggerMonthlyBill(c *gin.Context) {
+	count, err := h.usageService.TriggerMonthlyBill()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Monthly bills created", "count": count})
+}
+
+func (h *Handler) GetCountryList(c *gin.Context) {
+	list := h.virtualGen.GetCountryList()
+	c.JSON(http.StatusOK, list)
+}
+
+func (h *Handler) GetUserService(c *gin.Context) {
+	wallet := c.Param("wallet")
+	service, err := h.userServiceService.GetUserService(wallet)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No active service"})
+		return
+	}
+	c.JSON(http.StatusOK, service)
 }
