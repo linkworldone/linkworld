@@ -1,8 +1,14 @@
 {
-  "description": "LinkWorld 前端 Web 应用实现 —— 基于 0G Chain 的去中心化全球通信平台，React 19 + Vite 6 + TailwindCSS + shadcn/ui + wagmi/RainbowKit，Mock 数据驱动，移动端优先",
-  "techStack": "React 19, Vite 6, TailwindCSS 3.4, shadcn/ui, wagmi 2.14, viem 2.21, RainbowKit 2.2, TanStack React Query 5.62, pnpm monorepo",
-  "round": 1,
+  "description": "LinkWorld 全栈联调 —— 前端（React）从 Mock Service 切换到真实后端 API（Go/Gin）+ 链上合约（Solidity/Hardhat）交互，三端本地环境串通",
+  "techStack": "React 19, Vite 6, TailwindCSS 3.4, shadcn/ui, wagmi 2.14, viem 2.21, RainbowKit 2.2, TanStack React Query 5.62, Go 1.26, Gin, GORM, PostgreSQL 16, Solidity 0.8.27, Hardhat, OpenZeppelin 5.6, pnpm monorepo",
+  "round": 2,
   "gates": [
+    {
+      "id": "gate-0",
+      "name": "Prepare",
+      "category": "prepare",
+      "status": "completed"
+    },
     {
       "id": "gate-1",
       "name": "Think",
@@ -24,11 +30,26 @@
   ],
   "stages": [
     {
+      "id": "scan",
+      "name": "扫项目基线",
+      "gate": "gate-0",
+      "status": "completed",
+      "completedAt": "2026-04-14",
+      "dependsOn": []
+    },
+    {
+      "id": "figma",
+      "name": "Figma 资源",
+      "gate": "gate-0",
+      "status": "skipped",
+      "dependsOn": []
+    },
+    {
       "id": "requirement",
       "name": "需求探索",
       "gate": "gate-1",
       "status": "completed",
-      "completedAt": "2026-04-12",
+      "completedAt": "2026-04-14",
       "dependsOn": []
     },
     {
@@ -36,7 +57,7 @@
       "name": "设计分析",
       "gate": "gate-1",
       "status": "completed",
-      "completedAt": "2026-04-12",
+      "completedAt": "2026-04-14",
       "dependsOn": []
     },
     {
@@ -44,7 +65,7 @@
       "name": "三角色架构审查",
       "gate": "gate-1",
       "status": "completed",
-      "completedAt": "2026-04-13",
+      "completedAt": "2026-04-14",
       "dependsOn": ["design"]
     },
     {
@@ -52,7 +73,7 @@
       "name": "任务拆解",
       "gate": "gate-2",
       "status": "completed",
-      "completedAt": "2026-04-13",
+      "completedAt": "2026-04-14",
       "dependsOn": []
     },
     {
@@ -60,7 +81,7 @@
       "name": "编码实现",
       "gate": "gate-2",
       "status": "completed",
-      "completedAt": "2026-04-13",
+      "completedAt": "2026-04-15",
       "dependsOn": ["plan"]
     },
     {
@@ -68,7 +89,7 @@
       "name": "测试",
       "gate": "gate-3",
       "status": "completed",
-      "completedAt": "2026-04-13",
+      "completedAt": "2026-04-15",
       "dependsOn": ["implement"]
     },
     {
@@ -76,20 +97,38 @@
       "name": "代码审查",
       "gate": "gate-3",
       "status": "completed",
-      "completedAt": "2026-04-13",
+      "completedAt": "2026-04-15",
       "dependsOn": ["test"]
+    },
+    {
+      "id": "ship",
+      "name": "发布 PR",
+      "gate": "gate-3",
+      "status": "pending",
+      "dependsOn": ["review"]
+    },
+    {
+      "id": "monitor",
+      "name": "复盘",
+      "gate": "gate-3",
+      "status": "pending",
+      "dependsOn": ["ship"]
     }
   ],
-  "currentStage": "review",
+  "currentStage": "ship",
   "projectSkills": {
     "stageMapping": {
+      "scan": ["health"],
+      "figma": ["figma-use"],
       "requirement": ["office-hours", "brainstorming"],
       "design": ["plan-design-review", "design-consultation"],
-      "arch-review": ["plan-ceo-review", "plan-eng-review", "autoplan"],
+      "arch-review": ["plan-ceo-review", "plan-eng-review", "autoplan", "cso"],
       "plan": ["writing-plans"],
-      "implement": ["subagent-driven-development", "test-driven-development", "code-simplifier"],
-      "test": ["verification-before-completion"],
-      "review": ["requesting-code-review"]
+      "implement": ["subagent-driven-development", "test-driven-development", "code-simplifier", "investigate", "executing-plans"],
+      "test": ["verification-before-completion", "health", "investigate"],
+      "review": ["requesting-code-review", "receiving-code-review", "cso"],
+      "ship": ["ship", "finishing-a-development-branch", "careful", "document-release"],
+      "monitor": ["retro", "learn"]
     }
   },
   "specFiles": [

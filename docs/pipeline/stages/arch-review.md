@@ -1,54 +1,48 @@
-# Stage: arch-review — 三角色架构审查
+# 架构审查产出 — LinkWorld 全栈联调 (Round 2)
 
-> **状态**: completed | **日期**: 2026-04-13 | **Gate**: 1
-
-## 产出摘要
-
-三个并行审查角色（Product/Tech VP/Senior Eng）对设计规格进行了全面审查。发现 5 个阻塞项，全部已修复。10 个风险项记录到 plan 阶段处理。
+> 2026-04-14 | 三角色审查
 
 ## 审查结果
 
-### 阻塞项（已修复）
+| 角色 | 判定 | 关键发现 |
+|------|------|----------|
+| CEO | PASS_WITH_CONCERNS | 链上交易等待 UX、双写失败补偿 |
+| Eng | PASS_WITH_CONCERNS | 双写补偿（阻塞项）、数据模型对齐、合约地址管理 |
+| CSO | PASS_WITH_CONCERNS | 明文密码上链、无认证（本地可接受） |
 
-| # | 来源 | 问题 | 修复 |
-|---|------|------|------|
-| 1 | Product | 实时用量详情缺失（PRD 条目 5） | Dashboard 增加用量详情区域 |
-| 2 | Product | 虚拟号码管理页缺失（PRD 条目 7） | Services 页增加 My Numbers Tab |
-| 3 | Eng | Dashboard 数据依赖漏掉 useOperator | 已补充 |
-| 4 | Eng | getUserProfile 未注册返回值未定义 | 改为 Promise<User \| null> |
-| 5 | Eng | 缺少 sendVerificationCode 接口 | 已补充到 userService |
+## 阻塞项处理
 
-### 风险项（移交 plan 阶段）
+### ❌ 双写失败补偿 → 已修复
+- 设计文档新增"八-A 双写失败补偿设计"章节
+- 策略：链上状态兜底 + localStorage 暂存 + 自动重试
+- 四个双写流程（注册/充值/激活/支付）均有明确失败处理
 
-| # | 来源 | 问题 |
-|---|------|------|
-| 1 | Product | 多虚拟号码场景展示 |
-| 2 | Product | 提前结账入口缺失 |
-| 3 | Product | 逾期扣款倒计时警告缺失 |
-| 4 | CEO | Tailwind 配色需更新为 semantic tokens |
-| 5 | CEO | BrowserRouter 位置需从 main.tsx 移除 |
-| 6 | CEO | shadcn/ui 初始化需前置 |
-| 7 | CEO | 桌面端需 max-w 容器约束 |
-| 8 | Eng | Sheet 拖拽手势需 vaul 库 |
-| 9 | Eng | Mock Service 需加延迟模拟 |
-| 10 | Eng | Bill 金额精度问题 |
+### ❌ 链上交易 UX 未定义 → 已修复
+- 设计文档新增"八-B 链上交易 UX 规范"章节
+- useTransactionFlow 五阶段状态机
+- 合约 Revert Reason 中文映射表（10 条）
 
-## 关键决策
+## 改进项（implement 阶段执行）
 
-| # | 决策 | 理由 |
-|---|------|------|
-| 1 | 增加实时用量展示 | PRD 核心体验，不可省略 |
-| 2 | Services 页增加 My Numbers 管理 | PRD 明确要求，operatorService 已有对应接口 |
-| 3 | getUserProfile 返回 null 表示未注册 | 与状态机 UNREGISTERED 对应，守卫逻辑更清晰 |
-| 4 | 拆分 register 和 sendVerificationCode | 注册流程两步操作需要两个独立接口 |
+| # | 项目 | 优先级 | 来源 |
+|---|------|--------|------|
+| 1 | 后端 Operator model 补 country_code | 高 | Eng |
+| 2 | 后端 Bill model 补 tx_hash | 高 | Eng |
+| 3 | deploy 脚本输出合约地址 JSON | 中 | Eng |
+| 4 | 空合约地址运行时校验 | 中 | Eng |
+| 5 | React Query staleTime 策略 | 中 | Eng |
+| 6 | 合约 revert 错误映射 | 中 | CEO/Eng |
+| 7 | 明文密码上链标记技术债 | 低(本轮) | CSO |
 
-## 产出文件
+## 技术债记录（后续 Round 必须处理）
 
-| 文件 | 内容 |
-|------|------|
-| docs/superpowers/specs/2026-04-12-linkworld-frontend-design.md | 已更新（5 处修复） |
-| docs/pipeline/stages/arch-review.md | 本文件 |
+| 债项 | 触发条件 | 严重度 |
+|------|----------|--------|
+| 后端无认证 | 部署到非 localhost 环境 | 🔴 Critical |
+| 明文密码存链上 | 部署到公开测试网/主网 | 🔴 Critical |
+| 前端双写补偿 → 事件索引器 | 用户量增加 | 🟡 Medium |
+| ABI 手动提取 → 自动生成 | 合约频繁变更 | 🟢 Low |
 
-## 用户确认的事项
+## 最终判定
 
-- 阻塞项修复方案由审查角色提出并直接应用
+**PASS** — 0 个阻塞项（已修复），7 个改进项纳入 implement 计划

@@ -1,0 +1,21 @@
+{
+  "round": 2,
+  "planFile": "docs/pipeline/stages/plan.md",
+  "taskCount": 11,
+  "batches": 6,
+  "estimatedHours": "3-4",
+  "verdict": "APPROVED",
+  "reviewedAt": "2026-04-14",
+  "scope": [
+    "合约部署补全 (Oracle + linking)",
+    "前端 ABI + 合约地址配置",
+    "前端 axios client + API service 层",
+    "后端改造 (CORS, seed, PayBill, Withdraw)",
+    "前端合约 hooks (wagmi)",
+    "useTransactionFlow 状态机",
+    "双写补偿工具 (pendingSync)",
+    "业务 hooks 改造 (mock → api + contract)",
+    "前端 types 对齐",
+    "wagmi 配置 + 冒烟测试"
+  ]
+}

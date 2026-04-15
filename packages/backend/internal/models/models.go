@@ -19,6 +19,7 @@ type Operator struct {
 	ID              uint      `gorm:"primarykey" json:"id"`
 	Name            string    `json:"name"`
 	Region          string    `json:"region"`
+	CountryCode     string    `gorm:"size:3" json:"country_code"`
 	RequiredDeposit string    `json:"required_deposit"`
 	IsActive        bool      `gorm:"default:true" json:"is_active"`
 	CreatedAt       time.Time `json:"created_at"`
@@ -40,6 +41,7 @@ type Bill struct {
 	Amount      string     `json:"amount"`
 	PlatformFee string     `json:"platform_fee"`
 	IsPaid      bool       `gorm:"default:false" json:"is_paid"`
+	TxHash      string     `json:"tx_hash,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	PaidAt      *time.Time `json:"paid_at,omitempty"`
 }

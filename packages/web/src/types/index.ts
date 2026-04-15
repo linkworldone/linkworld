@@ -35,6 +35,7 @@ export interface Operator {
   id: string;
   name: string;
   region: string;
+  countryCode?: string;
   requiredDeposit: bigint;
   dataRate: number;
   callRate: number;
@@ -79,4 +80,43 @@ export interface Notification {
   message: string;
   read: boolean;
   createdAt: string;
+}
+
+// --- Backend API response types (snake_case) ---
+export interface ApiUser {
+  id: number;
+  wallet_addr: string;
+  email: string;
+  token_id: number;
+  is_active: boolean;
+  registered_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiOperator {
+  id: number;
+  name: string;
+  region: string;
+  country_code: string;
+  required_deposit: string;
+  is_active: boolean;
+}
+
+export interface ApiBill {
+  id: number;
+  user_id: number;
+  operator_id: number;
+  amount: string;
+  platform_fee: string;
+  is_paid: boolean;
+  created_at: string;
+  paid_at?: string;
+  tx_hash?: string;
+}
+
+export interface ApiUsage {
+  data_usage: number;
+  call_usage: number;
+  signature: string;
 }

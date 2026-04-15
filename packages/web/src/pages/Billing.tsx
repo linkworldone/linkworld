@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/shared/BottomSheet";
 import { useBills, usePayBill } from "@/hooks/useBilling";
-import { formatDate, formatUSD } from "@/utils/format";
+import { formatDate, formatUSD, parseUnits } from "@/utils/format";
 import { Badge } from "@/components/ui/badge";
 
 type Filter = "unpaid" | "paid";
@@ -14,16 +14,24 @@ export default function Billing() {
   const { address } = useAccount();
   const [filter, setFilter] = useState<Filter>("unpaid");
   const { data: bills } = useBills(address, filter);
-  const payBill = usePayBill();
+  const { payBill, isContractPending, isSuccess, recordToBackend } = usePayBill();
   const [payingBillId, setPayingBillId] = useState<string | null>(null);
 
   const unpaidBills = bills?.filter((b) => b.status !== "paid") || [];
   const payingBill = bills?.find((b) => b.id === payingBillId);
 
-  const handlePay = async () => {
-    if (!payingBillId) return;
-    await payBill.mutateAsync(payingBillId);
-    setPayingBillId(null);
+  // 合约支付成功后同步后端
+  useEffect(() => {
+    if (isSuccess && payingBillId) {
+      recordToBackend(payingBillId);
+      setPayingBillId(null);
+    }
+  }, [isSuccess]);
+
+  const handlePay = () => {
+    if (!payingBillId || !payingBill) return;
+    const totalAmountWei = parseUnits(payingBill.totalAmount.toString());
+    payBill(BigInt(payingBillId), totalAmountWei);
   };
 
   return (
@@ -104,8 +112,8 @@ export default function Billing() {
                 <span>Deposit Balance</span>
               </div>
             </div>
-            <Button onClick={handlePay} disabled={payBill.isPending} className="w-full py-3">
-              {payBill.isPending ? "Processing..." : "Confirm Payment"}
+            <Button onClick={handlePay} disabled={isContractPending} className="w-full py-3">
+              {isContractPending ? "Processing..." : "Confirm Payment"}
             </Button>
           </>
         )}

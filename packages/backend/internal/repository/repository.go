@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"linkworld-backend/internal/models"
 
 	"gorm.io/gorm"
@@ -84,8 +86,13 @@ func (r *BillRepository) FindUnpaidByUserID(userID uint) ([]models.Bill, error) 
 	return bills, err
 }
 
-func (r *BillRepository) MarkAsPaid(id uint) error {
-	return r.db.Model(&models.Bill{}).Where("id = ?", id).Update("is_paid", true).Error
+func (r *BillRepository) MarkAsPaid(id uint, txHash string) error {
+	now := time.Now()
+	return r.db.Model(&models.Bill{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"is_paid": true,
+		"paid_at": now,
+		"tx_hash": txHash,
+	}).Error
 }
 
 type UserServiceRepository struct {

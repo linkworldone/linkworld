@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/shared/BottomSheet";
 import { useDeposit, useDepositHistory, useDepositMutation, useWithdrawMutation } from "@/hooks/useDeposit";
 import { AmountDisplay } from "@/components/shared/AmountDisplay";
-import { formatAmount, formatDate, parseUnits } from "@/utils/format";
+import { formatAmount, formatDate } from "@/utils/format";
 
 type SheetMode = "deposit" | "withdraw" | null;
 
@@ -23,19 +23,33 @@ export default function Deposit() {
     ? Number((deposit.balance * 100n) / deposit.minimumRequired)
     : 0;
 
-  const handleConfirm = async () => {
-    if (!address || !amount) return;
-    const wei = parseUnits(amount);
-    if (sheetMode === "deposit") {
-      await depositMutation.mutateAsync({ address, amount: wei, currency });
-    } else {
-      await withdrawMutation.mutateAsync({ address, amount: wei });
+  // 合约成功后同步后端
+  useEffect(() => {
+    if (depositMutation.isSuccess && amount) {
+      depositMutation.recordToBackend(amount);
+      setSheetMode(null);
+      setAmount("");
     }
-    setSheetMode(null);
-    setAmount("");
+  }, [depositMutation.isSuccess]);
+
+  useEffect(() => {
+    if (withdrawMutation.isSuccess) {
+      withdrawMutation.recordToBackend();
+      setSheetMode(null);
+      setAmount("");
+    }
+  }, [withdrawMutation.isSuccess]);
+
+  const handleConfirm = () => {
+    if (!address || !amount) return;
+    if (sheetMode === "deposit") {
+      depositMutation.deposit(amount);
+    } else {
+      withdrawMutation.withdraw();
+    }
   };
 
-  const isPending = depositMutation.isPending || withdrawMutation.isPending;
+  const isPending = depositMutation.isContractPending || withdrawMutation.isContractPending;
 
   return (
     <div className="px-4 space-y-4">
