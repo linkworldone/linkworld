@@ -13,16 +13,20 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    hardhat: {},
+    hardhat: {
+      chainId: 31337,
+    },
     og_mainnet: {
       url: "https://evmrpc.0g.ai",
       chainId: 16600,
       accounts: [DEPLOYER_KEY],
+      timeout: 60000,
     },
     og_testnet: {
       url: "https://evmrpc-testnet.0g.ai",
-      chainId: 16601,
+      chainId: 16602,
       accounts: [DEPLOYER_KEY],
+      timeout: 60000,
     },
   },
   paths: {

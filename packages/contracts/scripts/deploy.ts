@@ -8,38 +8,59 @@ async function main() {
   const UserRegistry = await ethers.getContractFactory("UserRegistry");
   const userRegistry = await UserRegistry.deploy();
   await userRegistry.waitForDeployment();
-  console.log("UserRegistry:", await userRegistry.getAddress());
+  const userRegistryAddr = await userRegistry.getAddress();
+  console.log("UserRegistry:", userRegistryAddr);
 
   // 2. FeeManager (250 = 2.5%)
   const FeeManager = await ethers.getContractFactory("FeeManager");
   const feeManager = await FeeManager.deploy(250);
   await feeManager.waitForDeployment();
-  console.log("FeeManager:", await feeManager.getAddress());
+  const feeManagerAddr = await feeManager.getAddress();
+  console.log("FeeManager:", feeManagerAddr);
 
-  // 3. Deposit
-  const Deposit = await ethers.getContractFactory("Deposit");
-  const deposit = await Deposit.deploy(await userRegistry.getAddress());
-  await deposit.waitForDeployment();
-  console.log("Deposit:", await deposit.getAddress());
-
-  // 4. ServiceManager
+  // 3. ServiceManager
   const ServiceManager = await ethers.getContractFactory("ServiceManager");
   const serviceManager = await ServiceManager.deploy();
   await serviceManager.waitForDeployment();
-  console.log("ServiceManager:", await serviceManager.getAddress());
+  const serviceManagerAddr = await serviceManager.getAddress();
+  console.log("ServiceManager:", serviceManagerAddr);
 
-  // 5. Payment
+  // 4. Payment
   const Payment = await ethers.getContractFactory("Payment");
-  const payment = await Payment.deploy(
-    await feeManager.getAddress(),
-    deployer.address // platformWallet
-  );
+  const payment = await Payment.deploy(feeManagerAddr, deployer.address);
   await payment.waitForDeployment();
-  console.log("Payment:", await payment.getAddress());
+  const paymentAddr = await payment.getAddress();
+  console.log("Payment:", paymentAddr);
 
-  // 关联 Deposit <-> Payment
-  await deposit.setPayment(await payment.getAddress());
-  console.log("Deposit linked to Payment");
+  // 5. Deposit
+  const Deposit = await ethers.getContractFactory("Deposit");
+  const deposit = await Deposit.deploy(userRegistryAddr);
+  await deposit.waitForDeployment();
+  const depositAddr = await deposit.getAddress();
+  console.log("Deposit:", depositAddr);
+
+  // 6. Oracle
+  const Oracle = await ethers.getContractFactory("Oracle");
+  const oracle = await Oracle.deploy(paymentAddr);
+  await oracle.waitForDeployment();
+  const oracleAddr = await oracle.getAddress();
+  console.log("Oracle:", oracleAddr);
+
+  // 关联合约
+  await deposit.setPayment(paymentAddr);
+  await deposit.setServiceManager(serviceManagerAddr);
+  console.log("Deposit linked to Payment and ServiceManager");
+
+  await payment.setOracle(oracleAddr);
+  console.log("Payment linked to Oracle");
+
+  console.log("\n=== Deployment Summary ===");
+  console.log("UserRegistry:", userRegistryAddr);
+  console.log("FeeManager:", feeManagerAddr);
+  console.log("ServiceManager:", serviceManagerAddr);
+  console.log("Payment:", paymentAddr);
+  console.log("Deposit:", depositAddr);
+  console.log("Oracle:", oracleAddr);
 }
 
 main().catch((error) => {
