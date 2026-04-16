@@ -25,7 +25,7 @@
       "id": "gate-3",
       "name": "Ship",
       "category": "ship",
-      "status": "active"
+      "status": "completed"
     }
   ],
   "stages": [
@@ -104,18 +104,20 @@
       "id": "ship",
       "name": "发布 PR",
       "gate": "gate-3",
-      "status": "pending",
+      "status": "completed",
+      "completedAt": "2026-04-15",
       "dependsOn": ["review"]
     },
     {
       "id": "monitor",
       "name": "复盘",
       "gate": "gate-3",
-      "status": "pending",
+      "status": "completed",
+      "completedAt": "2026-04-15",
       "dependsOn": ["ship"]
     }
   ],
-  "currentStage": "ship",
+  "currentStage": "monitor",
   "projectSkills": {
     "stageMapping": {
       "scan": ["health"],

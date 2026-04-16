@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,21 @@ export default function RegionDetail() {
 
   const region = regions?.find((r) => r.code === regionCode);
   const [selectedOp, setSelectedOp] = useState<string | null>(null);
+  const pendingServiceRef = useRef<{ operatorId: string; virtualNumber: string; password: string } | null>(null);
 
   const isApplying = txState.status === "pending-signature" || txState.status === "pending-confirmation";
 
-  // 合约成功后刷新号码列表
+  // 合约成功后同步后端并刷新号码列表
   useEffect(() => {
-    if (txState.status === "success") {
+    if (txState.status === "success" && address && pendingServiceRef.current) {
+      const { operatorId, virtualNumber, password } = pendingServiceRef.current;
+      apiClient.post("/api/service/activate", {
+        wallet: address,
+        operator_id: Number(operatorId),
+        virtual_number: virtualNumber,
+        password: password,
+      }).catch((err: any) => console.error("Backend sync failed:", err));
+      pendingServiceRef.current = null;
       invalidate();
       setSelectedOp(null);
     }
@@ -29,10 +38,18 @@ export default function RegionDetail() {
 
   const handleApply = async () => {
     if (!address || !selectedOp) return;
-    // 先从后端生成虚拟号码
-    const { data } = await apiClient.post<{ virtualNumber: string; password: string }>("/api/virtual-number/generate", { operatorId: selectedOp });
-    // 再调合约激活
-    applyNumber(BigInt(selectedOp), data.virtualNumber, data.password);
+    try {
+      // 后端期望 country_code，从 regionCode 获取
+      const result = await apiClient.post("/api/virtual-number/generate", { country_code: regionCode }) as any;
+      const virtualNumber = result.virtual_number;
+      const password = result.password;
+      // 存下来供合约成功后同步后端
+      pendingServiceRef.current = { operatorId: selectedOp, virtualNumber, password };
+      // 调合约激活
+      applyNumber(BigInt(selectedOp), virtualNumber, password);
+    } catch (err) {
+      console.error("Failed to generate virtual number:", err);
+    }
   };
 
   const selectedOperator = operators?.find((o) => o.id === selectedOp);

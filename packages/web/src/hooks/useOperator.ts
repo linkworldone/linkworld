@@ -33,12 +33,24 @@ export function useMyNumbers(address?: string) {
       try {
         const service = await apiClient.get<any, any>(`/api/service/${address}`);
         if (service && service.virtual_number) {
+          // 查 operator 信息
+          let operatorName = String(service.operator_id);
+          let region = "";
+          try {
+            const operators = await apiClient.get<any, any[]>("/api/operators");
+            const op = operators?.find((o: any) => o.id === service.operator_id);
+            if (op) {
+              operatorName = op.name;
+              region = op.country_code || op.region || "";
+            }
+          } catch {}
+
           return [{
             id: String(service.id),
             number: service.virtual_number,
-            region: "",
-            operator: String(service.operator_id),
-            status: service.is_active ? "active" : "inactive",
+            region,
+            operator: operatorName,
+            status: service.is_active ? "active" as const : "inactive" as const,
             activatedAt: service.activated_at,
             credentials: { type: "voip" as const, config: `SIP: ${service.virtual_number}` },
           }] as VirtualNumber[];

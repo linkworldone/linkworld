@@ -15,17 +15,19 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
 
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const sendCode = useSendVerificationCode();
   const verifyEmail = useVerifyEmail();
   const { register, backendSync, isContractPending, isSuccess } = useRegister();
 
-  // 合约注册成功后，同步后端
+  // 合约注册成功 → useRegister 内部 useEffect 自动调 backendSync
+  // 这里只处理页面跳转
   useEffect(() => {
-    if (isSuccess && address && email) {
-      backendSync.mutate({ wallet: address, email });
+    if (backendSync.isSuccess) {
       onSuccess();
     }
-  }, [isSuccess]);
+  }, [backendSync.isSuccess]);
 
   const handleSendCode = async () => {
     await sendCode.mutateAsync({ address, email });
@@ -59,7 +61,10 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
                 placeholder="your@email.com"
                 className="w-full px-4 py-3 bg-surface-secondary rounded-xl text-text-primary text-sm outline-none border border-border focus:border-brand-blue mb-4"
               />
-              <Button onClick={handleSendCode} disabled={!email || sendCode.isPending} className="w-full py-3">
+              {email && !isValidEmail && (
+                <p className="text-xs text-status-danger mb-2">请输入有效的邮箱地址</p>
+              )}
+              <Button onClick={handleSendCode} disabled={!isValidEmail || sendCode.isPending} className="w-full py-3">
                 {sendCode.isPending ? "Sending..." : "Send Verification Code"}
               </Button>
             </>

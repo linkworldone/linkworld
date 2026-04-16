@@ -67,7 +67,7 @@ export function useTxState(params: {
   if (isSuccess) {
     return { status: "success", txHash: hash };
   }
-  if (isConfirming) {
+  if (isConfirming && hash) {
     return { status: "pending-confirmation", txHash: hash };
   }
   if (isPending) {

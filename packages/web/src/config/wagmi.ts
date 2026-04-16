@@ -7,7 +7,7 @@ const chain = isLocalChain ? hardhatLocal : zgTestnet;
 
 export const wagmiConfig = getDefaultConfig({
   appName: "LinkWorld",
-  projectId: "linkworld-dev",
+  projectId: "21fef48091f12692cad574a6f7753643",
   chains: [chain],
   transports: {
     [chain.id]: http(),

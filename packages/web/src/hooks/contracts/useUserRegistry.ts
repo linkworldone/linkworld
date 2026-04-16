@@ -27,7 +27,7 @@ export function useContractRegister() {
   const chainId = useChainId();
   const { data: hash, isPending, error, writeContract } = useWriteContract();
 
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+  const { isPending: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   });
 
