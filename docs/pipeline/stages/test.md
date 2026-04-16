@@ -1,29 +1,33 @@
-# Stage: test — 测试
+# 测试阶段产出 — LinkWorld 全栈联调 (Round 2)
 
-> **状态**: completed | **日期**: 2026-04-13 | **Gate**: 3
+> 2026-04-15
 
-## 产出摘要
+## 编译验证
 
-通过 TypeScript 严格检查、生产构建和文件完整性审计验证前端应用的正确性。
+| 端 | 工具 | 结果 |
+|----|------|------|
+| 前端 | `npx tsc --noEmit` | ✅ 零错误 |
+| 前端 | `pnpm dev` (Vite) | ✅ 启动成功 (localhost:3000) |
+| 后端 | `go build ./...` | ✅ 编译通过 |
+| 合约 | `npx hardhat test` | ✅ 2/2 测试通过 |
+| 合约 | `npx hardhat compile` | ✅ 8 个 Solidity 文件编译通过 |
 
-## 测试结果
+## 页面适配修复
 
-| 检查项 | 结果 |
-|--------|------|
-| TypeScript strict (tsc --noEmit) | PASS / 0 errors |
-| Production build (pnpm build) | PASS / 5.40s |
-| 文件完整性 (42/42) | PASS |
-| 占位页面检查 | PASS / 无占位页面 |
+TypeScript 编译发现 5 个页面/组件使用旧 hook API（`.mutateAsync` / `.isPending`），已全部修复：
+- RegisterSheet.tsx → useRegister 新 API + useEffect 同步后端
+- Deposit.tsx → useDepositMutation/useWithdrawMutation 新 API
+- Billing.tsx → usePayBill 新 API + parseEther 计算
+- BillDetail.tsx → 同 Billing 模式
+- RegionDetail.tsx → useApplyNumber + apiClient 生成号码
 
-## 关键决策
+## 已知限制（非阻塞）
 
-| # | 决策 | 理由 |
-|---|------|------|
-| 1 | 无单元测试框架 | Mock 阶段以类型安全 + 构建验证为主，后续接入真实 API 时补测试 |
+1. 通知功能仍使用 mock（后端无通知 API）
+2. 充值历史暂返回空数组（后端无 history 端点）
+3. 单笔账单详情从列表缓存取（后端无单笔查询端点）
+4. 运营商 dataRate/callRate 使用默认值（后端未返回）
 
-## 产出文件
+## 结论
 
-| 文件 | 内容 |
-|------|------|
-| docs/pipeline/checkpoints/stage-test-done.md | 测试 checkpoint |
-| docs/pipeline/stages/test.md | 本文件 |
+三端代码全部编译通过，无阻塞错误。基础设施层（ABI、API client、合约 hooks、双写补偿）已搭建完成，页面层已适配新 hook API。

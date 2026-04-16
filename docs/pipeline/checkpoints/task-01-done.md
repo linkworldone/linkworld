@@ -1,46 +1,5 @@
-# Checkpoint: Task 1 — Types, Mock Data & Services
-
-> **完成时间**: 2026-04-13
-
-### 产出文件
-- src/types/index.ts (全部接口定义)
-- src/utils/format.ts (格式化工具)
-- src/services/mock/delay.ts (延迟模拟)
-- src/services/mock/data.ts (Mock 数据 + 状态管理)
-- src/services/mock/userService.ts
-- src/services/mock/depositService.ts
-- src/services/mock/billingService.ts
-- src/services/mock/operatorService.ts
-- src/services/mock/notificationService.ts
-- src/services/index.ts (统一导出)
-
-### git commit
-8dc3341
-
-### TDD
-N/A — mock service layer, tested via tsc type check
-
-### Figma 还原
-N/A
-
-### 测试结果
-npx tsc --noEmit: PASS (0 errors)
-
-### code-simplifier
-N/A — data layer, follows plan exactly
-
-### spec review
-- getUserProfile returns User|null (arch-review fix)
-- sendVerificationCode added (arch-review fix)
-- Bill amounts use string not number (arch-review risk fix)
-- VirtualNumber has credentials field (eSIM/VoIP)
-- All services have delay() for loading state testing
-
-### 复用检查
-N/A — all new files
-
-### 设计稿对照
-接口签名与设计规格 Section 8 完全一致。
-
-### 偏差记录
-无偏差。
+### Task 1: 前端合约 ABI + 地址配置
+- **状态**: DONE
+- **产出**: 7 个新文件（5 个 ABI + abis/index.ts + contracts.ts）
+- **变更**: 从 artifacts 提取 5 个合约 ABI，配置 localhost 合约地址（从 deployments/localhost.json 读取），含 getContractAddress 工具函数
+- **验证**: 文件创建成功，地址与部署输出一致

@@ -76,6 +76,10 @@ func (s *BillingService) GetBills(wallet string) ([]models.Bill, error) {
 	return s.billRepo.FindByUserID(user.ID)
 }
 
+func (s *BillingService) MarkAsPaid(billID uint, txHash string) error {
+	return s.billRepo.MarkAsPaid(billID, txHash)
+}
+
 func (s *BillingService) GetUnpaidBills(wallet string) ([]models.Bill, error) {
 	user, err := s.userRepo.FindByWallet(wallet)
 	if err != nil {

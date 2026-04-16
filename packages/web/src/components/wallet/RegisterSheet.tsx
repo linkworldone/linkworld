@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Drawer } from "vaul";
 import { Button } from "@/components/ui/button";
 import { useRegister, useSendVerificationCode, useVerifyEmail } from "@/hooks/useUser";
@@ -17,7 +17,15 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
 
   const sendCode = useSendVerificationCode();
   const verifyEmail = useVerifyEmail();
-  const register = useRegister();
+  const { register, backendSync, isContractPending, isSuccess } = useRegister();
+
+  // 合约注册成功后，同步后端
+  useEffect(() => {
+    if (isSuccess && address && email) {
+      backendSync.mutate({ wallet: address, email });
+      onSuccess();
+    }
+  }, [isSuccess]);
 
   const handleSendCode = async () => {
     await sendCode.mutateAsync({ address, email });
@@ -27,8 +35,7 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
   const handleVerify = async () => {
     const verified = await verifyEmail.mutateAsync({ address, code });
     if (verified) {
-      await register.mutateAsync({ address, email });
-      onSuccess();
+      register(email);
     }
   };
 
@@ -66,8 +73,8 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
                 maxLength={6}
                 className="w-full px-4 py-3 bg-surface-secondary rounded-xl text-text-primary text-sm outline-none border border-border focus:border-brand-blue mb-4 text-center tracking-widest text-lg"
               />
-              <Button onClick={handleVerify} disabled={code.length < 6 || verifyEmail.isPending || register.isPending} className="w-full py-3">
-                {verifyEmail.isPending || register.isPending ? "Verifying..." : "Verify & Register"}
+              <Button onClick={handleVerify} disabled={code.length < 6 || verifyEmail.isPending || isContractPending} className="w-full py-3">
+                {verifyEmail.isPending || isContractPending ? "Verifying..." : "Verify & Register"}
               </Button>
             </>
           )}

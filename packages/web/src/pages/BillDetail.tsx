@@ -1,22 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/shared/BottomSheet";
 import { Badge } from "@/components/ui/badge";
 import { useBillDetail, usePayBill } from "@/hooks/useBilling";
-import { formatUSD, formatDate } from "@/utils/format";
+import { formatUSD, formatDate, parseUnits } from "@/utils/format";
 
 export default function BillDetail() {
   const { billId } = useParams<{ billId: string }>();
   const { data: bill } = useBillDetail(billId);
-  const payBill = usePayBill();
+  const { payBill, isContractPending, isSuccess, recordToBackend } = usePayBill();
   const [showPay, setShowPay] = useState(false);
+
+  // 合约支付成功后同步后端
+  useEffect(() => {
+    if (isSuccess && bill) {
+      recordToBackend(bill.id);
+      setShowPay(false);
+    }
+  }, [isSuccess]);
 
   if (!bill) return <div className="p-4 text-text-secondary text-sm">Loading...</div>;
 
-  const handlePay = async () => {
-    await payBill.mutateAsync(bill.id);
-    setShowPay(false);
+  const handlePay = () => {
+    const totalAmountWei = parseUnits(bill.totalAmount.toString());
+    payBill(BigInt(bill.id), totalAmountWei);
   };
 
   return (
@@ -76,8 +84,8 @@ export default function BillDetail() {
             <span className="font-bold">{formatUSD(bill.totalAmount)}</span>
           </div>
         </div>
-        <Button onClick={handlePay} disabled={payBill.isPending} className="w-full py-3">
-          {payBill.isPending ? "Processing..." : "Confirm Payment"}
+        <Button onClick={handlePay} disabled={isContractPending} className="w-full py-3">
+          {isContractPending ? "Processing..." : "Confirm Payment"}
         </Button>
       </BottomSheet>
     </div>

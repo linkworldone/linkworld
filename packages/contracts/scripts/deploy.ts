@@ -1,4 +1,6 @@
 import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -61,6 +63,25 @@ async function main() {
   console.log("Payment:", paymentAddr);
   console.log("Deposit:", depositAddr);
   console.log("Oracle:", oracleAddr);
+
+  // 输出合约地址 JSON
+  const addresses = {
+    chainId: 31337,
+    UserRegistry: userRegistryAddr,
+    FeeManager: feeManagerAddr,
+    ServiceManager: serviceManagerAddr,
+    Payment: paymentAddr,
+    Deposit: depositAddr,
+    Oracle: oracleAddr,
+  };
+
+  const deploymentsDir = path.resolve(__dirname, "../deployments");
+  fs.mkdirSync(deploymentsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(deploymentsDir, "localhost.json"),
+    JSON.stringify(addresses, null, 2)
+  );
+  console.log("Addresses written to deployments/localhost.json");
 }
 
 main().catch((error) => {

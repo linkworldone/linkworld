@@ -1,25 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/shared/BottomSheet";
 import { useOperatorsByRegion, useApplyNumber, useRegions } from "@/hooks/useOperator";
 import { formatAmount } from "@/utils/format";
+import { apiClient } from "@/services/api/client";
 
 export default function RegionDetail() {
   const { regionCode } = useParams<{ regionCode: string }>();
   const { address } = useAccount();
   const { data: regions } = useRegions();
   const { data: operators } = useOperatorsByRegion(regionCode);
-  const applyNumber = useApplyNumber();
+  const { applyNumber, txState, invalidate } = useApplyNumber();
 
   const region = regions?.find((r) => r.code === regionCode);
   const [selectedOp, setSelectedOp] = useState<string | null>(null);
 
+  const isApplying = txState.status === "pending-signature" || txState.status === "pending-confirmation";
+
+  // 合约成功后刷新号码列表
+  useEffect(() => {
+    if (txState.status === "success") {
+      invalidate();
+      setSelectedOp(null);
+    }
+  }, [txState.status]);
+
   const handleApply = async () => {
     if (!address || !selectedOp) return;
-    await applyNumber.mutateAsync({ address, operatorId: selectedOp });
-    setSelectedOp(null);
+    // 先从后端生成虚拟号码
+    const { data } = await apiClient.post<{ virtualNumber: string; password: string }>("/api/virtual-number/generate", { operatorId: selectedOp });
+    // 再调合约激活
+    applyNumber(BigInt(selectedOp), data.virtualNumber, data.password);
   };
 
   const selectedOperator = operators?.find((o) => o.id === selectedOp);
@@ -74,8 +87,8 @@ export default function RegionDetail() {
                 <span className="font-semibold">{formatAmount(selectedOperator.requiredDeposit)} USDT</span>
               </div>
             </div>
-            <Button onClick={handleApply} disabled={applyNumber.isPending} className="w-full py-3">
-              {applyNumber.isPending ? "Applying..." : "Confirm Application"}
+            <Button onClick={handleApply} disabled={isApplying} className="w-full py-3">
+              {isApplying ? "Applying..." : "Confirm Application"}
             </Button>
           </>
         )}

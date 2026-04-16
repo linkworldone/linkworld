@@ -1,12 +1,15 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { http } from "wagmi";
-import { zgTestnet } from "./chains";
+import { hardhatLocal, zgTestnet } from "./chains";
+
+const isLocalChain = import.meta.env.VITE_CHAIN_ID === "31337";
+const chain = isLocalChain ? hardhatLocal : zgTestnet;
 
 export const wagmiConfig = getDefaultConfig({
   appName: "LinkWorld",
   projectId: "linkworld-dev",
-  chains: [zgTestnet],
+  chains: [chain],
   transports: {
-    [zgTestnet.id]: http(),
+    [chain.id]: http(),
   },
 });

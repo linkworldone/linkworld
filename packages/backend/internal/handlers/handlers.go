@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"linkworld-backend/internal/services"
@@ -48,8 +49,9 @@ func NewHandler(
 }
 
 type RegisterRequest struct {
-	Wallet string `json:"wallet" binding:"required"`
-	Email  string `json:"email" binding:"required,email"`
+	Wallet  string `json:"wallet" binding:"required"`
+	Email   string `json:"email" binding:"required,email"`
+	TokenID uint   `json:"token_id"`
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -59,7 +61,7 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	err := h.userService.Register(req.Wallet, req.Email, 0)
+	err := h.userService.Register(req.Wallet, req.Email, req.TokenID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -159,12 +161,15 @@ func (h *Handler) GetDeposit(c *gin.Context) {
 func (h *Handler) Withdraw(c *gin.Context) {
 	var req struct {
 		Wallet string `json:"wallet" binding:"required"`
+		TxHash string `json:"tx_hash"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Withdraw request submitted, please wait for blockchain confirmation"})
+	// Withdrawal is completed on-chain; backend only acknowledges the event
+	log.Printf("Withdraw acknowledged for wallet=%s tx=%s", req.Wallet, req.TxHash)
+	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal acknowledged"})
 }
 
 func (h *Handler) GetBills(c *gin.Context) {
@@ -178,7 +183,21 @@ func (h *Handler) GetBills(c *gin.Context) {
 }
 
 func (h *Handler) PayBill(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Bill paid"})
+	var req struct {
+		Wallet string `json:"wallet" binding:"required"`
+		BillID uint   `json:"bill_id" binding:"required"`
+		TxHash string `json:"tx_hash"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	err := h.billingService.MarkAsPaid(req.BillID, req.TxHash)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Bill paid successfully"})
 }
 
 type GenerateVirtualNumberRequest struct {
