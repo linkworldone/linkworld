@@ -12,6 +12,7 @@ interface IOracle {
     }
 
     event UsageDataSubmitted(address indexed user, uint256 operatorId, uint256 dataUsage, uint256 callUsage);
+    event InterestRateUpdated(uint256 rate);
 
     function submitUsage(
         address user,
@@ -21,4 +22,7 @@ interface IOracle {
     ) external;
 
     function getLatestUsage(address user, uint256 operatorId) external view returns (uint256 dataUsage, uint256 callUsage, uint256 timestamp);
+    
+    function updateInterestRateFromAPI(uint256 rate) external;
+    function setDeposit(address _deposit) external;
 }

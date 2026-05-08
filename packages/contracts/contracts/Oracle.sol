@@ -4,10 +4,12 @@ pragma solidity ^0.8.27;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IOracle.sol";
 import "./interfaces/IPayment.sol";
+import "./interfaces/IDeposit.sol";
 
 /// @title Oracle - 计量预言机（从运营商获取账单并分发至用户）
 contract Oracle is IOracle, Ownable {
     IPayment public payment;
+    IDeposit public deposit; // 关联 Deposit 合约用于利率更新
     
     mapping(address => mapping(uint256 => UsageInfo)) private _latestUsage;
 
@@ -23,6 +25,18 @@ contract Oracle is IOracle, Ownable {
 
     function setPayment(address _payment) external onlyOwner {
         payment = IPayment(_payment);
+    }
+
+    /// @notice 设置 Deposit 合约地址
+    function setDeposit(address _deposit) external onlyOwner {
+        deposit = IDeposit(_deposit);
+    }
+
+    /// @notice 从 API 更新利率（由管理员调用，传入从 Binance 获取的利率）
+    function updateInterestRateFromAPI(uint256 rate) external onlyOwner {
+        require(address(deposit) != address(0), "Deposit not set");
+        deposit.updateInterestRate(rate);
+        emit InterestRateUpdated(rate);
     }
 
     /// @notice 预言机提交使用数据（由预言机角色调用）
