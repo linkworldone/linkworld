@@ -49,7 +49,7 @@ We solve real pain points for travelers, digital nomads, and cross-border worker
 
 - **Email**: linkworldone@outlook.com
 - **X**: (Link to be updated)
-- **Telegram**: [@linkworldteam]
+- **Telegram**: [@linkworldteam](https://t.me/linkworldteam)
 
 ---
 
