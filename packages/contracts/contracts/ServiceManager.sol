@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IServiceManager.sol";
 
-/// @title ServiceManager - 运营商信息存储管理与用户服务
-contract ServiceManager is IServiceManager, Ownable {
+/// @title ServiceManager - 运营商信息存储管理与用户服务（可升级版）
+contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable {
     uint256 private _nextOperatorId;
     mapping(uint256 => Operator) private _operators;
     uint256[] private _activeOperatorIds;
@@ -13,7 +14,11 @@ contract ServiceManager is IServiceManager, Ownable {
 
     mapping(address => UserService) private _userServices;
 
-    constructor() Ownable(msg.sender) {
+    /// @inheritdoc IServiceManager
+    function initialize() public initializer {
+        __Ownable_init(msg.sender);
+        // __UUPSUpgradeable_init() not needed
+
         _nextOperatorId = 1;
         
         _operators[1] = Operator({
@@ -248,4 +253,7 @@ contract ServiceManager is IServiceManager, Ownable {
     function getUserService(address user) external view returns (UserService memory) {
         return _userServices[user];
     }
+
+    /// @inheritdoc UUPSUpgradeable
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }

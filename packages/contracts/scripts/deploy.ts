@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -6,44 +6,62 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with:", deployer.address);
 
-  // 1. UserRegistry
+  // 1. UserRegistry (无依赖)
   const UserRegistry = await ethers.getContractFactory("UserRegistry");
-  const userRegistry = await UserRegistry.deploy();
+  const userRegistry = await upgrades.deployProxy(UserRegistry, [], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
   await userRegistry.waitForDeployment();
   const userRegistryAddr = await userRegistry.getAddress();
   console.log("UserRegistry:", userRegistryAddr);
 
-  // 2. FeeManager (250 = 2.5%)
+  // 2. FeeManager (无依赖，initializer: initialize(uint256))
   const FeeManager = await ethers.getContractFactory("FeeManager");
-  const feeManager = await FeeManager.deploy(250);
+  const feeManager = await upgrades.deployProxy(FeeManager, [250], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
   await feeManager.waitForDeployment();
   const feeManagerAddr = await feeManager.getAddress();
   console.log("FeeManager:", feeManagerAddr);
 
-  // 3. ServiceManager
+  // 3. ServiceManager (无依赖)
   const ServiceManager = await ethers.getContractFactory("ServiceManager");
-  const serviceManager = await ServiceManager.deploy();
+  const serviceManager = await upgrades.deployProxy(ServiceManager, [], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
   await serviceManager.waitForDeployment();
   const serviceManagerAddr = await serviceManager.getAddress();
   console.log("ServiceManager:", serviceManagerAddr);
 
-  // 4. Payment
+  // 4. Payment (依赖 FeeManager)
   const Payment = await ethers.getContractFactory("Payment");
-  const payment = await Payment.deploy(feeManagerAddr, deployer.address);
+  const payment = await upgrades.deployProxy(Payment, [feeManagerAddr, deployer.address], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
   await payment.waitForDeployment();
   const paymentAddr = await payment.getAddress();
   console.log("Payment:", paymentAddr);
 
-  // 5. Deposit
+  // 5. Deposit (依赖 UserRegistry)
   const Deposit = await ethers.getContractFactory("Deposit");
-  const deposit = await Deposit.deploy(userRegistryAddr);
+  const deposit = await upgrades.deployProxy(Deposit, [userRegistryAddr], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
   await deposit.waitForDeployment();
   const depositAddr = await deposit.getAddress();
   console.log("Deposit:", depositAddr);
 
-  // 6. Oracle
+  // 6. Oracle (依赖 Payment)
   const Oracle = await ethers.getContractFactory("Oracle");
-  const oracle = await Oracle.deploy(paymentAddr);
+  const oracle = await upgrades.deployProxy(Oracle, [paymentAddr], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
   await oracle.waitForDeployment();
   const oracleAddr = await oracle.getAddress();
   console.log("Oracle:", oracleAddr);
@@ -51,10 +69,15 @@ async function main() {
   // 关联合约
   await deposit.setPayment(paymentAddr);
   await deposit.setServiceManager(serviceManagerAddr);
-  console.log("Deposit linked to Payment and ServiceManager");
+  await deposit.setOracle(oracleAddr);
+  console.log("Deposit linked to Payment, ServiceManager, Oracle");
 
   await payment.setOracle(oracleAddr);
-  console.log("Payment linked to Oracle");
+  await payment.setDeposit(depositAddr);
+  console.log("Payment linked to Oracle and Deposit");
+
+  await oracle.setDeposit(depositAddr);
+  console.log("Oracle linked to Deposit");
 
   console.log("\n=== Deployment Summary ===");
   console.log("UserRegistry:", userRegistryAddr);
@@ -64,15 +87,25 @@ async function main() {
   console.log("Deposit:", depositAddr);
   console.log("Oracle:", oracleAddr);
 
-  // 输出合约地址 JSON
+  // 输出合约地址 JSON (同时保存实现地址用于后续升级)
   const addresses = {
     chainId: 31337,
-    UserRegistry: userRegistryAddr,
-    FeeManager: feeManagerAddr,
-    ServiceManager: serviceManagerAddr,
-    Payment: paymentAddr,
-    Deposit: depositAddr,
-    Oracle: oracleAddr,
+    proxies: {
+      UserRegistry: userRegistryAddr,
+      FeeManager: feeManagerAddr,
+      ServiceManager: serviceManagerAddr,
+      Payment: paymentAddr,
+      Deposit: depositAddr,
+      Oracle: oracleAddr,
+    },
+    implementations: {
+      UserRegistry: await upgrades.erc1967.getImplementationAddress(userRegistryAddr),
+      FeeManager: await upgrades.erc1967.getImplementationAddress(feeManagerAddr),
+      ServiceManager: await upgrades.erc1967.getImplementationAddress(serviceManagerAddr),
+      Payment: await upgrades.erc1967.getImplementationAddress(paymentAddr),
+      Deposit: await upgrades.erc1967.getImplementationAddress(depositAddr),
+      Oracle: await upgrades.erc1967.getImplementationAddress(oracleAddr),
+    }
   };
 
   const deploymentsDir = path.resolve(__dirname, "../deployments");

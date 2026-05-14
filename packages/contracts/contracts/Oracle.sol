@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IOracle.sol";
 import "./interfaces/IPayment.sol";
 import "./interfaces/IDeposit.sol";
 
-/// @title Oracle - 计量预言机（从运营商获取账单并分发至用户）
-contract Oracle is IOracle, Ownable {
+/// @title Oracle - 计量预言机（从运营商获取账单并分发至用户，可升级版）
+contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
     IPayment public payment;
     IDeposit public deposit; // 关联 Deposit 合约
     
@@ -22,7 +23,11 @@ contract Oracle is IOracle, Ownable {
     // 添加月末结算完成事件（接口中无，仅在合约内）
     event MonthlySettlementCompleted(uint256 timestamp);
 
-    constructor(address _payment) Ownable(msg.sender) {
+    /// @inheritdoc IOracle
+    function initialize(address _payment) public initializer {
+        __Ownable_init(msg.sender);
+        // __UUPSUpgradeable_init() not needed
+
         payment = IPayment(_payment);
     }
 
@@ -82,7 +87,7 @@ contract Oracle is IOracle, Ownable {
         uint256 operatorId,
         uint256 dataUsage,
         uint256 callUsage
-    ) external onlyOwner {
+    ) public onlyOwner {
         require(user != address(0), "Invalid user");
         require(dataUsage > 0 || callUsage > 0, "Zero usage");
 
@@ -104,6 +109,7 @@ contract Oracle is IOracle, Ownable {
         UsageInfo memory info = _latestUsage[user][operatorId];
         return (info.dataUsage, info.callUsage, info.timestamp);
     }
-}
 
-// 补充事件定义（在合约外部，实际应放在合约内）
+    /// @inheritdoc UUPSUpgradeable
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+}

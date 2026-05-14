@@ -1,16 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IUserRegistry.sol";
 
-/// @title UserRegistry - 用户注册与 NFT 身份凭证
-contract UserRegistry is IUserRegistry, ERC721, Ownable {
+/// @title UserRegistry - 用户注册与 NFT 身份凭证（可升级版）
+contract UserRegistry is IUserRegistry, ERC721URIStorageUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 private _nextTokenId;
     mapping(address => UserInfo) private _users;
 
-    constructor() ERC721("LinkWorld Identity", "LWID") Ownable(msg.sender) {}
+    /// @inheritdoc IUserRegistry
+    function initialize() public initializer {
+        __ERC721_init("LinkWorld Identity", "LWID");
+        __ERC721URIStorage_init_unchained();
+        __Ownable_init(msg.sender);
+        // __UUPSUpgradeable_init() not needed
+    }
 
     function register(string calldata email) external {
         require(!_users[msg.sender].isActive, "Already registered");
@@ -37,4 +44,7 @@ contract UserRegistry is IUserRegistry, ERC721, Ownable {
     function isRegistered(address wallet) external view returns (bool) {
         return _users[wallet].isActive;
     }
+
+    /// @inheritdoc UUPSUpgradeable
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }

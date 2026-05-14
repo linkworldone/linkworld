@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IPayment.sol";
 import "./interfaces/IFeeManager.sol";
 import "./interfaces/IDeposit.sol";
 
-/// @title Payment - 支付结算（服务商费用 + 平台手续费 + 流量卡抵扣）
-contract Payment is IPayment, Ownable, ReentrancyGuard {
+/// @title Payment - 支付结算（服务商费用 + 平台手续费 + 流量卡抵扣，可升级版）
+contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeable {
     IFeeManager public feeManager;
     IDeposit public deposit;
 
@@ -24,12 +25,21 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(
+    /// @inheritdoc IPayment
+    function initialize(
         address _feeManager,
         address _platformWallet
-    ) Ownable(msg.sender) {
+    ) public initializer {
+        __Ownable_init(msg.sender);
+        _reentrancyGuardInit();
+
         feeManager = IFeeManager(_feeManager);
         platformWallet = _platformWallet;
+    }
+
+    // 内部 ReentrancyGuard 初始化
+    function _reentrancyGuardInit() internal {
+        _reentrancyGuardStorageSlot().getUint256Slot().value = 1; // NOT_ENTERED = 1
     }
 
     function setOracle(address _oracle) external onlyOwner {
@@ -38,6 +48,10 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
 
     function setPlatformWallet(address _platformWallet) external onlyOwner {
         platformWallet = _platformWallet;
+    }
+
+    function setDeposit(address _deposit) external onlyOwner {
+        deposit = IDeposit(_deposit);
     }
 
     function setDeposit(address _deposit) external onlyOwner {
@@ -115,9 +129,6 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
         emit BillPaid(billId, msg.sender, total);
     }
 
-        emit BillPaid(billId, msg.sender, total);
-    }
-
     function getUserBills(address user) external view returns (Bill[] memory) {
         uint256[] memory ids = _userBillIds[user];
         Bill[] memory bills = new Bill[](ids.length);
@@ -185,4 +196,7 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
             }
         }
     }
+
+    /// @inheritdoc UUPSUpgradeable
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
