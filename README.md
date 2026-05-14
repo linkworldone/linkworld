@@ -48,7 +48,7 @@ We solve real pain points for travelers, digital nomads, and cross-border worker
 ## Contact
 
 - **Email**: linkworldone@outlook.com
-- **X**: (Link to be updated)
+- **X**: https://x.com/Mandyzix
 - **Telegram**: [@linkworldteam](https://t.me/linkworldteam)
 
 ---
