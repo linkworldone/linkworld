@@ -14,21 +14,26 @@ contract Deposit is IDeposit, Ownable, ReentrancyGuard {
     IPayment public payment;
     IServiceManager public serviceManager;
 
-    // ========== 利息相关状态变量 ==========
-    uint256 public interestRate; // 当前年化利率（基点表示，如 500 = 5%）
-    uint256 public lastRateUpdate; // 上次利率更新时间
-    uint256 public constant SECONDS_PER_YEAR = 365 days;
-    uint256 public constant RATE_DENOMINATOR = 10000;
+    address public oracle; // 预言机地址，有权触发流量卡发放
 
+    // ========== 流量卡相关状态变量 ==========
+    uint256 public trafficCardQuota; // 流量卡额度（字节），默认 100M
+    mapping(address => uint256) private _trafficCardBalances; // 用户流量卡余额
+    mapping(address => uint256) private _lastWithdrawTimestamp; // 用户最后提款时间戳
+    mapping(address => mapping(uint256 => bool)) private _monthlyCardIssued; // 用户×月份 → 是否已发放
+
+    // ========== 保证金相关状态变量 ==========
     mapping(address => uint256) private _deposits;
     mapping(uint256 => uint256) private _operatorRequiredDeposit;
-    
-    // 记录用户存款时间戳
-    mapping(address => uint256) private _depositTimestamps;
+
+    modifier onlyOracle() {
+        require(msg.sender == oracle, "Only oracle");
+        _;
+    }
 
     constructor(address _userRegistry) Ownable(msg.sender) {
         userRegistry = IUserRegistry(_userRegistry);
-        lastRateUpdate = block.timestamp;
+        trafficCardQuota = 100 * 1024 * 1024; // 默认 100M
     }
 
     function setPayment(address _payment) external onlyOwner {
@@ -43,17 +48,15 @@ contract Deposit is IDeposit, Ownable, ReentrancyGuard {
         _operatorRequiredDeposit[operatorId] = amount;
     }
 
+    function setOracle(address _oracle) external onlyOwner {
+        oracle = _oracle;
+    }
+
     function deposit() external payable {
         require(userRegistry.isRegistered(msg.sender), "Not registered");
         require(msg.value > 0, "Zero deposit");
 
         _deposits[msg.sender] += msg.value;
-        
-        // 如果是首次存款，记录时间戳
-        if (_depositTimestamps[msg.sender] == 0) {
-            _depositTimestamps[msg.sender] = block.timestamp;
-        }
-        
         emit DepositMade(msg.sender, msg.value);
     }
 
@@ -71,40 +74,77 @@ contract Deposit is IDeposit, Ownable, ReentrancyGuard {
         }
 
         uint256 principal = _deposits[msg.sender];
-        uint256 interest = calculateInterest(msg.sender);
-        uint256 total = principal + interest;
-
         _deposits[msg.sender] = 0;
-        _depositTimestamps[msg.sender] = 0; // 重置存款时间戳
+        _lastWithdrawTimestamp[msg.sender] = block.timestamp; // 记录提款时间
 
-        (bool success, ) = msg.sender.call{value: total}("");
+        (bool success, ) = msg.sender.call{value: principal}("");
         require(success, "Transfer failed");
 
-        emit DepositWithdrawn(msg.sender, principal, interest);
+        emit DepositWithdrawn(msg.sender, principal, 0);
     }
 
-    /// @notice 更新利率（由预言机或管理员调用）
-    function updateInterestRate(uint256 newRate) external onlyOwner {
-        interestRate = newRate;
-        lastRateUpdate = block.timestamp;
-        emit InterestRateUpdated(newRate);
+    /// @notice 管理员设置流量卡额度
+    function setTrafficCardQuota(uint256 quota) external onlyOwner {
+        trafficCardQuota = quota;
+        emit TrafficCardQuotaUpdated(quota);
     }
 
-    /// @notice 计算用户应得利息
-    function calculateInterest(address user) public view returns (uint256) {
-        uint256 deposit = _deposits[user];
-        if (deposit == 0 || interestRate == 0) return 0;
+    /// @notice 月末为符合条件的用户发放流量卡（由Oracle或Owner调用）
+    function issueMonthlyTrafficCards(address[] calldata users) external {
+        require(msg.sender == owner() || msg.sender == oracle, "Only owner or oracle");
+        uint256 currentMonth = getCurrentMonth();
+
+        for (uint256 i = 0; i < users.length; i++) {
+            address user = users[i];
+            // 检查是否已发放
+            if (_monthlyCardIssued[user][currentMonth]) continue;
+            
+            // 检查本月是否提过款
+            if (hasWithdrawnThisMonth(user, currentMonth)) continue;
+            
+            // 检查用户是否有存款
+            if (_deposits[user] == 0) continue;
+
+            // 发放流量卡
+            _trafficCardBalances[user] += trafficCardQuota;
+            _monthlyCardIssued[user][currentMonth] = true;
+            
+            emit TrafficCardIssued(user, trafficCardQuota, currentMonth);
+        }
+    }
+
+    /// @notice 用户使用流量卡抵扣（由Payment合约调用）
+    function useTrafficCard(address user, uint256 amount) external {
+        require(msg.sender == address(payment), "Only payment contract");
+        require(_trafficCardBalances[user] >= amount, "Insufficient traffic card balance");
         
-        uint256 timeElapsed = block.timestamp - _depositTimestamps[user];
-        if (timeElapsed == 0) return 0;
-        
-        // 利息 = 本金 × 利率 × 时间（年）
-        return (deposit * interestRate * timeElapsed) / (RATE_DENOMINATOR * SECONDS_PER_YEAR);
+        _trafficCardBalances[user] -= amount;
+        emit TrafficCardUsed(user, amount);
     }
 
-    /// @notice 查看用户当前可提取的利息
-    function getInterestAmount(address user) external view returns (uint256) {
-        return calculateInterest(user);
+    /// @notice 查询用户流量卡余额
+    function getTrafficCardBalance(address user) external view returns (uint256) {
+        return _trafficCardBalances[user];
+    }
+
+    /// @notice 查询用户本月是否提过款
+    function hasWithdrawnThisMonth(address user, uint256 month) public view returns (bool) {
+        uint256 withdrawTime = _lastWithdrawTimestamp[user];
+        if (withdrawTime == 0) return false;
+        
+        uint256 withdrawMonth = getMonthFromTimestamp(withdrawTime);
+        return withdrawMonth == month;
+    }
+
+    /// @notice 获取当前月份（从epoch开始计算的月数）
+    function getCurrentMonth() public view returns (uint256) {
+        return getMonthFromTimestamp(block.timestamp);
+    }
+
+    /// @notice 从时间戳获取月份
+    function getMonthFromTimestamp(uint256 timestamp) internal pure returns (uint256) {
+        uint256 secondsPerMonth = 30 days;
+        return timestamp / secondsPerMonth;
     }
 
     function getDepositAmount(address user) external view returns (uint256) {

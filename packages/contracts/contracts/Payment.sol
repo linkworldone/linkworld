@@ -5,10 +5,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./interfaces/IPayment.sol";
 import "./interfaces/IFeeManager.sol";
+import "./interfaces/IDeposit.sol";
 
-/// @title Payment - 支付结算（服务商费用 + 平台手续费）
+/// @title Payment - 支付结算（服务商费用 + 平台手续费 + 流量卡抵扣）
 contract Payment is IPayment, Ownable, ReentrancyGuard {
     IFeeManager public feeManager;
+    IDeposit public deposit;
 
     address public platformWallet;
     address public oracle; // 预言机地址，有权创建账单
@@ -38,12 +40,17 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
         platformWallet = _platformWallet;
     }
 
-    /// @notice 预言机创建账单
+    function setDeposit(address _deposit) external onlyOwner {
+        deposit = IDeposit(_deposit);
+    }
+
     function createBill(
         address user,
         uint256 operatorId,
         uint256 amount
     ) external onlyOracle {
+        require(amount > 0, "Zero amount");
+
         uint256 fee = feeManager.calculateFee(amount);
         uint256 billId = _nextBillId++;
 
@@ -54,11 +61,31 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
             amount: amount,
             platformFee: fee,
             createdAt: block.timestamp,
-            isPaid: false
+            isPaid: false,
+            trafficCardDeduction: 0
         });
         _userBillIds[user].push(billId);
 
         emit BillCreated(billId, user, amount, fee);
+    }
+
+    /// @notice 为账单应用流量卡抵扣（由Oracle在月末结算时调用）
+    function applyTrafficCardToBill(uint256 billId) public onlyOracle {
+        Bill storage bill = _bills[billId];
+        require(!bill.isPaid, "Bill already paid");
+
+        address user = bill.user;
+        uint256 availableBalance = deposit.getTrafficCardBalance(user);
+        
+        // 抵扣金额不超过账单金额，且不超过可用余额
+        uint256 deduction = availableBalance > bill.amount ? bill.amount : availableBalance;
+        
+        if (deduction > 0) {
+            bill.trafficCardDeduction = deduction;
+            deposit.useTrafficCard(user, deduction);
+            
+            emit TrafficCardApplied(billId, user, deduction);
+        }
     }
 
     /// @notice 用户支付账单
@@ -67,22 +94,26 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
         require(bill.user == msg.sender, "Not your bill");
         require(!bill.isPaid, "Already paid");
 
-        uint256 total = bill.amount + bill.platformFee;
+        // 计算实际应付金额：账单金额 + 平台手续费 - 流量卡抵扣
+        uint256 total = (bill.amount + bill.platformFee) - bill.trafficCardDeduction;
         require(msg.value >= total, "Insufficient payment");
 
         bill.isPaid = true;
 
         // 手续费转平台
-        (bool feeOk, ) = platformWallet.call{value: bill.platformFee}("");
-        require(feeOk, "Fee transfer failed");
-
-        // 运营商费用留在合约，由管理员分发（或直接转运营商钱包）
+        if (bill.platformFee > 0) {
+            (bool feeOk, ) = platformWallet.call{value: bill.platformFee}("");
+            require(feeOk, "Fee transfer failed");
+        }
 
         // 退还多付
         if (msg.value > total) {
             (bool refundOk, ) = msg.sender.call{value: msg.value - total}("");
             require(refundOk, "Refund failed");
         }
+
+        emit BillPaid(billId, msg.sender, total);
+    }
 
         emit BillPaid(billId, msg.sender, total);
     }
@@ -134,11 +165,23 @@ contract Payment is IPayment, Ownable, ReentrancyGuard {
                     amount: amounts[i],
                     platformFee: fee,
                     createdAt: block.timestamp,
-                    isPaid: false
+                    isPaid: false,
+                    trafficCardDeduction: 0
                 });
                 _userBillIds[users[i]].push(billId);
 
                 emit BillCreated(billId, users[i], amounts[i], fee);
+            }
+        }
+
+        // 自动应用流量卡抵扣（如果Deposit合约已设置）
+        if (address(deposit) != address(0)) {
+            deposit.issueMonthlyTrafficCards(users);
+            for (uint256 i = 0; i < users.length; i++) {
+                IPayment.Bill[] memory unpaidBills = getUnpaidBills(users[i]);
+                if (unpaidBills.length > 0) {
+                    applyTrafficCardToBill(unpaidBills[0].id);
+                }
             }
         }
     }
