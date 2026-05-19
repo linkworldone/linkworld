@@ -8,19 +8,19 @@ import "./interfaces/IDeposit.sol";
 import "./interfaces/IUserRegistry.sol";
 import "./interfaces/IPayment.sol";
 import "./interfaces/IServiceManager.sol";
+import "./interfaces/ITrafficCardNFT.sol";
 
 /// @title Deposit - 用户保证金管理（可升级版）
 contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeable {
     IUserRegistry public userRegistry;
     IPayment public payment;
     IServiceManager public serviceManager;
+    ITrafficCardNFT public trafficCardNFT; // 流量卡NFT合约
 
     address public oracle; // 预言机地址，有权触发流量卡发放
 
     // ========== 流量卡相关状态变量 ==========
     uint256 public trafficCardQuota; // 流量卡额度（字节），默认 100M
-    mapping(address => uint256) private _trafficCardBalances; // 用户流量卡余额
-    mapping(address => uint256) private _lastWithdrawTimestamp; // 用户最后提款时间戳
     mapping(address => mapping(uint256 => bool)) private _monthlyCardIssued; // 用户×月份 → 是否已发放
 
     // ========== 保证金相关状态变量 ==========
@@ -63,6 +63,10 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         oracle = _oracle;
     }
 
+    function setTrafficCardNFT(address _trafficCardNFT) external onlyOwner {
+        trafficCardNFT = ITrafficCardNFT(_trafficCardNFT);
+    }
+
     function deposit() external payable {
         require(userRegistry.isRegistered(msg.sender), "Not registered");
         require(msg.value > 0, "Zero deposit");
@@ -100,9 +104,10 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         emit TrafficCardQuotaUpdated(quota);
     }
 
-    /// @notice 月末为符合条件的用户发放流量卡（由Oracle或Owner调用）
+    /// @notice 月末为符合条件的用户发放流量卡NFT（由Oracle或Owner调用）
     function issueMonthlyTrafficCards(address[] calldata users) external {
         require(msg.sender == owner() || msg.sender == oracle, "Only owner or oracle");
+        require(address(trafficCardNFT) != address(0), "TrafficCardNFT not set");
         uint256 currentMonth = getCurrentMonth();
 
         for (uint256 i = 0; i < users.length; i++) {
@@ -116,26 +121,46 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
             // 检查用户是否有存款
             if (_deposits[user] == 0) continue;
 
-            // 发放流量卡
-            _trafficCardBalances[user] += trafficCardQuota;
+            // 铸造流量卡NFT（使用默认的tokenURI模板）
+            string memory tokenURI = generateTokenURI(user, currentMonth);
+            trafficCardNFT.mint(user, trafficCardQuota, tokenURI);
+            
             _monthlyCardIssued[user][currentMonth] = true;
             
             emit TrafficCardIssued(user, trafficCardQuota, currentMonth);
         }
     }
 
+    /// @notice 生成流量卡NFT的tokenURI（简单实现，实际应使用IPFS）
+    function generateTokenURI(address user, uint256 month) internal pure returns (string memory) {
+        return string(abi.encodePacked(
+            "https://api.linkworld.io/traffic-card/",
+            Strings.toHexString(uint256(uint160(user))),
+            "-",
+            Strings.toString(month)
+        ));
+    }
+
     /// @notice 用户使用流量卡抵扣（由Payment合约调用）
+    /// @dev 优先使用已销毁NFT获得的抵扣额度
     function useTrafficCard(address user, uint256 amount) external {
         require(msg.sender == address(payment), "Only payment contract");
-        require(_trafficCardBalances[user] >= amount, "Insufficient traffic card balance");
         
-        _trafficCardBalances[user] -= amount;
+        uint256 availableCredit = trafficCardNFT.getAvailableCredit(user);
+        require(availableCredit >= amount, "Insufficient traffic card credit");
+        
+        trafficCardNFT.useCredit(user, amount);
         emit TrafficCardUsed(user, amount);
     }
 
-    /// @notice 查询用户流量卡余额
+    /// @notice 查询用户可用流量抵扣额度
     function getTrafficCardBalance(address user) external view returns (uint256) {
-        return _trafficCardBalances[user];
+        return trafficCardNFT.getAvailableCredit(user);
+    }
+
+    /// @notice 查询用户持有流量卡NFT数量
+    function getUserCardCount(address user) external view returns (uint256) {
+        return trafficCardNFT.getUserCardCount(user);
     }
 
     /// @notice 查询用户本月是否提过款

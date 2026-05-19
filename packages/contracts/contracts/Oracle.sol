@@ -12,6 +12,9 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
     IPayment public payment;
     IDeposit public deposit; // 关联 Deposit 合约
     
+    // 累计使用量（本月）- 不上链，仅月末汇总
+    mapping(address => mapping(uint256 => UsageInfo)) private _monthlyUsage;
+    // 最新提交的使用数据（用于查询）
     mapping(address => mapping(uint256 => UsageInfo)) private _latestUsage;
 
     struct UsageInfo {
@@ -40,11 +43,37 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
         deposit = IDeposit(_deposit);
     }
 
-    /// @notice 月末结算（提交流量使用数据并发放流量卡）
+    /// @notice 累计使用数据（不上链，仅记录）
+    /// @dev 用于实时记录使用量，月末统一汇总上链
+    function recordUsage(
+        address user,
+        uint256 operatorId,
+        uint256 dataUsage,
+        uint256 callUsage
+    ) external onlyOwner {
+        require(user != address(0), "Invalid user");
+        require(dataUsage > 0 || callUsage > 0, "Zero usage");
+
+        // 累计到本月使用量（不上链消耗）
+        _monthlyUsage[user][operatorId].dataUsage += dataUsage;
+        _monthlyUsage[user][operatorId].callUsage += callUsage;
+        _monthlyUsage[user][operatorId].timestamp = block.timestamp;
+
+        // 更新最新使用记录
+        _latestUsage[user][operatorId] = UsageInfo({
+            dataUsage: dataUsage,
+            callUsage: callUsage,
+            timestamp: block.timestamp
+        });
+
+        emit UsageDataSubmitted(user, operatorId, dataUsage, callUsage);
+    }
+
+    /// @notice 月末结算（统一汇总上链，减少Gas消耗）
     /// @param users 用户地址列表
     /// @param operatorIds 运营商ID列表
-    /// @param dataUsages 流量使用量列表（字节）
-    /// @param callUsages 通话时长列表（分钟）
+    /// @param dataUsages 流量使用量列表（字节）- 如果为0则使用累计数据
+    /// @param callUsages 通话时长列表（分钟）- 如果为0则使用累计数据
     function monthlySettlement(
         address[] calldata users,
         uint256[] calldata operatorIds,
@@ -55,12 +84,27 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
         require(users.length == dataUsages.length, "Length mismatch");
         require(users.length == callUsages.length, "Length mismatch");
 
-        // 第一步：提交使用数据，生成账单
+        // 第一步：统一汇总上链，生成账单
         for (uint256 i = 0; i < users.length; i++) {
-            submitUsage(users[i], operatorIds[i], dataUsages[i], callUsages[i]);
+            address user = users[i];
+            uint256 operatorId = operatorIds[i];
+            
+            // 如果传入数据为0，则使用累计的数据
+            uint256 dataUsage = dataUsages[i] > 0 ? dataUsages[i] : _monthlyUsage[user][operatorId].dataUsage;
+            uint256 callUsage = callUsages[i] > 0 ? callUsages[i] : _monthlyUsage[user][operatorId].callUsage;
+            
+            if (dataUsage > 0 || callUsage > 0) {
+                uint256 totalAmount = dataUsage + callUsage;
+                payment.createBill(user, operatorId, totalAmount);
+                
+                emit UsageDataSubmitted(user, operatorId, dataUsage, callUsage);
+            }
+            
+            // 重置本月累计数据
+            delete _monthlyUsage[user][operatorId];
         }
 
-        // 第二步：为符合条件用户发放流量卡
+        // 第二步：为符合条件用户发放流量卡NFT
         if (address(deposit) != address(0)) {
             deposit.issueMonthlyTrafficCards(users);
         }
@@ -80,7 +124,7 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
         emit MonthlySettlementCompleted(block.timestamp);
     }
 
-    /// @notice 预言机提交使用数据（由预言机角色调用）
+    /// @notice 预言机提交使用数据（保留原有接口，兼容旧系统）
     /// @dev 实际场景中需验证签名，此处简化处理
     function submitUsage(
         address user,
@@ -88,20 +132,8 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
         uint256 dataUsage,
         uint256 callUsage
     ) public onlyOwner {
-        require(user != address(0), "Invalid user");
-        require(dataUsage > 0 || callUsage > 0, "Zero usage");
-
-        _latestUsage[user][operatorId] = UsageInfo({
-            dataUsage: dataUsage,
-            callUsage: callUsage,
-            timestamp: block.timestamp
-        });
-
-        uint256 totalAmount = dataUsage + callUsage;
-        
-        payment.createBill(user, operatorId, totalAmount);
-
-        emit UsageDataSubmitted(user, operatorId, dataUsage, callUsage);
+        // 调用新的记录方法（仅记录，不上链）
+        recordUsage(user, operatorId, dataUsage, callUsage);
     }
 
     /// @notice 获取用户最新使用数据

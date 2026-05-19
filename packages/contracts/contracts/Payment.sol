@@ -89,10 +89,11 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         require(!bill.isPaid, "Bill already paid");
 
         address user = bill.user;
-        uint256 availableBalance = deposit.getTrafficCardBalance(user);
+        uint256 availableCredit = deposit.getTrafficCardBalance(user);
         
-        // 抵扣金额不超过账单金额，且不超过可用余额
-        uint256 deduction = availableBalance > bill.amount ? bill.amount : availableBalance;
+        // 抵扣金额不超过账单金额+手续费，且不超过可用余额
+        uint256 totalBill = bill.amount + bill.platformFee;
+        uint256 deduction = availableCredit > totalBill ? totalBill : availableCredit;
         
         if (deduction > 0) {
             bill.trafficCardDeduction = deduction;
