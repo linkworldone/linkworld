@@ -15,7 +15,6 @@ contract FeeManager is IFeeManager, OwnableUpgradeable, UUPSUpgradeable {
     /// @notice Initializer
     function initialize(uint256 initialFeeRate) public initializer {
         __Ownable_init(msg.sender);
-        // __UUPSUpgradeable_init() not needed
 
         require(initialFeeRate <= MAX_FEE_RATE, "Fee too high");
         _feeRate = initialFeeRate;
