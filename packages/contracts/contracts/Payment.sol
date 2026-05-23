@@ -14,7 +14,7 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
     IDeposit public deposit;
 
     address public platformWallet;
-    address public oracle; // 预言机地址，有权创建账单
+    address public oracle;
 
     uint256 private _nextBillId;
     mapping(uint256 => Bill) private _bills;
@@ -25,7 +25,8 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         _;
     }
 
-    /// @inheritdoc IPayment
+    // ===== FIX: @inheritdoc IPayment → @notice Initializer =====
+    /// @notice Initializer
     function initialize(
         address _feeManager,
         address _platformWallet
@@ -39,7 +40,10 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
 
     // 内部 ReentrancyGuard 初始化
     function _reentrancyGuardInit() internal {
-        _reentrancyGuardStorageSlot().getUint256Slot().value = 1; // NOT_ENTERED = 1
+        bytes32 slot_ = _reentrancyGuardStorageSlot();
+        assembly {
+            sstore(slot_, 1) // NOT_ENTERED = 1
+        }
     }
 
     function setOracle(address _oracle) external onlyOwner {
@@ -50,10 +54,7 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         platformWallet = _platformWallet;
     }
 
-    function setDeposit(address _deposit) external onlyOwner {
-        deposit = IDeposit(_deposit);
-    }
-
+    // ===== FIX #4: duplicate setDeposit removed (only one definition remains) =====
     function setDeposit(address _deposit) external onlyOwner {
         deposit = IDeposit(_deposit);
     }
@@ -83,45 +84,39 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         emit BillCreated(billId, user, amount, fee);
     }
 
-    /// @notice 为账单应用流量卡抵扣（由Oracle在月末结算时调用）
     function applyTrafficCardToBill(uint256 billId) public onlyOracle {
         Bill storage bill = _bills[billId];
         require(!bill.isPaid, "Bill already paid");
 
         address user = bill.user;
         uint256 availableCredit = deposit.getTrafficCardBalance(user);
-        
-        // 抵扣金额不超过账单金额+手续费，且不超过可用余额
+
         uint256 totalBill = bill.amount + bill.platformFee;
         uint256 deduction = availableCredit > totalBill ? totalBill : availableCredit;
-        
+
         if (deduction > 0) {
             bill.trafficCardDeduction = deduction;
             deposit.useTrafficCard(user, deduction);
-            
+
             emit TrafficCardApplied(billId, user, deduction);
         }
     }
 
-    /// @notice 用户支付账单
     function payBill(uint256 billId) external payable nonReentrant {
         Bill storage bill = _bills[billId];
         require(bill.user == msg.sender, "Not your bill");
         require(!bill.isPaid, "Already paid");
 
-        // 计算实际应付金额：账单金额 + 平台手续费 - 流量卡抵扣
         uint256 total = (bill.amount + bill.platformFee) - bill.trafficCardDeduction;
         require(msg.value >= total, "Insufficient payment");
 
         bill.isPaid = true;
 
-        // 手续费转平台
         if (bill.platformFee > 0) {
             (bool feeOk, ) = platformWallet.call{value: bill.platformFee}("");
             require(feeOk, "Fee transfer failed");
         }
 
-        // 退还多付
         if (msg.value > total) {
             (bool refundOk, ) = msg.sender.call{value: msg.value - total}("");
             require(refundOk, "Refund failed");
@@ -156,7 +151,6 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         return result;
     }
 
-    /// @notice 自动结算（月底触发，将预言机数据生成账单发送给用户）
     function autoSettle(
         address[] calldata users,
         uint256[] calldata operatorIds,
@@ -186,11 +180,11 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
             }
         }
 
-        // 自动应用流量卡抵扣（如果Deposit合约已设置）
         if (address(deposit) != address(0)) {
             deposit.issueMonthlyTrafficCards(users);
             for (uint256 i = 0; i < users.length; i++) {
-                IPayment.Bill[] memory unpaidBills = getUnpaidBills(users[i]);
+                // viaIR: must use this. for a qualified external call to pass type-check
+                IPayment.Bill[] memory unpaidBills = this.getUnpaidBills(users[i]);
                 if (unpaidBills.length > 0) {
                     applyTrafficCardToBill(unpaidBills[0].id);
                 }

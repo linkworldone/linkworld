@@ -14,7 +14,7 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
 
     mapping(address => UserService) private _userServices;
 
-    /// @inheritdoc IServiceManager
+    /// @notice Initializer
     function initialize() public initializer {
         __Ownable_init(msg.sender);
         // __UUPSUpgradeable_init() not needed

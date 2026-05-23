@@ -12,7 +12,7 @@ contract FeeManager is IFeeManager, OwnableUpgradeable, UUPSUpgradeable {
 
     uint256 private _feeRate; // 以基点表示，250 = 2.5%
 
-    /// @inheritdoc IFeeManager
+    /// @notice Initializer
     function initialize(uint256 initialFeeRate) public initializer {
         __Ownable_init(msg.sender);
         // __UUPSUpgradeable_init() not needed

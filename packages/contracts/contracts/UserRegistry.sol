@@ -11,7 +11,7 @@ contract UserRegistry is IUserRegistry, ERC721URIStorageUpgradeable, OwnableUpgr
     uint256 private _nextTokenId;
     mapping(address => UserInfo) private _users;
 
-    /// @inheritdoc IUserRegistry
+    /// @notice Initializer
     function initialize() public initializer {
         __ERC721_init("LinkWorld Identity", "LWID");
         __ERC721URIStorage_init_unchained();

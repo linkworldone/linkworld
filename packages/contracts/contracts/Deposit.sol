@@ -4,6 +4,7 @@ pragma solidity ^0.8.27;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "./interfaces/IDeposit.sol";
 import "./interfaces/IUserRegistry.sol";
 import "./interfaces/IPayment.sol";
@@ -25,6 +26,7 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
 
     // ========== 保证金相关状态变量 ==========
     mapping(address => uint256) private _deposits;
+    mapping(address => uint256) private _lastWithdrawTimestamp; // 上次提款时间
     mapping(uint256 => uint256) private _operatorRequiredDeposit;
 
     modifier onlyOracle() {
@@ -32,19 +34,22 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         _;
     }
 
-    /// @inheritdoc IDeposit
+    /// @notice Initializer
     function initialize(address _userRegistry) public initializer {
         __Ownable_init(msg.sender);
-        // 手动初始化 ReentrancyGuard 存储槽
+        // 手动初始化 ReentrancyGuard 存储槽（Upgradeable 模式）
         _reentrancyGuardInit();
 
         userRegistry = IUserRegistry(_userRegistry);
         trafficCardQuota = 100 * 1024 * 1024; // 默认 100M
     }
 
-    // 内部 ReentrancyGuard 初始化（因为构造函数不会在代理模式中调用）
+    // 内部 ReentrancyGuard 初始化（代理模式不可用构造函数，直接写存储槽）
     function _reentrancyGuardInit() internal {
-        _reentrancyGuardStorageSlot().getUint256Slot().value = 1; // NOT_ENTERED = 1
+        bytes32 slot_ = _reentrancyGuardStorageSlot();
+        assembly {
+            sstore(slot_, 1) // NOT_ENTERED = 1
+        }
     }
 
     function setPayment(address _payment) external onlyOwner {
@@ -84,7 +89,7 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         }
 
         if (address(payment) != address(0)) {
-            IPayment.Bill[] memory unpaid = payment.getUnpaidBills(msg.sender);
+            IPayment.Bill[] memory unpaid = IPayment(payment).getUnpaidBills(msg.sender);
             require(unpaid.length == 0, "Has unpaid bills");
         }
 
