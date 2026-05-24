@@ -243,29 +243,23 @@ func NewUsageService(oracleService *OracleServiceV2, usageRepo *repository.Usage
 }
 
 func (s *UsageService) QueryUsage(wallet string) (uint64, uint64, string, error) {
-	dataUsage, callUsage, err := s.oracleService.FetchUsage(wallet)
-	if err != nil {
-		return 0, 0, "", err
-	}
-
 	user, err := s.userRepo.FindByWallet(wallet)
 	if err != nil {
 		return 0, 0, "", err
 	}
 
-	signature := s.oracleService.SignData(user.ID, 1, dataUsage, callUsage)
-
-	usageData := &models.UsageData{
-		UserID:     user.ID,
-		OperatorID: 1,
-		DataUsage:  dataUsage,
-		CallUsage:  callUsage,
-		Timestamp:  time.Now(),
-		Signature:  signature,
+	records, err := s.usageRepo.FindByUserID(user.ID)
+	if err != nil {
+		return 0, 0, "", err
 	}
-	s.usageRepo.Create(usageData)
 
-	return dataUsage, callUsage, signature, nil
+	var totalData, totalCall uint64
+	for _, r := range records {
+		totalData += r.DataUsage
+		totalCall += r.CallUsage
+	}
+
+	return totalData, totalCall, "", nil
 }
 
 func (s *UsageService) TriggerMonthlyBill() (int, error) {

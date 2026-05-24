@@ -3,3 +3,4 @@ export { DepositABI } from "./Deposit";
 export { ServiceManagerABI } from "./ServiceManager";
 export { PaymentABI } from "./Payment";
 export { FeeManagerABI } from "./FeeManager";
+export { TrafficCardNFTABI } from "./TrafficCardNFT";

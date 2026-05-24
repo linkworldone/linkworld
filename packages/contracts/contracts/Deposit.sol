@@ -2,9 +2,9 @@
 pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IDeposit.sol";
 import "./interfaces/IUserRegistry.sol";
 import "./interfaces/IPayment.sol";
@@ -12,7 +12,7 @@ import "./interfaces/IServiceManager.sol";
 import "./interfaces/ITrafficCardNFT.sol";
 
 /// @title Deposit - 用户保证金管理（可升级版）
-contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeable {
+contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
     IUserRegistry public userRegistry;
     IPayment public payment;
     IServiceManager public serviceManager;
@@ -37,14 +37,12 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
     /// @notice Initializer
     function initialize(address _userRegistry) public initializer {
         __Ownable_init(msg.sender);
-        // 手动初始化 ReentrancyGuard 存储槽（Upgradeable 模式）
         _reentrancyGuardInit();
 
         userRegistry = IUserRegistry(_userRegistry);
         trafficCardQuota = 100 * 1024 * 1024; // 默认 100M
     }
 
-    // 内部 ReentrancyGuard 初始化（代理模式不可用构造函数，直接写存储槽）
     function _reentrancyGuardInit() internal {
         bytes32 slot_ = _reentrancyGuardStorageSlot();
         assembly {

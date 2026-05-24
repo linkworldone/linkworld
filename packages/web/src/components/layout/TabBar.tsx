@@ -1,6 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
-import { useUnreadCount } from "@/hooks/useNotification";
 import { useBills } from "@/hooks/useBilling";
 
 const tabs = [
@@ -8,18 +7,16 @@ const tabs = [
   { label: "Services", icon: "\u{1F4F1}", path: "/services" },
   { label: "Deposit", icon: "\u{1F4B0}", path: "/deposit" },
   { label: "Bills", icon: "\u{1F4C4}", path: "/billing", badgeKey: "unpaidBills" as const },
-  { label: "Alerts", icon: "\u{1F514}", path: "/notifications", badgeKey: "unread" as const },
+  { label: "Cards", icon: "\u{1F39F}️", path: "/cards" },
 ];
 
 export function TabBar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { address } = useAccount();
-  const { data: unreadCount } = useUnreadCount(address);
   const { data: unpaidBills } = useBills(address, "unpaid");
 
   const badges: Record<string, number | undefined> = {
-    unread: unreadCount,
     unpaidBills: unpaidBills?.length,
   };
 

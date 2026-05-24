@@ -66,7 +66,9 @@
       "gate": "gate-1",
       "status": "completed",
       "completedAt": "2026-04-14",
-      "dependsOn": ["design"]
+      "dependsOn": [
+        "design"
+      ]
     },
     {
       "id": "plan",
@@ -82,7 +84,9 @@
       "gate": "gate-2",
       "status": "completed",
       "completedAt": "2026-04-15",
-      "dependsOn": ["plan"]
+      "dependsOn": [
+        "plan"
+      ]
     },
     {
       "id": "test",
@@ -90,7 +94,9 @@
       "gate": "gate-3",
       "status": "completed",
       "completedAt": "2026-04-15",
-      "dependsOn": ["implement"]
+      "dependsOn": [
+        "implement"
+      ]
     },
     {
       "id": "review",
@@ -98,7 +104,9 @@
       "gate": "gate-3",
       "status": "completed",
       "completedAt": "2026-04-15",
-      "dependsOn": ["test"]
+      "dependsOn": [
+        "test"
+      ]
     },
     {
       "id": "ship",
@@ -106,35 +114,81 @@
       "gate": "gate-3",
       "status": "completed",
       "completedAt": "2026-04-15",
-      "dependsOn": ["review"]
+      "dependsOn": [
+        "review"
+      ]
     },
     {
       "id": "monitor",
       "name": "复盘",
       "gate": "gate-3",
       "status": "completed",
-      "completedAt": "2026-04-15",
-      "dependsOn": ["ship"]
+      "completedAt": "2026-05-19",
+      "dependsOn": [
+        "ship"
+      ]
     }
   ],
-  "currentStage": "monitor",
+  "currentStage": null,
+  "completedAt": "2026-05-19",
   "projectSkills": {
     "stageMapping": {
-      "scan": ["health"],
-      "figma": ["figma-use"],
-      "requirement": ["office-hours", "brainstorming"],
-      "design": ["plan-design-review", "design-consultation"],
-      "arch-review": ["plan-ceo-review", "plan-eng-review", "autoplan", "cso"],
-      "plan": ["writing-plans"],
-      "implement": ["subagent-driven-development", "test-driven-development", "code-simplifier", "investigate", "executing-plans"],
-      "test": ["verification-before-completion", "health", "investigate"],
-      "review": ["requesting-code-review", "receiving-code-review", "cso"],
-      "ship": ["ship", "finishing-a-development-branch", "careful", "document-release"],
-      "monitor": ["retro", "learn"]
+      "scan": [
+        "health"
+      ],
+      "figma": [
+        "figma-use"
+      ],
+      "requirement": [
+        "office-hours",
+        "brainstorming"
+      ],
+      "design": [
+        "plan-design-review",
+        "design-consultation"
+      ],
+      "arch-review": [
+        "plan-ceo-review",
+        "plan-eng-review",
+        "autoplan",
+        "cso"
+      ],
+      "plan": [
+        "writing-plans"
+      ],
+      "implement": [
+        "subagent-driven-development",
+        "test-driven-development",
+        "code-simplifier",
+        "investigate",
+        "executing-plans"
+      ],
+      "test": [
+        "verification-before-completion",
+        "health",
+        "investigate"
+      ],
+      "review": [
+        "requesting-code-review",
+        "receiving-code-review",
+        "cso"
+      ],
+      "ship": [
+        "ship",
+        "finishing-a-development-branch",
+        "careful",
+        "document-release"
+      ],
+      "monitor": [
+        "retro",
+        "learn"
+      ]
     }
   },
   "specFiles": [
     ".superpowers/brainstorm/specs/linkworld.md",
-    ".superpowers/brainstorm/specs/2026-04-12-linkworld-frontend-design.md"
-  ]
+    ".superpowers/brainstorm/specs/2026-04-12-linkworld-frontend-design.md",
+    ".superpowers/brainstorm/specs/2026-05-13-traffic-card-nft-redesign.md"
+  ],
+  "lastActiveAt": "2026-05-24T06:06:10.113Z"
 }

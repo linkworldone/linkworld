@@ -138,7 +138,7 @@ func (r *DepositRepository) Create(deposit *models.Deposit) error {
 
 func (r *DepositRepository) FindByUserID(userID uint) ([]models.Deposit, error) {
 	var deposits []models.Deposit
-	err := r.db.Where("user_id = ?", userID).Find(&deposits).Error
+	err := r.db.Where("user_id = ?", userID).Order("created_at desc").Find(&deposits).Error
 	return deposits, err
 }
 
@@ -146,7 +146,7 @@ func (r *DepositRepository) GetTotalByUserID(userID uint) (string, error) {
 	var result struct {
 		Total string
 	}
-	err := r.db.Model(&models.Deposit{}).Select("COALESCE(SUM(amount), '0') as total").Where("user_id = ?", userID).Scan(&result).Error
+	err := r.db.Model(&models.Deposit{}).Select("COALESCE(SUM(amount), '0') as total").Where("user_id = ? AND (type = ? OR type = ?)", userID, "deposit", "").Scan(&result).Error
 	return result.Total, err
 }
 

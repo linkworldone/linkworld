@@ -16,7 +16,8 @@ export function useContractUserService(address: `0x${string}` | undefined) {
 export function useContractActivateService() {
   const chainId = useChainId();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isPending: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const isConfirming = !!hash && rawConfirming;
 
   const activateService = (operatorId: bigint, virtualNumber: string, password: string) => {
     writeContract({

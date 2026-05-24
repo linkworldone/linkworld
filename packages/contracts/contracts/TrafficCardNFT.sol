@@ -38,7 +38,6 @@ contract TrafficCardNFT is ERC721Upgradeable, ERC721URIStorageUpgradeable, Ownab
     event CreditUsed(address indexed user, uint256 amount);
     event CreditExpired(address indexed user, uint256 amount);
 
-    // ===== FIX #5: @inheritdoc ERC721Upgradeable → @notice ERC721 initializer =====
     /// @notice ERC721 initializer
     function initialize() public initializer {
         __ERC721_init("LinkWorld Traffic Card", "LWTC");
@@ -102,7 +101,6 @@ contract TrafficCardNFT is ERC721Upgradeable, ERC721URIStorageUpgradeable, Ownab
     /// @notice 销毁流量卡NFT并获得抵扣额度
     /// @dev NFT持有者可随时销毁获得抵扣额度
     function burn(uint256 tokenId) external {
-        // OZ v5: _isApprovedOrOwner → _isAuthorized(spender=address(0))
         require(_isAuthorized(msg.sender, address(0), tokenId), "Not owner or approved");
         require(!_cardInfo[tokenId].isDestroyed, "Card already destroyed");
 

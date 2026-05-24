@@ -5,7 +5,8 @@ import { getContractAddress } from "../../config/contracts";
 export function useContractPayBill() {
   const chainId = useChainId();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isPending: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const isConfirming = !!hash && rawConfirming;
 
   const payBill = (billId: bigint, value: bigint) => {
     writeContract({

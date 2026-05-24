@@ -30,6 +30,8 @@ type Deposit struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
 	UserID    uint      `gorm:"index" json:"user_id"`
 	Amount    string    `json:"amount"`
+	Type      string    `gorm:"size:16;default:deposit" json:"type"` // "deposit" or "withdraw"
+	TxHash    string    `json:"tx_hash,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -38,9 +40,10 @@ type Bill struct {
 	ID          uint       `gorm:"primarykey" json:"id"`
 	UserID      uint       `gorm:"index" json:"user_id"`
 	OperatorID  uint       `gorm:"index" json:"operator_id"`
-	Amount      string     `json:"amount"`
-	PlatformFee string     `json:"platform_fee"`
-	IsPaid      bool       `gorm:"default:false" json:"is_paid"`
+	Amount               string     `json:"amount"`
+	PlatformFee          string     `json:"platform_fee"`
+	TrafficCardDeduction string     `json:"traffic_card_deduction"`
+	IsPaid               bool       `gorm:"default:false" json:"is_paid"`
 	TxHash      string     `json:"tx_hash,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	PaidAt      *time.Time `json:"paid_at,omitempty"`

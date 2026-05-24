@@ -23,7 +23,6 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
         uint256 timestamp;
     }
 
-    // ===== FIX #1: @inheritdoc IOracle removed → @notice Initializer =====
     /// @notice Initializer
     function initialize(address _payment) public initializer {
         __Ownable_init(msg.sender);
@@ -40,7 +39,6 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
         deposit = IDeposit(_deposit);
     }
 
-    // ===== FIX #2: recordUsage + submitUsage merged =====
     /// @notice 月末结算（统一汇总上链，减少Gas消耗）
     /// @param users 用户地址列表
     /// @param operatorIds 运营商ID列表

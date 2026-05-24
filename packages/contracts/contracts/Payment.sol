@@ -2,14 +2,14 @@
 pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IPayment.sol";
 import "./interfaces/IFeeManager.sol";
 import "./interfaces/IDeposit.sol";
 
 /// @title Payment - 支付结算（服务商费用 + 平台手续费 + 流量卡抵扣，可升级版）
-contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeable {
+contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
     IFeeManager public feeManager;
     IDeposit public deposit;
 
@@ -25,20 +25,17 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         _;
     }
 
-    // ===== FIX: @inheritdoc IPayment → @notice Initializer =====
     /// @notice Initializer
     function initialize(
         address _feeManager,
         address _platformWallet
     ) public initializer {
         __Ownable_init(msg.sender);
-        _reentrancyGuardInit();
 
         feeManager = IFeeManager(_feeManager);
         platformWallet = _platformWallet;
     }
 
-    // 内部 ReentrancyGuard 初始化
     function _reentrancyGuardInit() internal {
         bytes32 slot_ = _reentrancyGuardStorageSlot();
         assembly {
@@ -54,7 +51,6 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         platformWallet = _platformWallet;
     }
 
-    // ===== FIX #4: duplicate setDeposit removed (only one definition remains) =====
     function setDeposit(address _deposit) external onlyOwner {
         deposit = IDeposit(_deposit);
     }
@@ -134,7 +130,7 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         return bills;
     }
 
-    function getUnpaidBills(address user) external view returns (Bill[] memory) {
+    function getUnpaidBills(address user) public view returns (Bill[] memory) {
         uint256[] memory ids = _userBillIds[user];
         uint256 count = 0;
         for (uint256 i = 0; i < ids.length; i++) {

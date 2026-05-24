@@ -136,6 +136,7 @@ func (s *DepositService) Deposit(wallet, amount string) error {
 	deposit := &models.Deposit{
 		UserID: user.ID,
 		Amount: amount,
+		Type:   "deposit",
 	}
 	return s.depositRepo.Create(deposit)
 }
@@ -146,6 +147,35 @@ func (s *DepositService) GetDepositAmount(wallet string) (string, error) {
 		return "", err
 	}
 	return s.depositRepo.GetTotalByUserID(user.ID)
+}
+
+func (s *DepositService) RecordWithdraw(wallet, txHash string) error {
+	user, err := s.userRepo.FindByWallet(wallet)
+	if err != nil {
+		return err
+	}
+	total, err := s.depositRepo.GetTotalByUserID(user.ID)
+	if err != nil {
+		return err
+	}
+	if total == "" {
+		total = "0"
+	}
+	deposit := &models.Deposit{
+		UserID: user.ID,
+		Amount: total,
+		Type:   "withdraw",
+		TxHash: txHash,
+	}
+	return s.depositRepo.Create(deposit)
+}
+
+func (s *DepositService) GetHistory(wallet string) ([]models.Deposit, error) {
+	user, err := s.userRepo.FindByWallet(wallet)
+	if err != nil {
+		return nil, err
+	}
+	return s.depositRepo.FindByUserID(user.ID)
 }
 
 type UserServiceService struct {

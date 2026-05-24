@@ -66,11 +66,22 @@ async function main() {
   const oracleAddr = await oracle.getAddress();
   console.log("Oracle:", oracleAddr);
 
+  // 7. TrafficCardNFT (无依赖)
+  const TrafficCardNFT = await ethers.getContractFactory("TrafficCardNFT");
+  const trafficCardNFT = await upgrades.deployProxy(TrafficCardNFT, [], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
+  await trafficCardNFT.waitForDeployment();
+  const trafficCardNFTAddr = await trafficCardNFT.getAddress();
+  console.log("TrafficCardNFT:", trafficCardNFTAddr);
+
   // 关联合约
   await deposit.setPayment(paymentAddr);
   await deposit.setServiceManager(serviceManagerAddr);
   await deposit.setOracle(oracleAddr);
-  console.log("Deposit linked to Payment, ServiceManager, Oracle");
+  await deposit.setTrafficCardNFT(trafficCardNFTAddr);
+  console.log("Deposit linked to Payment, ServiceManager, Oracle, TrafficCardNFT");
 
   await payment.setOracle(oracleAddr);
   await payment.setDeposit(depositAddr);
@@ -79,6 +90,10 @@ async function main() {
   await oracle.setDeposit(depositAddr);
   console.log("Oracle linked to Deposit");
 
+  // 将 TrafficCardNFT 的 ownership 转给 Deposit 合约，让其可调用 mint
+  await trafficCardNFT.transferOwnership(depositAddr);
+  console.log("TrafficCardNFT ownership transferred to Deposit");
+
   console.log("\n=== Deployment Summary ===");
   console.log("UserRegistry:", userRegistryAddr);
   console.log("FeeManager:", feeManagerAddr);
@@ -86,6 +101,7 @@ async function main() {
   console.log("Payment:", paymentAddr);
   console.log("Deposit:", depositAddr);
   console.log("Oracle:", oracleAddr);
+  console.log("TrafficCardNFT:", trafficCardNFTAddr);
 
   // 输出合约地址 JSON (同时保存实现地址用于后续升级)
   const addresses = {
@@ -97,6 +113,7 @@ async function main() {
       Payment: paymentAddr,
       Deposit: depositAddr,
       Oracle: oracleAddr,
+      TrafficCardNFT: trafficCardNFTAddr,
     },
     implementations: {
       UserRegistry: await upgrades.erc1967.getImplementationAddress(userRegistryAddr),
@@ -105,6 +122,7 @@ async function main() {
       Payment: await upgrades.erc1967.getImplementationAddress(paymentAddr),
       Deposit: await upgrades.erc1967.getImplementationAddress(depositAddr),
       Oracle: await upgrades.erc1967.getImplementationAddress(oracleAddr),
+      TrafficCardNFT: await upgrades.erc1967.getImplementationAddress(trafficCardNFTAddr),
     }
   };
 

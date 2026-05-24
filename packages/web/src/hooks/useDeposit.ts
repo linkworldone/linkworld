@@ -8,27 +8,23 @@ import type { DepositInfo, DepositRecord } from "../types";
 
 // 查余额：从合约读（source of truth）
 export function useDeposit(address?: string) {
-  const { data: balance, ...rest } = useDepositBalance(address as `0x${string}` | undefined);
+  const { data: balance, refetch, ...rest } = useDepositBalance(address as `0x${string}` | undefined);
 
   const depositInfo: DepositInfo | undefined = balance !== undefined ? {
     balance: balance as bigint,
-    minimumRequired: BigInt("100000000000000000000"), // 100 * 1e18
     currency: "ETH",
   } : undefined;
 
-  return { data: depositInfo, ...rest };
+  return { data: depositInfo, refetch, ...rest };
 }
 
 // 充值历史：从后端读
 export function useDepositHistory(address?: string) {
   return useQuery({
     queryKey: ["depositHistory", address],
-    queryFn: async (): Promise<DepositRecord[]> => {
-      // 后端没有 history 端点，暂时返回空
-      // TODO: 后端需要加 GET /api/deposit/:wallet/history
-      return [];
-    },
+    queryFn: (): Promise<DepositRecord[]> => depositApi.getHistory(address!),
     enabled: !!address,
+    staleTime: 10_000,
   });
 }
 
