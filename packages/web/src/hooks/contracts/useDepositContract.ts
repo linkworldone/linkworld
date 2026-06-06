@@ -17,7 +17,8 @@ export function useDepositBalance(address: `0x${string}` | undefined) {
 export function useContractDeposit() {
   const chainId = useChainId();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isPending: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const isConfirming = !!hash && rawConfirming;
 
   const deposit = (amountEth: string) => {
     writeContract({
@@ -34,7 +35,8 @@ export function useContractDeposit() {
 export function useContractWithdraw() {
   const chainId = useChainId();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isPending: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const isConfirming = !!hash && rawConfirming;
 
   const withdraw = () => {
     writeContract({

@@ -167,9 +167,24 @@ func (h *Handler) Withdraw(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	// Withdrawal is completed on-chain; backend only acknowledges the event
-	log.Printf("Withdraw acknowledged for wallet=%s tx=%s", req.Wallet, req.TxHash)
-	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal acknowledged"})
+	// Withdrawal is completed on-chain; backend records it as a withdraw entry
+	if err := h.depositService.RecordWithdraw(req.Wallet, req.TxHash); err != nil {
+		log.Printf("Withdraw record failed wallet=%s tx=%s err=%v", req.Wallet, req.TxHash, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	log.Printf("Withdraw recorded for wallet=%s tx=%s", req.Wallet, req.TxHash)
+	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal recorded"})
+}
+
+func (h *Handler) GetDepositHistory(c *gin.Context) {
+	wallet := c.Param("wallet")
+	records, err := h.depositService.GetHistory(wallet)
+	if err != nil {
+		c.JSON(http.StatusOK, []interface{}{})
+		return
+	}
+	c.JSON(http.StatusOK, records)
 }
 
 func (h *Handler) GetBills(c *gin.Context) {

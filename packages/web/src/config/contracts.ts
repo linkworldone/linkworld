@@ -5,17 +5,19 @@ type ContractAddresses = {
   ServiceManager: `0x${string}`;
   Payment: `0x${string}`;
   Oracle: `0x${string}`;
+  TrafficCardNFT: `0x${string}`;
 };
 
 export const CONTRACTS: Record<number, ContractAddresses> = {
   // Hardhat localhost
   31337: {
-    UserRegistry: "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-    FeeManager: "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
-    Deposit: "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
-    ServiceManager: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
-    Payment: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    UserRegistry: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    FeeManager: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    ServiceManager: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+    Payment: "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+    Deposit: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
     Oracle: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    TrafficCardNFT: "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
   },
   // 0G Testnet (TODO: fill after testnet deploy)
   16601: {
@@ -25,6 +27,7 @@ export const CONTRACTS: Record<number, ContractAddresses> = {
     ServiceManager: "0x0000000000000000000000000000000000000000",
     Payment: "0x0000000000000000000000000000000000000000",
     Oracle: "0x0000000000000000000000000000000000000000",
+    TrafficCardNFT: "0x0000000000000000000000000000000000000000",
   },
 };
 

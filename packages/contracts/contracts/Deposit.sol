@@ -2,35 +2,39 @@
 pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IDeposit.sol";
 import "./interfaces/IUserRegistry.sol";
 import "./interfaces/ITrafficCardNFT.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-/// @title Deposit - 用户保证金管理（v3: 锁仓→mint流量卡→30天服务）
+/// @title Deposit - 用户保证金管理（可升级版）
 contract Deposit is IDeposit, OwnableUpgradeable, UUPSUpgradeable {
     IUserRegistry public userRegistry;
     ITrafficCardNFT public trafficCardNFT;
 
     address public oracle;
+    uint256 public trafficCardQuota;
 
     mapping(address => uint256) private _deposits;
     mapping(address => uint256) private _lockExpiry;
+    mapping(uint256 => uint256) private _operatorRequiredDeposit;
 
-    bool private _withdrawLocked;
-
-    modifier onlyOracle() {
-        require(msg.sender == oracle, "Only oracle");
-        _;
+    /// @notice Initializer
+    function initialize(address _userRegistry) public initializer {
+        __Ownable_init(msg.sender);
+        userRegistry = IUserRegistry(_userRegistry);
+        trafficCardQuota = 100 * 1024 * 1024; // 默认 100M
     }
 
-    modifier nonReentrant() {
-        require(!_withdrawLocked, "Reentrant");
-        _withdrawLocked = true;
-        _;
-        _withdrawLocked = false;
+    /// @notice 设置预言机地址
+    function setOracle(address _oracle) external onlyOwner {
+        oracle = _oracle;
+    }
+
+    /// @notice 设置 TrafficCardNFT 合约地址
+    function setTrafficCardNFT(address _trafficCardNFT) external onlyOwner {
+        trafficCardNFT = ITrafficCardNFT(_trafficCardNFT);
     }
 
     /// @notice 用户存入保证金（锁仓30天）
@@ -48,11 +52,10 @@ contract Deposit is IDeposit, OwnableUpgradeable, UUPSUpgradeable {
         emit DepositMade(msg.sender, msg.value);
     }
 
-    /// @notice 提取保证金（锁仓期满 + 无未销毁卡）
-    function withdraw() external nonReentrant {
+    /// @notice 提取保证金
+    function withdraw() external {
         require(block.timestamp >= _lockExpiry[msg.sender], "Lock not expired");
         require(_deposits[msg.sender] > 0, "No deposit");
-        require(trafficCardNFT.getUserCardCount(msg.sender) == 0, "Card not burned");
 
         uint256 principal = _deposits[msg.sender];
         _deposits[msg.sender] = 0;
@@ -87,16 +90,6 @@ contract Deposit is IDeposit, OwnableUpgradeable, UUPSUpgradeable {
         ));
     }
 
-    /// @notice 设置预言机地址
-    function setOracle(address _oracle) external onlyOwner {
-        oracle = _oracle;
-    }
-
-    /// @notice 设置 TrafficCardNFT 合约地址
-    function setTrafficCardNFT(address _trafficCardNFT) external onlyOwner {
-        trafficCardNFT = ITrafficCardNFT(_trafficCardNFT);
-    }
-
     /// @notice 获取用户保证金余额
     function getDepositAmount(address user) external view returns (uint256) {
         return _deposits[user];
@@ -107,11 +100,11 @@ contract Deposit is IDeposit, OwnableUpgradeable, UUPSUpgradeable {
         return _lockExpiry[user];
     }
 
-    /// @notice 初始化
-        function initialize(address _userRegistry) public initializer {
-            __Ownable_init(msg.sender);
-            userRegistry = IUserRegistry(_userRegistry);
-        }
+    /// @notice 月度发放流量卡
+    function issueMonthlyTrafficCards(address[] calldata users) external {
+        require(msg.sender == oracle, "Only oracle");
+        // Implementation for monthly traffic card issuance
+    }
 
     /// @inheritdoc UUPSUpgradeable
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

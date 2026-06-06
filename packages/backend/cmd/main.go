@@ -110,6 +110,7 @@ func main() {
 	r.POST("/api/bills/pay", handler.PayBill)
 	r.POST("/api/deposit", handler.Deposit)
 	r.GET("/api/deposit/:wallet", handler.GetDeposit)
+	r.GET("/api/deposit/:wallet/history", handler.GetDepositHistory)
 	r.POST("/api/withdraw", handler.Withdraw)
 	r.POST("/api/virtual-number/generate", handler.GenerateVirtualNumber)
 	r.GET("/api/countries", handler.GetCountryList)

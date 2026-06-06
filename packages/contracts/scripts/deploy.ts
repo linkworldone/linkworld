@@ -84,6 +84,10 @@ async function main() {
   await oracle.setDeposit(depositAddr);
   console.log("Contracts linked");
 
+  // 将 TrafficCardNFT 的 ownership 转给 Deposit 合约，让其可调用 mint
+  await trafficCardNFT.transferOwnership(depositAddr);
+  console.log("TrafficCardNFT ownership transferred to Deposit");
+
   console.log("\n=== Deployment Summary ===");
   console.log("FeeManager:", feeManagerAddr);
   console.log("UserRegistry:", userRegistryAddr);
@@ -102,7 +106,7 @@ async function main() {
       TrafficCardNFT: trafficCardNFTAddr,
       Payment: paymentAddr,
       Deposit: depositAddr,
-      Oracle: oracleAddr,
+      Oracle: oracleAddr
     },
     implementations: {
       FeeManager: await upgrades.erc1967.getImplementationAddress(feeManagerAddr),
@@ -111,7 +115,7 @@ async function main() {
       TrafficCardNFT: await upgrades.erc1967.getImplementationAddress(trafficCardNFTAddr),
       Payment: await upgrades.erc1967.getImplementationAddress(paymentAddr),
       Deposit: await upgrades.erc1967.getImplementationAddress(depositAddr),
-      Oracle: await upgrades.erc1967.getImplementationAddress(oracleAddr),
+      Oracle: await upgrades.erc1967.getImplementationAddress(oracleAddr)
     }
   };
 

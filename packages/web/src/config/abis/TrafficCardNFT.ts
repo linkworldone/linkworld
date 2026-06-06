@@ -1,4 +1,4 @@
-export const UserRegistryABI = [
+export const TrafficCardNFTABI = [
   {
     "inputs": [
       {
@@ -255,6 +255,94 @@ export const UserRegistryABI = [
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "creditAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CardDestroyed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dataAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CardMinted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CreditExpired",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CreditUsed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint64",
         "name": "version",
@@ -335,42 +423,17 @@ export const UserRegistryABI = [
     "type": "event"
   },
   {
-    "anonymous": false,
-    "inputs": [
+    "inputs": [],
+    "name": "DEDUCTION_VALIDITY",
+    "outputs": [
       {
-        "indexed": true,
-        "internalType": "address",
-        "name": "wallet",
-        "type": "address"
-      }
-    ],
-    "name": "UserDeactivated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "wallet",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "email",
-        "type": "string"
-      },
-      {
-        "indexed": false,
         "internalType": "uint256",
-        "name": "tokenId",
+        "name": "",
         "type": "uint256"
       }
     ],
-    "name": "UserRegistered",
-    "type": "event"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [],
@@ -430,6 +493,19 @@ export const UserRegistryABI = [
         "type": "uint256"
       }
     ],
+    "name": "burn",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
     "name": "getApproved",
     "outputs": [
       {
@@ -445,43 +521,95 @@ export const UserRegistryABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "wallet",
+        "name": "user",
         "type": "address"
       }
     ],
-    "name": "getUserInfo",
+    "name": "getAvailableCredit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getCardInfo",
     "outputs": [
       {
         "components": [
           {
-            "internalType": "address",
-            "name": "wallet",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "email",
-            "type": "string"
+            "internalType": "uint256",
+            "name": "dataAmount",
+            "type": "uint256"
           },
           {
             "internalType": "uint256",
-            "name": "tokenId",
+            "name": "createdAt",
             "type": "uint256"
           },
           {
             "internalType": "bool",
-            "name": "isActive",
+            "name": "isDestroyed",
             "type": "bool"
           },
           {
             "internalType": "uint256",
-            "name": "registeredAt",
+            "name": "destroyedAt",
             "type": "uint256"
           }
         ],
-        "internalType": "struct IUserRegistry.UserInfo",
+        "internalType": "struct TrafficCardNFT.CardInfo",
         "name": "",
         "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "getCreditExpiry",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "getUserCardCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -522,19 +650,46 @@ export const UserRegistryABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "wallet",
+        "name": "to",
         "type": "address"
-      }
-    ],
-    "name": "isRegistered",
-    "outputs": [
+      },
       {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
+        "internalType": "uint256",
+        "name": "dataAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_tokenURI",
+        "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "name": "mint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "to",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "dataAmounts",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "tokenURIs",
+        "type": "string[]"
+      }
+    ],
+    "name": "mintBatch",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -593,19 +748,6 @@ export const UserRegistryABI = [
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "email",
-        "type": "string"
-      }
-    ],
-    "name": "register",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -787,6 +929,24 @@ export const UserRegistryABI = [
     "name": "upgradeToAndCall",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "useCredit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;

@@ -47,6 +47,12 @@ export default function BillDetail() {
           <span className="text-text-secondary">Platform Fee (2.5%)</span>
           <span>{formatUSD(bill.platformFee)}</span>
         </div>
+        {bill.trafficCardDeduction && parseFloat(bill.trafficCardDeduction) > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-text-secondary">Traffic Card Deduction</span>
+            <span className="text-status-success">-{formatUSD(bill.trafficCardDeduction)}</span>
+          </div>
+        )}
         <div className="h-px bg-surface-secondary" />
         <div className="flex justify-between text-base font-bold">
           <span>Total</span>

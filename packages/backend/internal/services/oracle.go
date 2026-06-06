@@ -19,31 +19,22 @@ func NewVirtualNumberGenerator() *VirtualNumberGenerator {
 
 var (
 	CountryCodes = map[string]string{
-		"US": "+1",   // 美国
-		"GB": "+44",  // 英国
-		"FR": "+33",  // 法国
-		"RU": "+7",   // 俄罗斯
-		"JP": "+81",  // 日本
-		"VN": "+84",  // 越南
-		"LA": "+856", // 老挝
-		"KH": "+855", // 柬埔寨
-		"TH": "+66",  // 泰国
-		"MY": "+60",  // 马来西亚
-		"PH": "+63",  // 菲律宾
+		"US": "+1",
+		"GB": "+44",
+		"FR": "+33",
+		"RU": "+7",
+		"JP": "+81",
+		"VN": "+84",
+		"LA": "+856",
+		"KH": "+855",
+		"TH": "+66",
+		"MY": "+60",
+		"PH": "+63",
 	}
 
 	CountryLengths = map[string]int{
-		"US": 10,
-		"GB": 10,
-		"FR": 9,
-		"RU": 10,
-		"JP": 10,
-		"VN": 9,
-		"LA": 8,
-		"KH": 8,
-		"TH": 9,
-		"MY": 9,
-		"PH": 10,
+		"US": 10, "GB": 10, "FR": 9, "RU": 10, "JP": 10,
+		"VN": 9, "LA": 8, "KH": 8, "TH": 9, "MY": 9, "PH": 10,
 	}
 
 	CountryPrefixes = map[string][]string{
@@ -61,17 +52,9 @@ var (
 	}
 
 	CountryNames = map[string]string{
-		"US": "United States",
-		"GB": "United Kingdom",
-		"FR": "France",
-		"RU": "Russia",
-		"JP": "Japan",
-		"VN": "Vietnam",
-		"LA": "Laos",
-		"KH": "Cambodia",
-		"TH": "Thailand",
-		"MY": "Malaysia",
-		"PH": "Philippines",
+		"US": "United States", "GB": "United Kingdom", "FR": "France", "RU": "Russia",
+		"JP": "Japan", "VN": "Vietnam", "LA": "Laos", "KH": "Cambodia",
+		"TH": "Thailand", "MY": "Malaysia", "PH": "Philippines",
 	}
 )
 
@@ -151,11 +134,11 @@ func (s *OperatorAPISimulator) GetBill(userID, operatorID uint, month time.Time)
 }
 
 type OracleServiceV2 struct {
-	operatorAPI      OperatorAPI
-	userRepo         *repository.UserRepository
-	userServiceRepo  *repository.UserServiceRepository
-	billRepo         *repository.BillRepository
-	usageRepo        *repository.UsageDataRepository
+	operatorAPI     OperatorAPI
+	userRepo        *repository.UserRepository
+	userServiceRepo *repository.UserServiceRepository
+	billRepo        *repository.BillRepository
+	usageRepo       *repository.UsageDataRepository
 }
 
 func NewOracleServiceV2(
@@ -236,10 +219,10 @@ func (s *OracleServiceV2) SignData(userID uint, operatorID uint, dataUsage, call
 }
 
 type UsageService struct {
-	oracleService     *OracleServiceV2
-	usageRepo         *repository.UsageDataRepository
-	userRepo          *repository.UserRepository
-	userServiceRepo   *repository.UserServiceRepository
+	oracleService   *OracleServiceV2
+	usageRepo       *repository.UsageDataRepository
+	userRepo        *repository.UserRepository
+	userServiceRepo *repository.UserServiceRepository
 }
 
 func NewUsageService(oracleService *OracleServiceV2, usageRepo *repository.UsageDataRepository, userRepo *repository.UserRepository, userServiceRepo *repository.UserServiceRepository) *UsageService {

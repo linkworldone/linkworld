@@ -1,4 +1,4 @@
-export const DepositABI = [
+export const OracleABI = [
   {
     "inputs": [
       {
@@ -65,27 +65,6 @@ export const DepositABI = [
   },
   {
     "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "length",
-        "type": "uint256"
-      }
-    ],
-    "name": "StringsInsufficientHexLength",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "UUPSUnauthorizedCallContext",
     "type": "error"
   },
@@ -104,50 +83,6 @@ export const DepositABI = [
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "DepositMade",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "principal",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "interest",
-        "type": "uint256"
-      }
-    ],
-    "name": "DepositWithdrawn",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": false,
         "internalType": "uint64",
         "name": "version",
@@ -155,6 +90,19 @@ export const DepositABI = [
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "MonthlySettlementCompleted",
     "type": "event"
   },
   {
@@ -182,68 +130,42 @@ export const DepositABI = [
       {
         "indexed": true,
         "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "month",
-        "type": "uint256"
-      }
-    ],
-    "name": "TrafficCardIssued",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newQuota",
-        "type": "uint256"
-      }
-    ],
-    "name": "TrafficCardQuotaUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "TrafficCardUsed",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "implementation",
         "type": "address"
       }
     ],
     "name": "Upgraded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "operatorId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dataUsage",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "callUsage",
+        "type": "uint256"
+      }
+    ],
+    "name": "UsageDataSubmitted",
     "type": "event"
   },
   {
@@ -262,94 +184,11 @@ export const DepositABI = [
   {
     "inputs": [],
     "name": "deposit",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getCurrentMonth",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "contract IDeposit",
         "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
         "type": "address"
-      }
-    ],
-    "name": "getDepositAmount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "operatorId",
-        "type": "uint256"
-      }
-    ],
-    "name": "getRequiredDeposit",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      }
-    ],
-    "name": "getTrafficCardBalance",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      }
-    ],
-    "name": "getUserCardCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -364,16 +203,26 @@ export const DepositABI = [
       },
       {
         "internalType": "uint256",
-        "name": "month",
+        "name": "operatorId",
         "type": "uint256"
       }
     ],
-    "name": "hasWithdrawnThisMonth",
+    "name": "getLatestUsage",
     "outputs": [
       {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
+        "internalType": "uint256",
+        "name": "dataUsage",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "callUsage",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -383,7 +232,7 @@ export const DepositABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "_userRegistry",
+        "name": "_payment",
         "type": "address"
       }
     ],
@@ -398,24 +247,26 @@ export const DepositABI = [
         "internalType": "address[]",
         "name": "users",
         "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "operatorIds",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "dataUsages",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "callUsages",
+        "type": "uint256[]"
       }
     ],
-    "name": "issueMonthlyTrafficCards",
+    "name": "monthlySettlement",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "oracle",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -458,6 +309,34 @@ export const DepositABI = [
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "operatorId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dataUsage",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "callUsage",
+        "type": "uint256"
+      }
+    ],
+    "name": "recordUsage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
@@ -465,27 +344,14 @@ export const DepositABI = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "serviceManager",
-    "outputs": [
-      {
-        "internalType": "contract IServiceManager",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
-        "name": "_oracle",
+        "name": "_deposit",
         "type": "address"
       }
     ],
-    "name": "setOracle",
+    "name": "setDeposit",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -506,84 +372,29 @@ export const DepositABI = [
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
         "internalType": "uint256",
         "name": "operatorId",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "dataUsage",
         "type": "uint256"
-      }
-    ],
-    "name": "setRequiredDeposit",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_serviceManager",
-        "type": "address"
-      }
-    ],
-    "name": "setServiceManager",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_trafficCardNFT",
-        "type": "address"
-      }
-    ],
-    "name": "setTrafficCardNFT",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
+      },
       {
         "internalType": "uint256",
-        "name": "quota",
+        "name": "callUsage",
         "type": "uint256"
       }
     ],
-    "name": "setTrafficCardQuota",
+    "name": "submitUsage",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "trafficCardNFT",
-    "outputs": [
-      {
-        "internalType": "contract ITrafficCardNFT",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "trafficCardQuota",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -615,44 +426,6 @@ export const DepositABI = [
     "name": "upgradeToAndCall",
     "outputs": [],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "useTrafficCard",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "userRegistry",
-    "outputs": [
-      {
-        "internalType": "contract IUserRegistry",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "withdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;

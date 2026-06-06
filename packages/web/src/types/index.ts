@@ -10,7 +10,6 @@ export interface User {
 
 export interface DepositInfo {
   balance: bigint;
-  minimumRequired: bigint;
   currency: "USDT" | "ETH";
 }
 
@@ -61,6 +60,7 @@ export interface Bill {
   status: "unpaid" | "paid" | "overdue";
   operatorFee: string;
   platformFee: string;
+  trafficCardDeduction?: string;
   totalAmount: string;
   dueDate: string;
   paidAt?: string;
@@ -109,6 +109,7 @@ export interface ApiBill {
   operator_id: number;
   amount: string;
   platform_fee: string;
+  traffic_card_deduction?: string;
   is_paid: boolean;
   created_at: string;
   paid_at?: string;

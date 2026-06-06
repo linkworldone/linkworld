@@ -2,25 +2,43 @@
 pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IPayment.sol";
 import "./interfaces/IFeeManager.sol";
 
-/// @title Payment - 购买运营商服务（v3: 1.5% 手续费，实时结算）
-contract Payment is IPayment, OwnableUpgradeable, UUPSUpgradeable {
+/// @title Payment - 支付结算（服务商费用 + 平台手续费 + 流量卡抵扣，可升级版）
+contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
     IFeeManager public feeManager;
     address public platformWallet;
+    address public oracle;
 
     uint256 private _nextBillId;
     mapping(uint256 => Bill) private _bills;
     mapping(address => uint256[]) private _userBillIds;
 
+    modifier onlyOracle() {
+        require(msg.sender == oracle, "Only oracle");
+        _;
+    }
+
     /// @notice Initializer
     function initialize(address _feeManager, address _platformWallet) public initializer {
         __Ownable_init(msg.sender);
+        _reentrancyGuardInit();
         feeManager = IFeeManager(_feeManager);
         platformWallet = _platformWallet;
+    }
+
+    function _reentrancyGuardInit() internal {
+        bytes32 slot_ = _reentrancyGuardStorageSlot();
+        assembly {
+            sstore(slot_, 1) // NOT_ENTERED = 1
+        }
+    }
+
+    function setOracle(address _oracle) external onlyOwner {
+        oracle = _oracle;
     }
 
     /// @notice 设置平台钱包
@@ -87,7 +105,7 @@ contract Payment is IPayment, OwnableUpgradeable, UUPSUpgradeable {
         return bills;
     }
 
-    function getUnpaidBills(address user) external view returns (Bill[] memory) {
+    function getUnpaidBills(address user) public view returns (Bill[] memory) {
         uint256[] memory ids = _userBillIds[user];
         uint256 count = 0;
         for (uint256 i = 0; i < ids.length; i++) {

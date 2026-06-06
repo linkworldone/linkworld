@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/shared/BottomSheet";
 import { useDeposit, useDepositHistory, useDepositMutation, useWithdrawMutation } from "@/hooks/useDeposit";
@@ -10,7 +11,7 @@ type SheetMode = "deposit" | "withdraw" | null;
 
 export default function Deposit() {
   const { address } = useAccount();
-  const { data: deposit } = useDeposit(address);
+  const { data: deposit, refetch: refetchBalance } = useDeposit(address);
   const { data: history } = useDepositHistory(address);
   const depositMutation = useDepositMutation();
   const withdrawMutation = useWithdrawMutation();
@@ -19,14 +20,12 @@ export default function Deposit() {
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<"USDT" | "ETH">("USDT");
 
-  const percentOfMin = deposit
-    ? Number((deposit.balance * 100n) / deposit.minimumRequired)
-    : 0;
-
-  // 合约成功后同步后端
+  // 合约成功后同步后端 + 刷新余额 + 提示
   useEffect(() => {
     if (depositMutation.isSuccess && amount) {
       depositMutation.recordToBackend(amount);
+      refetchBalance();
+      toast.success("Deposit confirmed");
       setSheetMode(null);
       setAmount("");
     }
@@ -35,6 +34,8 @@ export default function Deposit() {
   useEffect(() => {
     if (withdrawMutation.isSuccess) {
       withdrawMutation.recordToBackend();
+      refetchBalance();
+      toast.success("Withdraw confirmed");
       setSheetMode(null);
       setAmount("");
     }
@@ -49,7 +50,14 @@ export default function Deposit() {
     }
   };
 
-  const isPending = depositMutation.isContractPending || withdrawMutation.isContractPending;
+  const isWaitingSignature = depositMutation.isContractPending || withdrawMutation.isContractPending;
+  const isConfirming = depositMutation.isConfirming || withdrawMutation.isConfirming;
+  const isPending = isWaitingSignature || isConfirming;
+  const buttonText = isWaitingSignature
+    ? "Waiting for signature..."
+    : isConfirming
+      ? "Confirming on chain..."
+      : "Confirm";
 
   return (
     <div className="px-4 space-y-4">
@@ -58,18 +66,6 @@ export default function Deposit() {
         <div className="text-[10px] text-text-muted uppercase tracking-wider">Current Balance</div>
         <div className="mt-2">
           {deposit && <AmountDisplay amount={deposit.balance} currency={deposit.currency} size="lg" />}
-        </div>
-        <div className="mt-4">
-          <div className="flex justify-between text-[10px] text-text-muted mb-1">
-            <span>Min Required: {deposit ? formatAmount(deposit.minimumRequired) : "\u2014"} {deposit?.currency}</span>
-            <span>{percentOfMin}%</span>
-          </div>
-          <div className="h-1 bg-surface-secondary rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-status-success to-brand-blue rounded-full transition-all"
-              style={{ width: `${Math.min(percentOfMin, 100)}%` }}
-            />
-          </div>
         </div>
       </div>
 
@@ -130,7 +126,7 @@ export default function Deposit() {
         />
 
         <Button onClick={handleConfirm} disabled={!amount || isPending} className="w-full py-3">
-          {isPending ? "Processing..." : "Confirm"}
+          {buttonText}
         </Button>
       </BottomSheet>
     </div>

@@ -15,12 +15,21 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
 
     address public depositContract;
 
+    mapping(address => DeductionCredit) private _deductionCredits;
+
+    uint256 public constant DEDUCTION_VALIDITY = 30 days;
+
+    event CardMinted(address indexed user, uint256 tokenId, uint256 dataAmount);
+    event CardDestroyed(address indexed user, uint256 tokenId, uint256 creditAmount);
+    event CreditUsed(address indexed user, uint256 amount);
+    event CreditExpired(address indexed user, uint256 amount);
+
     modifier onlyDeposit() {
         require(msg.sender == depositContract, "Not deposit");
         _;
     }
 
-    /// @notice Initializer
+    /// @notice ERC721 initializer
     function initialize() public initializer {
         __Ownable_init(msg.sender);
         __ERC721_init("LinkWorld Traffic Card", "LWTC");
@@ -72,7 +81,7 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
 
     /// @notice 用户销毁 NFT 激活服务（仅 owner 可调）
     function burn(uint256 tokenId) external {
-        require(msg.sender == ownerOf(tokenId), "Not owner");
+        require(_isAuthorized(msg.sender, address(0), tokenId), "Not owner or approved");
         require(!_cardInfo[tokenId].isDestroyed, "Card already destroyed");
 
         _cardInfo[tokenId].isDestroyed = true;

@@ -4,7 +4,6 @@ let mockUser: User | null = null;
 
 let mockDeposit: DepositInfo = {
   balance: 150000000000000000000n,
-  minimumRequired: 100000000000000000000n,
   currency: "USDT",
 };
 

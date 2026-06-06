@@ -7,6 +7,7 @@ interface ApiBill {
   operator_id: number;
   amount: string;
   platform_fee: string;
+  traffic_card_deduction?: string;
   is_paid: boolean;
   created_at: string;
   paid_at?: string;
@@ -27,7 +28,10 @@ function toBill(api: ApiBill): Bill {
 
   const operatorFee = api.amount;
   const platformFee = api.platform_fee;
-  const total = (parseFloat(operatorFee) + parseFloat(platformFee)).toFixed(2);
+  const trafficCardDeduction = api.traffic_card_deduction || "0";
+  const total = (
+    parseFloat(operatorFee) + parseFloat(platformFee) - parseFloat(trafficCardDeduction)
+  ).toFixed(2);
 
   return {
     id: String(api.id),
@@ -35,6 +39,7 @@ function toBill(api: ApiBill): Bill {
     status,
     operatorFee,
     platformFee,
+    trafficCardDeduction,
     totalAmount: total,
     dueDate: dueDate.toISOString(),
     paidAt: api.paid_at || undefined,
