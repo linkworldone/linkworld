@@ -5,13 +5,12 @@ interface IUserRegistry {
     struct UserInfo {
         address wallet;
         string email;
-        uint256 tokenId; // NFT token ID
+        uint256 tokenId;
         bool isActive;
         uint256 registeredAt;
     }
 
-    event UserRegistered(address indexed wallet, string email, uint256 tokenId);
-    event UserDeactivated(address indexed wallet);
+    event UserRegistered(address indexed user, string email, uint256 tokenId);
 
     function register(string calldata email) external;
     function getUserInfo(address wallet) external view returns (UserInfo memory);

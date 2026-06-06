@@ -1,4 +1,4 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -6,7 +6,17 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with:", deployer.address);
 
-  // 1. UserRegistry (无依赖)
+  // 1. FeeManager (无依赖, 1.5% = 150 bps)
+  const FeeManager = await ethers.getContractFactory("FeeManager");
+  const feeManager = await upgrades.deployProxy(FeeManager, [150], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
+  await feeManager.waitForDeployment();
+  const feeManagerAddr = await feeManager.getAddress();
+  console.log("FeeManager:", feeManagerAddr);
+
+  // 2. UserRegistry (无依赖)
   const UserRegistry = await ethers.getContractFactory("UserRegistry");
   const userRegistry = await upgrades.deployProxy(UserRegistry, [], {
     initializer: "initialize",
@@ -15,16 +25,6 @@ async function main() {
   await userRegistry.waitForDeployment();
   const userRegistryAddr = await userRegistry.getAddress();
   console.log("UserRegistry:", userRegistryAddr);
-
-  // 2. FeeManager (无依赖，initializer: initialize(uint256))
-  const FeeManager = await ethers.getContractFactory("FeeManager");
-  const feeManager = await upgrades.deployProxy(FeeManager, [250], {
-    initializer: "initialize",
-    kind: "uups"
-  }) as any;
-  await feeManager.waitForDeployment();
-  const feeManagerAddr = await feeManager.getAddress();
-  console.log("FeeManager:", feeManagerAddr);
 
   // 3. ServiceManager (无依赖)
   const ServiceManager = await ethers.getContractFactory("ServiceManager");
@@ -36,7 +36,17 @@ async function main() {
   const serviceManagerAddr = await serviceManager.getAddress();
   console.log("ServiceManager:", serviceManagerAddr);
 
-  // 4. Payment (依赖 FeeManager)
+  // 4. TrafficCardNFT (无依赖)
+  const TrafficCardNFT = await ethers.getContractFactory("TrafficCardNFT");
+  const trafficCardNFT = await upgrades.deployProxy(TrafficCardNFT, [], {
+    initializer: "initialize",
+    kind: "uups"
+  }) as any;
+  await trafficCardNFT.waitForDeployment();
+  const trafficCardNFTAddr = await trafficCardNFT.getAddress();
+  console.log("TrafficCardNFT:", trafficCardNFTAddr);
+
+  // 5. Payment (依赖 FeeManager)
   const Payment = await ethers.getContractFactory("Payment");
   const payment = await upgrades.deployProxy(Payment, [feeManagerAddr, deployer.address], {
     initializer: "initialize",
@@ -46,7 +56,7 @@ async function main() {
   const paymentAddr = await payment.getAddress();
   console.log("Payment:", paymentAddr);
 
-  // 5. Deposit (依赖 UserRegistry)
+  // 6. Deposit (依赖 UserRegistry)
   const Deposit = await ethers.getContractFactory("Deposit");
   const deposit = await upgrades.deployProxy(Deposit, [userRegistryAddr], {
     initializer: "initialize",
@@ -56,9 +66,9 @@ async function main() {
   const depositAddr = await deposit.getAddress();
   console.log("Deposit:", depositAddr);
 
-  // 6. Oracle (依赖 Payment)
+  // 7. Oracle (无外部依赖)
   const Oracle = await ethers.getContractFactory("Oracle");
-  const oracle = await upgrades.deployProxy(Oracle, [paymentAddr], {
+  const oracle = await upgrades.deployProxy(Oracle, [], {
     initializer: "initialize",
     kind: "uups"
   }) as any;
@@ -66,42 +76,39 @@ async function main() {
   const oracleAddr = await oracle.getAddress();
   console.log("Oracle:", oracleAddr);
 
-  // 关联合约
-  await deposit.setPayment(paymentAddr);
-  await deposit.setServiceManager(serviceManagerAddr);
+  // 关联合约 (v3 简化)
+  await trafficCardNFT.setDepositContract(depositAddr);
+  await deposit.setTrafficCardNFT(trafficCardNFTAddr);
   await deposit.setOracle(oracleAddr);
-  console.log("Deposit linked to Payment, ServiceManager, Oracle");
-
-  await payment.setOracle(oracleAddr);
-  await payment.setDeposit(depositAddr);
-  console.log("Payment linked to Oracle and Deposit");
-
+  await payment.setPlatformWallet(deployer.address);
   await oracle.setDeposit(depositAddr);
-  console.log("Oracle linked to Deposit");
+  console.log("Contracts linked");
 
   console.log("\n=== Deployment Summary ===");
-  console.log("UserRegistry:", userRegistryAddr);
   console.log("FeeManager:", feeManagerAddr);
+  console.log("UserRegistry:", userRegistryAddr);
   console.log("ServiceManager:", serviceManagerAddr);
+  console.log("TrafficCardNFT:", trafficCardNFTAddr);
   console.log("Payment:", paymentAddr);
   console.log("Deposit:", depositAddr);
   console.log("Oracle:", oracleAddr);
 
-  // 输出合约地址 JSON (同时保存实现地址用于后续升级)
   const addresses = {
-    chainId: 31337,
+    chainId: network.config.chainId || 31337,
     proxies: {
-      UserRegistry: userRegistryAddr,
       FeeManager: feeManagerAddr,
+      UserRegistry: userRegistryAddr,
       ServiceManager: serviceManagerAddr,
+      TrafficCardNFT: trafficCardNFTAddr,
       Payment: paymentAddr,
       Deposit: depositAddr,
       Oracle: oracleAddr,
     },
     implementations: {
-      UserRegistry: await upgrades.erc1967.getImplementationAddress(userRegistryAddr),
       FeeManager: await upgrades.erc1967.getImplementationAddress(feeManagerAddr),
+      UserRegistry: await upgrades.erc1967.getImplementationAddress(userRegistryAddr),
       ServiceManager: await upgrades.erc1967.getImplementationAddress(serviceManagerAddr),
+      TrafficCardNFT: await upgrades.erc1967.getImplementationAddress(trafficCardNFTAddr),
       Payment: await upgrades.erc1967.getImplementationAddress(paymentAddr),
       Deposit: await upgrades.erc1967.getImplementationAddress(depositAddr),
       Oracle: await upgrades.erc1967.getImplementationAddress(oracleAddr),
@@ -110,11 +117,12 @@ async function main() {
 
   const deploymentsDir = path.resolve(__dirname, "../deployments");
   fs.mkdirSync(deploymentsDir, { recursive: true });
+  const networkName = network.name;
   fs.writeFileSync(
-    path.join(deploymentsDir, "localhost.json"),
+    path.join(deploymentsDir, `${networkName}.json`),
     JSON.stringify(addresses, null, 2)
   );
-  console.log("Addresses written to deployments/localhost.json");
+  console.log(`Addresses written to deployments/${networkName}.json`);
 }
 
 main().catch((error) => {

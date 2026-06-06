@@ -260,3 +260,49 @@ func (h *Handler) GetUserService(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, service)
 }
+
+type SubmitUsageRequest struct {
+	Wallet     string `json:"wallet" binding:"required"`
+	OperatorID uint   `json:"operator_id" binding:"required"`
+	DataUsage  uint64 `json:"data_usage" binding:"required"`
+	CallUsage  uint64 `json:"call_usage" binding:"required"`
+	Signature  string `json:"signature" binding:"required"`
+}
+
+func (h *Handler) SubmitUsage(c *gin.Context) {
+	var req SubmitUsageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := h.oracleService.SubmitUsage(req.Wallet, req.OperatorID, req.DataUsage, req.CallUsage, req.Signature)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Usage submitted"})
+}
+
+func (h *Handler) SendNotification(c *gin.Context) {
+	var req struct {
+		Wallet string `json:"wallet" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	bills, err := h.billingService.GetUnpaidBills(req.Wallet)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	err = h.notificationService.SendBillEmail(req.Wallet, bills)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Notification sent"})
+}

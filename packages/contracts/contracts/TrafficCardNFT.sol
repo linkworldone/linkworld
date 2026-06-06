@@ -1,168 +1,116 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "./interfaces/ITrafficCardNFT.sol";
 
-/// @title TrafficCardNFT - 流量卡NFT合约（可升级版）
-/// @notice 用户持有此NFT可在销毁时获得流量抵扣额度
-/// @dev NFT长时间有效，销毁后流量抵扣有效期为30天
-contract TrafficCardNFT is ERC721Upgradeable, ERC721URIStorageUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+/// @title TrafficCardNFT - 流量卡凭证（v3: mint→持有→burn→30天服务）
+contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorageUpgradeable, UUPSUpgradeable {
     uint256 private _nextTokenId;
-
-    /// @notice 流量卡信息
-    struct CardInfo {
-        uint256 dataAmount;
-        uint256 createdAt;
-        bool isDestroyed;
-        uint256 destroyedAt;
-    }
 
     mapping(uint256 => CardInfo) private _cardInfo;
     mapping(address => uint256) private _userCardCount;
 
-    /// @notice 销毁后的抵扣额度（有效期30天）
-    struct DeductionCredit {
-        uint256 amount;
-        uint256 expiryTime;
+    address public depositContract;
+
+    modifier onlyDeposit() {
+        require(msg.sender == depositContract, "Not deposit");
+        _;
     }
 
-    mapping(address => DeductionCredit) private _deductionCredits;
-
-    uint256 public constant DEDUCTION_VALIDITY = 30 days;
-
-    event CardMinted(address indexed user, uint256 tokenId, uint256 dataAmount);
-    event CardDestroyed(address indexed user, uint256 tokenId, uint256 creditAmount);
-    event CreditUsed(address indexed user, uint256 amount);
-    event CreditExpired(address indexed user, uint256 amount);
-
-    // ===== FIX #5: @inheritdoc ERC721Upgradeable → @notice ERC721 initializer =====
-    /// @notice ERC721 initializer
+    /// @notice Initializer
     function initialize() public initializer {
-        __ERC721_init("LinkWorld Traffic Card", "LWTC");
-        __ERC721URIStorage_init_unchained();
         __Ownable_init(msg.sender);
+        __ERC721_init("LinkWorld Traffic Card", "LWTC");
+        __ERC721URIStorage_init();
     }
 
-    // OZ v5 replaced _isApprovedOrOwner with _isAuthorized(spender=address(0))
-    function _isOwnerOrApproved(address account, uint256 tokenId) internal view returns (bool) {
-        return _isAuthorized(account, address(0), tokenId);
+    /// @notice 设置 Deposit 合约地址（允许其 mint）
+    function setDepositContract(address _deposit) external onlyOwner {
+        depositContract = _deposit;
     }
 
-    /// @notice 内部铸造实现（不触发 onlyOwner 权限检查）
-    /// @param to 接收地址
-    /// @param dataAmount 流量额度
-    /// @param tokenURI NFT元数据URI
-    function _mintNFT(
-        address to,
-        uint256 dataAmount,
-        string calldata tokenURI
-    ) internal {
+    /// @notice Owner 直接 mint
+    function mint(address to, uint256 dataAmount, string calldata tokenURI_) external onlyOwner returns (uint256) {
         require(to != address(0), "Invalid address");
         require(dataAmount > 0, "Zero data amount");
 
         uint256 tokenId = _nextTokenId++;
         _safeMint(to, tokenId);
-        _setTokenURI(tokenId, tokenURI);
+        _setTokenURI(tokenId, tokenURI_);
 
         _cardInfo[tokenId] = CardInfo({
             dataAmount: dataAmount,
             createdAt: block.timestamp,
-            isDestroyed: false,
-            destroyedAt: 0
+            isDestroyed: false
         });
 
         _userCardCount[to]++;
         emit CardMinted(to, tokenId, dataAmount);
+        return tokenId;
     }
 
-    /// @notice 铸造流量卡NFT
-    function mint(address to, uint256 dataAmount, string calldata tokenURI)
-        external
-        onlyOwner
-    {
-        _mintNFT(to, dataAmount, tokenURI);
-    }
-
-    /// @notice 批量铸造流量卡NFT
+    /// @notice 批量 mint
     function mintBatch(
         address[] calldata to,
         uint256[] calldata dataAmounts,
-        string[] calldata tokenURIs
-    ) external onlyOwner {
-        require(to.length == dataAmounts.length, "Length mismatch");
-        require(to.length == tokenURIs.length, "Length mismatch");
+        string[] calldata tokenURIs_
+    )
+        external
+        onlyOwner
+        returns (uint256[] memory)
+    {
+        require(to.length == dataAmounts.length && to.length == tokenURIs_.length, "Length mismatch");
+        uint256[] memory tokenIds = new uint256[](to.length);
         for (uint256 i = 0; i < to.length; i++) {
-            _mintNFT(to[i], dataAmounts[i], tokenURIs[i]);
+            tokenIds[i] = this.mint(to[i], dataAmounts[i], tokenURIs_[i]);
         }
+        return tokenIds;
     }
 
-    /// @notice 销毁流量卡NFT并获得抵扣额度
-    /// @dev NFT持有者可随时销毁获得抵扣额度
+    /// @notice 用户销毁 NFT 激活服务（仅 owner 可调）
     function burn(uint256 tokenId) external {
-        // OZ v5: _isApprovedOrOwner → _isAuthorized(spender=address(0))
-        require(_isAuthorized(msg.sender, address(0), tokenId), "Not owner or approved");
+        require(msg.sender == ownerOf(tokenId), "Not owner");
         require(!_cardInfo[tokenId].isDestroyed, "Card already destroyed");
 
-        CardInfo storage card = _cardInfo[tokenId];
-        card.isDestroyed = true;
-        card.destroyedAt = block.timestamp;
-
-        DeductionCredit storage credit = _deductionCredits[msg.sender];
-        credit.amount += card.dataAmount;
-        credit.expiryTime = block.timestamp + DEDUCTION_VALIDITY;
-
+        _cardInfo[tokenId].isDestroyed = true;
         _userCardCount[msg.sender]--;
+
         _burn(tokenId);
 
-        emit CardDestroyed(msg.sender, tokenId, card.dataAmount);
+        emit CardDestroyed(msg.sender, tokenId, _cardInfo[tokenId].dataAmount);
+        emit ServiceActivated(msg.sender, block.timestamp + 30 days);
     }
 
-    /// @notice 使用抵扣额度
-    function useCredit(address user, uint256 amount) external onlyOwner {
-        DeductionCredit storage credit = _deductionCredits[user];
-        require(block.timestamp <= credit.expiryTime || credit.expiryTime == 0, "Credit expired");
-        require(credit.amount >= amount, "Insufficient credit");
-        credit.amount -= amount;
-        emit CreditUsed(user, amount);
-    }
-
-    function getAvailableCredit(address user) external view returns (uint256) {
-        DeductionCredit storage credit = _deductionCredits[user];
-        if (credit.expiryTime > 0 && block.timestamp > credit.expiryTime) {
-            return 0;
-        }
-        return credit.amount;
-    }
-
-    function getCreditExpiry(address user) external view returns (uint256) {
-        return _deductionCredits[user].expiryTime;
-    }
-
-    /// @notice 查询流量卡信息
-    /// @dev OZ v5: _exists(tokenId) removed; use _ownerOf(address) instead
+    /// @notice 查询卡片信息
     function getCardInfo(uint256 tokenId) external view returns (CardInfo memory) {
-        require(
-            address(_ownerOf(tokenId)) != address(0) || _cardInfo[tokenId].createdAt > 0,
-            "Card not found"
-        );
+        require(tokenId < _nextTokenId, "Card not found");
         return _cardInfo[tokenId];
     }
 
+    /// @notice 查询用户持有的卡片数量
     function getUserCardCount(address user) external view returns (uint256) {
         return _userCardCount[user];
     }
 
-    /// @inheritdoc ERC721URIStorageUpgradeable
-    function tokenURI(uint256 tokenId) public view override(ERC721Upgradeable, ERC721URIStorageUpgradeable) returns (string memory) {
+    function tokenURI(uint256 tokenId) public view override(ERC721URIStorageUpgradeable) returns (string memory) {
         return super.tokenURI(tokenId);
     }
 
-    /// @inheritdoc ERC721URIStorageUpgradeable
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721Upgradeable, ERC721URIStorageUpgradeable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721URIStorageUpgradeable)
+        returns (bool)
+    {
         return super.supportsInterface(interfaceId);
+    }
+
+    /// @notice 内部设置 tokenURI
+    function _setTokenURI(uint256 tokenId, string memory tokenURI_) internal override {
+        super._setTokenURI(tokenId, tokenURI_);
     }
 
     /// @inheritdoc UUPSUpgradeable

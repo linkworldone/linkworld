@@ -4,98 +4,59 @@ pragma solidity ^0.8.27;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
 import "./interfaces/IDeposit.sol";
 import "./interfaces/IUserRegistry.sol";
-import "./interfaces/IPayment.sol";
-import "./interfaces/IServiceManager.sol";
 import "./interfaces/ITrafficCardNFT.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
-/// @title Deposit - 用户保证金管理（可升级版）
-contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeable {
+/// @title Deposit - 用户保证金管理（v3: 锁仓→mint流量卡→30天服务）
+contract Deposit is IDeposit, OwnableUpgradeable, UUPSUpgradeable {
     IUserRegistry public userRegistry;
-    IPayment public payment;
-    IServiceManager public serviceManager;
-    ITrafficCardNFT public trafficCardNFT; // 流量卡NFT合约
+    ITrafficCardNFT public trafficCardNFT;
 
-    address public oracle; // 预言机地址，有权触发流量卡发放
+    address public oracle;
 
-    // ========== 流量卡相关状态变量 ==========
-    uint256 public trafficCardQuota; // 流量卡额度（字节），默认 100M
-    mapping(address => mapping(uint256 => bool)) private _monthlyCardIssued; // 用户×月份 → 是否已发放
-
-    // ========== 保证金相关状态变量 ==========
     mapping(address => uint256) private _deposits;
-    mapping(address => uint256) private _lastWithdrawTimestamp; // 上次提款时间
-    mapping(uint256 => uint256) private _operatorRequiredDeposit;
+    mapping(address => uint256) private _lockExpiry;
+
+    bool private _withdrawLocked;
 
     modifier onlyOracle() {
         require(msg.sender == oracle, "Only oracle");
         _;
     }
 
-    /// @notice Initializer
-    function initialize(address _userRegistry) public initializer {
-        __Ownable_init(msg.sender);
-        // 手动初始化 ReentrancyGuard 存储槽（Upgradeable 模式）
-        _reentrancyGuardInit();
-
-        userRegistry = IUserRegistry(_userRegistry);
-        trafficCardQuota = 100 * 1024 * 1024; // 默认 100M
+    modifier nonReentrant() {
+        require(!_withdrawLocked, "Reentrant");
+        _withdrawLocked = true;
+        _;
+        _withdrawLocked = false;
     }
 
-    // 内部 ReentrancyGuard 初始化（代理模式不可用构造函数，直接写存储槽）
-    function _reentrancyGuardInit() internal {
-        bytes32 slot_ = _reentrancyGuardStorageSlot();
-        assembly {
-            sstore(slot_, 1) // NOT_ENTERED = 1
-        }
-    }
-
-    function setPayment(address _payment) external onlyOwner {
-        payment = IPayment(_payment);
-    }
-
-    function setServiceManager(address _serviceManager) external onlyOwner {
-        serviceManager = IServiceManager(_serviceManager);
-    }
-
-    function setRequiredDeposit(uint256 operatorId, uint256 amount) external onlyOwner {
-        _operatorRequiredDeposit[operatorId] = amount;
-    }
-
-    function setOracle(address _oracle) external onlyOwner {
-        oracle = _oracle;
-    }
-
-    function setTrafficCardNFT(address _trafficCardNFT) external onlyOwner {
-        trafficCardNFT = ITrafficCardNFT(_trafficCardNFT);
-    }
-
+    /// @notice 用户存入保证金（锁仓30天）
     function deposit() external payable {
-        require(userRegistry.isRegistered(msg.sender), "Not registered");
         require(msg.value > 0, "Zero deposit");
+        require(userRegistry.isRegistered(msg.sender), "Not registered");
 
         _deposits[msg.sender] += msg.value;
+        if (_lockExpiry[msg.sender] < block.timestamp) {
+            _lockExpiry[msg.sender] = block.timestamp + 30 days;
+        } else {
+            _lockExpiry[msg.sender] += 30 days;
+        }
+
         emit DepositMade(msg.sender, msg.value);
     }
 
+    /// @notice 提取保证金（锁仓期满 + 无未销毁卡）
     function withdraw() external nonReentrant {
+        require(block.timestamp >= _lockExpiry[msg.sender], "Lock not expired");
         require(_deposits[msg.sender] > 0, "No deposit");
-
-        if (address(serviceManager) != address(0)) {
-            IServiceManager.UserService memory service = serviceManager.getUserService(msg.sender);
-            require(!service.isActive, "Service still active");
-        }
-
-        if (address(payment) != address(0)) {
-            IPayment.Bill[] memory unpaid = IPayment(payment).getUnpaidBills(msg.sender);
-            require(unpaid.length == 0, "Has unpaid bills");
-        }
+        require(trafficCardNFT.getUserCardCount(msg.sender) == 0, "Card not burned");
 
         uint256 principal = _deposits[msg.sender];
         _deposits[msg.sender] = 0;
-        _lastWithdrawTimestamp[msg.sender] = block.timestamp; // 记录提款时间
+        _lockExpiry[msg.sender] = 0;
 
         (bool success, ) = msg.sender.call{value: principal}("");
         require(success, "Transfer failed");
@@ -103,98 +64,54 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeab
         emit DepositWithdrawn(msg.sender, principal, 0);
     }
 
-    /// @notice 管理员设置流量卡额度
-    function setTrafficCardQuota(uint256 quota) external onlyOwner {
-        trafficCardQuota = quota;
-        emit TrafficCardQuotaUpdated(quota);
+    /// @notice 为用户 mint 流量卡（锁仓到期后调用，仅 owner）
+    function mintTrafficCard(address user) external onlyOwner returns (uint256) {
+        require(block.timestamp >= _lockExpiry[user], "Lock not expired");
+        require(_deposits[user] > 0, "No deposit");
+        require(trafficCardNFT.getUserCardCount(user) == 0, "Card already active");
+
+        uint256 dataAmount = _deposits[user] / 100000;
+        uint256 tokenId = trafficCardNFT.mint(user, dataAmount, generateTokenURI(user));
+
+        emit TrafficCardMinted(user, tokenId, dataAmount);
+        return tokenId;
     }
 
-    /// @notice 月末为符合条件的用户发放流量卡NFT（由Oracle或Owner调用）
-    function issueMonthlyTrafficCards(address[] calldata users) external {
-        require(msg.sender == owner() || msg.sender == oracle, "Only owner or oracle");
-        require(address(trafficCardNFT) != address(0), "TrafficCardNFT not set");
-        uint256 currentMonth = getCurrentMonth();
-
-        for (uint256 i = 0; i < users.length; i++) {
-            address user = users[i];
-            // 检查是否已发放
-            if (_monthlyCardIssued[user][currentMonth]) continue;
-            
-            // 检查本月是否提过款
-            if (hasWithdrawnThisMonth(user, currentMonth)) continue;
-            
-            // 检查用户是否有存款
-            if (_deposits[user] == 0) continue;
-
-            // 铸造流量卡NFT（使用默认的tokenURI模板）
-            string memory tokenURI = generateTokenURI(user, currentMonth);
-            trafficCardNFT.mint(user, trafficCardQuota, tokenURI);
-            
-            _monthlyCardIssued[user][currentMonth] = true;
-            
-            emit TrafficCardIssued(user, trafficCardQuota, currentMonth);
-        }
-    }
-
-    /// @notice 生成流量卡NFT的tokenURI（简单实现，实际应使用IPFS）
-    function generateTokenURI(address user, uint256 month) internal pure returns (string memory) {
+    /// @notice 生成 tokenURI
+    function generateTokenURI(address user) public view returns (string memory) {
         return string(abi.encodePacked(
             "https://api.linkworld.io/traffic-card/",
             Strings.toHexString(uint256(uint160(user))),
             "-",
-            Strings.toString(month)
+            Strings.toString(block.timestamp / 1 days)
         ));
     }
 
-    /// @notice 用户使用流量卡抵扣（由Payment合约调用）
-    /// @dev 优先使用已销毁NFT获得的抵扣额度
-    function useTrafficCard(address user, uint256 amount) external {
-        require(msg.sender == address(payment), "Only payment contract");
-        
-        uint256 availableCredit = trafficCardNFT.getAvailableCredit(user);
-        require(availableCredit >= amount, "Insufficient traffic card credit");
-        
-        trafficCardNFT.useCredit(user, amount);
-        emit TrafficCardUsed(user, amount);
+    /// @notice 设置预言机地址
+    function setOracle(address _oracle) external onlyOwner {
+        oracle = _oracle;
     }
 
-    /// @notice 查询用户可用流量抵扣额度
-    function getTrafficCardBalance(address user) external view returns (uint256) {
-        return trafficCardNFT.getAvailableCredit(user);
+    /// @notice 设置 TrafficCardNFT 合约地址
+    function setTrafficCardNFT(address _trafficCardNFT) external onlyOwner {
+        trafficCardNFT = ITrafficCardNFT(_trafficCardNFT);
     }
 
-    /// @notice 查询用户持有流量卡NFT数量
-    function getUserCardCount(address user) external view returns (uint256) {
-        return trafficCardNFT.getUserCardCount(user);
-    }
-
-    /// @notice 查询用户本月是否提过款
-    function hasWithdrawnThisMonth(address user, uint256 month) public view returns (bool) {
-        uint256 withdrawTime = _lastWithdrawTimestamp[user];
-        if (withdrawTime == 0) return false;
-        
-        uint256 withdrawMonth = getMonthFromTimestamp(withdrawTime);
-        return withdrawMonth == month;
-    }
-
-    /// @notice 获取当前月份（从epoch开始计算的月数）
-    function getCurrentMonth() public view returns (uint256) {
-        return getMonthFromTimestamp(block.timestamp);
-    }
-
-    /// @notice 从时间戳获取月份
-    function getMonthFromTimestamp(uint256 timestamp) internal pure returns (uint256) {
-        uint256 secondsPerMonth = 30 days;
-        return timestamp / secondsPerMonth;
-    }
-
+    /// @notice 获取用户保证金余额
     function getDepositAmount(address user) external view returns (uint256) {
         return _deposits[user];
     }
 
-    function getRequiredDeposit(uint256 operatorId) external view returns (uint256) {
-        return _operatorRequiredDeposit[operatorId];
+    /// @notice 获取用户锁仓到期时间
+    function getLockExpiry(address user) external view returns (uint256) {
+        return _lockExpiry[user];
     }
+
+    /// @notice 初始化
+        function initialize(address _userRegistry) public initializer {
+            __Ownable_init(msg.sender);
+            userRegistry = IUserRegistry(_userRegistry);
+        }
 
     /// @inheritdoc UUPSUpgradeable
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

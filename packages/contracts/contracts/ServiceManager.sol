@@ -5,19 +5,16 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IServiceManager.sol";
 
-/// @title ServiceManager - 运营商信息存储管理与用户服务（可升级版）
+/// @title ServiceManager - 运营商目录（v3 简化版）
 contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable {
     uint256 private _nextOperatorId;
     mapping(uint256 => Operator) private _operators;
     uint256[] private _activeOperatorIds;
     mapping(string => uint256[]) private _countryOperatorIds;
 
-    mapping(address => UserService) private _userServices;
-
     /// @notice Initializer
     function initialize() public initializer {
         __Ownable_init(msg.sender);
-        // __UUPSUpgradeable_init() not needed
 
         _nextOperatorId = 1;
         
@@ -27,7 +24,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "United States",
             countryCode: "US",
             requiredDeposit: 0.01 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(1);
         _countryOperatorIds["US"].push(1);
@@ -38,7 +36,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "United Kingdom",
             countryCode: "GB",
             requiredDeposit: 0.008 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(2);
         _countryOperatorIds["GB"].push(2);
@@ -49,7 +48,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "France",
             countryCode: "FR",
             requiredDeposit: 0.008 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(3);
         _countryOperatorIds["FR"].push(3);
@@ -60,7 +60,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "Russia",
             countryCode: "RU",
             requiredDeposit: 0.005 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(4);
         _countryOperatorIds["RU"].push(4);
@@ -71,7 +72,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "Japan",
             countryCode: "JP",
             requiredDeposit: 0.012 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(5);
         _countryOperatorIds["JP"].push(5);
@@ -82,7 +84,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "Vietnam",
             countryCode: "VN",
             requiredDeposit: 0.003 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(6);
         _countryOperatorIds["VN"].push(6);
@@ -93,7 +96,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "Laos",
             countryCode: "LA",
             requiredDeposit: 0.003 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(7);
         _countryOperatorIds["LA"].push(7);
@@ -104,7 +108,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "Cambodia",
             countryCode: "KH",
             requiredDeposit: 0.003 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(8);
         _countryOperatorIds["KH"].push(8);
@@ -115,7 +120,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "Thailand",
             countryCode: "TH",
             requiredDeposit: 0.004 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(9);
         _countryOperatorIds["TH"].push(9);
@@ -126,7 +132,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "Malaysia",
             countryCode: "MY",
             requiredDeposit: 0.004 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(10);
         _countryOperatorIds["MY"].push(10);
@@ -137,7 +144,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: "Philippines",
             countryCode: "PH",
             requiredDeposit: 0.003 ether,
-            isActive: true
+            isActive: true,
+            paymentAddress: address(0)
         });
         _activeOperatorIds.push(11);
         _countryOperatorIds["PH"].push(11);
@@ -149,7 +157,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
         string calldata name,
         string calldata region,
         string calldata countryCode,
-        uint256 requiredDeposit
+        uint256 requiredDeposit,
+        address paymentAddress
     ) external onlyOwner {
         uint256 operatorId = _nextOperatorId++;
         _operators[operatorId] = Operator({
@@ -158,7 +167,8 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             region: region,
             countryCode: countryCode,
             requiredDeposit: requiredDeposit,
-            isActive: true
+            isActive: true,
+            paymentAddress: paymentAddress
         });
         _activeOperatorIds.push(operatorId);
         _countryOperatorIds[countryCode].push(operatorId);
@@ -223,35 +233,6 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
             }
         }
         return result;
-    }
-
-    function activateService(uint256 operatorId, string calldata virtualNumber, string calldata password) external {
-        require(_operators[operatorId].isActive, "Operator not found");
-        require(!_userServices[msg.sender].isActive, "Service already active");
-
-        _userServices[msg.sender] = UserService({
-            user: msg.sender,
-            operatorId: operatorId,
-            virtualNumber: virtualNumber,
-            password: password,
-            activatedAt: block.timestamp,
-            isActive: true
-        });
-
-        emit UserServiceActivated(msg.sender, operatorId, virtualNumber);
-    }
-
-    function deactivateService() external {
-        require(_userServices[msg.sender].isActive, "No active service");
-
-        uint256 operatorId = _userServices[msg.sender].operatorId;
-        _userServices[msg.sender].isActive = false;
-
-        emit UserServiceDeactivated(msg.sender, operatorId);
-    }
-
-    function getUserService(address user) external view returns (UserService memory) {
-        return _userServices[user];
     }
 
     /// @inheritdoc UUPSUpgradeable

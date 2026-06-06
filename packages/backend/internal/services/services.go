@@ -1,6 +1,10 @@
 package services
 
 import (
+	"fmt"
+	"log"
+	"time"
+
 	"linkworld-backend/internal/models"
 	"linkworld-backend/internal/repository"
 )
@@ -89,19 +93,36 @@ func (s *BillingService) GetUnpaidBills(wallet string) ([]models.Bill, error) {
 }
 
 type OracleService struct {
-	userServiceRepo *repository.UserServiceRepository
-	billRepo        *repository.BillRepository
+	userServiceRepo  *repository.UserServiceRepository
+	billRepo         *repository.BillRepository
+	usageRepo        *repository.UsageDataRepository
+	userRepo         *repository.UserRepository
 }
 
-func NewOracleService(userServiceRepo *repository.UserServiceRepository, billRepo *repository.BillRepository) *OracleService {
+func NewOracleService(userServiceRepo *repository.UserServiceRepository, billRepo *repository.BillRepository, usageRepo *repository.UsageDataRepository, userRepo *repository.UserRepository) *OracleService {
 	return &OracleService{
 		userServiceRepo: userServiceRepo,
 		billRepo:        billRepo,
+		usageRepo:       usageRepo,
+		userRepo:        userRepo,
 	}
 }
 
 func (s *OracleService) SubmitUsage(userWallet string, operatorID uint, dataUsage, callUsage uint64, signature string) error {
-	return nil
+	user, err := s.userRepo.FindByWallet(userWallet)
+	if err != nil {
+		return err
+	}
+
+	usageData := &models.UsageData{
+		UserID:     user.ID,
+		OperatorID: operatorID,
+		DataUsage:  dataUsage,
+		CallUsage:  callUsage,
+		Signature:  signature,
+		Timestamp:  time.Now(),
+	}
+	return s.usageRepo.Create(usageData)
 }
 
 type NotificationService struct {
@@ -113,6 +134,16 @@ func NewNotificationService(userRepo *repository.UserRepository) *NotificationSe
 }
 
 func (s *NotificationService) SendBillEmail(wallet string, bills []models.Bill) error {
+	user, err := s.userRepo.FindByWallet(wallet)
+	if err != nil {
+		return err
+	}
+	if user.Email == "" {
+		return fmt.Errorf("no email registered for user")
+	}
+	// TODO: Integrate with email service (SMTP, SendGrid, etc.)
+	// For now, log the intent
+	log.Printf("Sending %d bills to email %s", len(bills), user.Email)
 	return nil
 }
 
@@ -205,7 +236,7 @@ func (s *UserServiceService) GetUserService(wallet string) (*models.UserService,
 	if err != nil {
 		return nil, err
 	}
-	return s.userServiceRepo.FindByUserID(user.ID)
+	return s.userServiceRepo.GetActiveByUserID(user.ID)
 }
 
 var ErrServiceAlreadyActive = &ServiceError{"Service already active"}
