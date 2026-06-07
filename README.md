@@ -1,64 +1,76 @@
 # Link World
 
-**Global Decentralized Mobile Connectivity**  
-*Affordable & Seamless Mobile Data and Calls Worldwide*
+**Global Decentralized Mobile Communication Platform**
 
-![License](https://img.shields.io/badge/License-MIT-green) 
-![Status](https://img.shields.io/badge/Status-Rewrite%20in%20Progress-blue)
+Empowering Web3 users to enjoy affordable global mobile data and calls with just a wallet address.
+
+---
 
 ## About Link World
 
-Link World is a blockchain-powered platform that connects global telecom operators with Web3 users. Our mission is to enable anyone, anywhere to enjoy affordable and convenient mobile data and voice services across different regions.
+Link World is a blockchain-powered decentralized platform that connects global telecom operators with Web3 users. 
 
-We solve real pain points for travelers, digital nomads, and cross-border workers — such as high roaming fees, inflexible plans, and complicated local SIM purchases.
+Users can obtain mobile services worldwide by depositing a security bond to receive an **NFT Traffic Card**, enabling seamless cross-border network switching without traditional identity verification.
 
 ## Key Features
 
-- **Post-Paid Model (“Use First, Pay Later”)**  
-  Users connect their wallet and email, deposit a small security bond, and start using services immediately. Billing stops at the end of each month and invoices are sent automatically.
+- **Zero KYC Identity** — Wallet address serves as your only identity
+- **NFT Traffic Card** — Deposit to mint NFT cards with corresponding traffic quota
+- **Flexible Deposit** — Minimum 10 USDT, no upper limit
+- **Lock & Earn** — Lock deposit for one month to receive NFT Traffic Card
+- **Global Seamless Switching** — Switch to any country’s operator service anytime
+- **Stackable NFTs** — Accumulate multiple traffic cards
+- **Physical SIM Support** — Option to receive physical SIM cards by mail
+- **Low Service Fee** — Only 1.5% on operator service purchases
 
-- **Seamless Regional Switching**  
-  Choose a destination on the platform, deposit the bond, and instantly receive a virtual number and credentials. Supports eSIM activation, virtual numbers, and device-to-device connection.
+## Core Functionality
 
-- **No KYC Required**  
-  Fully decentralized identity using only your wallet address + on-chain credit. No traditional bank accounts or identity verification needed.
+### 1. Security Deposit & NFT Traffic Card
+- Connect wallet and provide email address
+- Deposit security bond (starting from 10 USDT)
+- Lock the deposit to mint **Traffic Card NFT**
+- Traffic quota increases with deposit amount
+- NFT valid for 30 days after activation (by burning)
+- Deposit cannot be withdrawn during the lock period
 
-- **Smart Contract Monitoring**  
-  Usage of data and calls is transparently tracked on-chain. Users can cancel anytime and settle manually.
+### 2. Global Network Switching
+- Choose any destination country or region on the platform
+- Activate local operator services instantly (24/7)
+- Supports eSIM, virtual numbers, and physical SIM cards
 
-- **Security Bond Mechanism**  
-  Users must settle invoices within two weeks, or the bond will be deducted.
+### 3. Operator Service Purchase
+- After using NFT traffic card, users can directly purchase local operator data and call services
+- Pay with crypto wallet
+- Platform charges **1.5%** service fee
 
-## Business Model
+### 4. Decentralized Identity
+- Supports mainstream wallets (Binance, OKX, MetaMask, etc.)
+- No traditional KYC or bank account required
 
-- **Platform Fee**: 2.5% on all settled communication costs
-- **Bond Yield**: Platform earns interest/returns from users’ security deposits
-- **Compliance**: We strictly adhere to the laws and regulations of all operating countries and regions
+## Target Users
 
+- Digital nomads
+- Cross-border workers
+- Short-term travelers and international students
+- Web3 and cryptocurrency enthusiasts
 
+## Future Vision
 
-## How to Get Involved
+We aim to build a truly user-owned global mobile network, where anyone can enjoy convenient, affordable, and borderless communication services through decentralized technology. In the future, we will launch a universal global SIM card to further simplify the user experience.
 
-- Star this repository and watch for updates
-- Contribute code, documentation, or feedback
-- Join discussions in [Issues](https://github.com/linkworldone/linkworld/issues) or [Discussions](https://github.com/linkworldone/linkworld/discussions)
+## Tech Stack
 
+- **Frontend**: React + TypeScript + Vite
+- **Smart Contracts**: Solidity (NFT-based Traffic Card)
+- **Backend**: Go
+- **Blockchain**: EVM-compatible chains
 
-
-## Contact
+## Contact Us
 
 - **Email**: linkworldone@outlook.com
-- **X**: https://x.com/Mandyzix
-- **Telegram**: [@linkworldteam](https://t.me/linkworldteam)
+- **Telegram**: @linkworldteam
+- **X**: @Mandyzix
 
 ---
 
-**License**
-
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-**Building the future of borderless, user-owned connectivity.**
-
-We are actively seeking collaboration and sponsorship from mainstream companies and institutions.
+**Making global connectivity simple, decentralized, and truly yours.**
