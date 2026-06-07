@@ -4,8 +4,6 @@
 
 Empowering Web3 users to enjoy affordable global mobile data and calls with just a wallet address.
 
----
-
 ## About Link World
 
 Link World is a blockchain-powered decentralized platform that connects global telecom operators with Web3 users. 
