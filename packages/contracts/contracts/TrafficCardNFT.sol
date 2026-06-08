@@ -15,19 +15,7 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
 
     address public depositContract;
 
-    mapping(address => DeductionCredit) private _deductionCredits;
-
     uint256 public constant DEDUCTION_VALIDITY = 30 days;
-
-    event CardMinted(address indexed user, uint256 tokenId, uint256 dataAmount);
-    event CardDestroyed(address indexed user, uint256 tokenId, uint256 creditAmount);
-    event CreditUsed(address indexed user, uint256 amount);
-    event CreditExpired(address indexed user, uint256 amount);
-
-    modifier onlyDeposit() {
-        require(msg.sender == depositContract, "Not deposit");
-        _;
-    }
 
     /// @notice ERC721 initializer
     function initialize() public initializer {

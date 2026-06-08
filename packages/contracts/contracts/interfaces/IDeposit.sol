@@ -11,6 +11,7 @@ interface IDeposit {
     function getDepositAmount(address user) external view returns (uint256);
     function getLockExpiry(address user) external view returns (uint256);
     function mintTrafficCard(address user) external returns (uint256);
+    function issueMonthlyTrafficCards(address[] calldata users) external;
     function setOracle(address _oracle) external;
     function setTrafficCardNFT(address _trafficCardNFT) external;
 }

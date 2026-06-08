@@ -4,11 +4,21 @@ pragma solidity ^0.8.27;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IOracle.sol";
+import "./interfaces/IPayment.sol";
+import "./interfaces/IDeposit.sol";
 
 /// @title Oracle - 服务验证与计量预言机（v3 简化版）
 contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
-    address public deposit;
-    address public payment;
+    IDeposit public deposit;
+    IPayment public payment;
+
+    /// @notice 月末结算喂价记录事件（仅记录使用量，不参与金额计价）
+    event UsageDataSubmitted(
+        address indexed user,
+        uint256 operatorId,
+        uint256 dataUsage,
+        uint256 callUsage
+    );
 
     // 累计使用量（本月）- 不上链，仅月末汇总
     mapping(address => mapping(uint256 => UsageInfo)) private _monthlyUsage;
@@ -28,7 +38,12 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
 
     /// @notice 设置 Deposit 合约地址
     function setDeposit(address _deposit) external onlyOwner {
-        deposit = _deposit;
+        deposit = IDeposit(_deposit);
+    }
+
+    /// @notice 设置 Payment 合约地址
+    function setPayment(address _payment) external onlyOwner {
+        payment = IPayment(_payment);
     }
 
     /// @notice 验证用户服务是否活跃（预留接口，未来接入 Chainlink/0G Compute）
@@ -100,23 +115,4 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
 
     /// @inheritdoc UUPSUpgradeable
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
-}
-
-interface IPayment {
-    struct Bill {
-        uint256 id;
-        address user;
-        uint256 operatorId;
-        uint256 amount;
-        uint256 platformFee;
-        uint256 createdAt;
-        bool isPaid;
-    }
-    function createBill(address user, uint256 operatorId, uint256 amount) external;
-    function getUnpaidBills(address user) external view returns (Bill[] memory);
-    function applyTrafficCardToBill(uint256 billId) external;
-}
-
-interface IDeposit {
-    function issueMonthlyTrafficCards(address[] calldata users) external;
 }

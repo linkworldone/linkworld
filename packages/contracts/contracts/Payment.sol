@@ -122,6 +122,13 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
         return result;
     }
 
+    /// @notice 流量卡抵扣账单（受限桩，v2-B）
+    /// @dev 本轮仅做权限与账单存在性校验，不转移任何资金；真实抵扣语义冻结到后续 Round
+    function applyTrafficCardToBill(uint256 billId) external onlyOracle {
+        require(_bills[billId].user != address(0), "Bill not found");
+        emit TrafficCardApplied(billId);
+    }
+
     /// @inheritdoc UUPSUpgradeable
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
