@@ -1,0 +1,107 @@
+{
+  "subproject": "contracts (1/3)",
+  "stage": "plan",
+  "date": "2026-06-08",
+  "serial": true,
+  "pages": {
+    "T1-fix-compile": {
+      "task": "修编译 + monthlySettlement 改签名 + 接口收敛 + createBill onlyOracle + applyTrafficCardToBill 受限桩",
+      "phase": "P1",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "Oracle 编译修复 + 计价收敛", "use": "Oracle.sol", "grade": "modify", "action": "声明 UsageDataSubmitted 事件 + deposit/payment state 改 IDeposit/IPayment 类型 + 新增 setPayment(address) onlyOwner + monthlySettlement 改 (users,operatorIds,amounts[]) 删 L68 totalAmount 求和 + import interfaces 收敛内联接口"},
+        {"need": "接口补声明(B5)", "use": "interfaces/IDeposit.sol", "grade": "modify", "action": "deposit() 去 payable 改 deposit(uint256) + 补 issueMonthlyTrafficCards(address[] calldata)"},
+        {"need": "接口补声明(B5)", "use": "interfaces/IPayment.sol", "grade": "modify", "action": "payBill() 去 payable 改 payBill(uint256) + 补 applyTrafficCardToBill(uint256)"},
+        {"need": "删 dead code(编译错误②④)", "use": "TrafficCardNFT.sol", "grade": "modify", "action": "删除 DeductionCredit mapping(_deductionCredits L18) + onlyDeposit modifier"},
+        {"need": "createBill 权限(B2) + 桩(v2-B)", "use": "Payment.sol", "grade": "modify", "action": "createBill 改 onlyOracle + 实现 applyTrafficCardToBill(uint256) onlyOracle 受限桩(不转资金, 仅 require 账单存在 + 可选 emit TrafficCardApplied)"}
+      ],
+      "depends": [],
+      "gate": "npx hardhat compile 零 error（①-④ 全做完才绿，无中间绿态）",
+      "acceptance": ["compile 0 error", "B1 删求和", "B2 createBill onlyOracle", "B5 接口收敛无 undefined"]
+    },
+    "T1.5-reentrancy-probe": {
+      "task": "ReentrancyGuardTransient 421614 兼容实测 + 删无效 _reentrancyGuardInit assembly",
+      "phase": "P1.5",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "guard 兼容实测(arch ⚠️3)", "use": "Payment.sol", "grade": "modify", "action": "421614 实测 Payment 部署 + 一笔 payBill 确认 TSTORE/TLOAD 兼容；不兼容则降级 ReentrancyGuardUpgradeable（改 initialize + __ReentrancyGuard_init）"},
+        {"need": "删无效代码(arch ⚠️2/A3)", "use": "Payment.sol", "grade": "modify", "action": "删 L33-38 _reentrancyGuardInit assembly（sstore 持久 storage 永不被 transient guard 读取=无效）+ initialize L28 调用"}
+      ],
+      "depends": ["T1-fix-compile"],
+      "gate": "421614 实测 payBill 成功（TSTORE 兼容）或 降级方案部署成功；删 assembly 后 compile 仍绿",
+      "acceptance": ["TSTORE 实测结论", "grep 无 _reentrancyGuardInit"]
+    },
+    "T2-erc20-migration": {
+      "task": "Deposit/Payment ERC20 迁移 + SafeERC20 + usdt initialize 注入 + MIN_DEPOSIT 按 decimals",
+      "phase": "P2",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "Deposit ERC20 改写", "use": "Deposit.sol", "grade": "modify", "action": "引 SafeERC20+IERC20 + using SafeERC20 for IERC20 + usdt state 经 initialize(userRegistry,usdt) 注入 + deposit(uint256) 去 payable 前置 safeTransferFrom + withdraw 改 safeTransfer(CEI) + MIN_DEPOSIT=10*10**usdt.decimals() 不硬编码 + 禁 fee-on-transfer"},
+        {"need": "Payment usdt 注入", "use": "Payment.sol", "grade": "modify", "action": "引 SafeERC20 + usdt/serviceManager state 经 initialize(feeManager,platformWallet,usdt,serviceManager) 注入"}
+      ],
+      "depends": ["T1.5-reentrancy-probe"],
+      "gate": "compile 绿；MIN-01/02、ERC-01/02/03、DEC-01 单测通过",
+      "acceptance": ["req A.1 无 payable/msg.value 残留", "req A.2 MIN_DEPOSIT", "B7 禁 fee-on-transfer", "精度不硬编码"]
+    },
+    "T3-revenue-split": {
+      "task": "Payment payBill 链上直分 + createBill fail-fast + ServiceManager setOperatorPaymentAddress",
+      "phase": "P3",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "payBill 直分 + 0-fee 跳过", "use": "Payment.sol", "grade": "modify", "action": "payBill 去 payable + CEI 先置 isPaid=true + safeTransferFrom(user->operator.paymentAddress, amount) + if(fee>0) safeTransferFrom(user->platformWallet, fee) + require(paymentAddress!=0) + nonReentrant"},
+        {"need": "createBill fail-fast", "use": "Payment.sol", "grade": "modify", "action": "createBill require serviceManager.getOperator(operatorId).paymentAddress != 0"},
+        {"need": "分账地址 setter", "use": "ServiceManager.sol", "grade": "modify", "action": "新增 setOperatorPaymentAddress(uint256 id, address addr) onlyOwner + require(addr != address(0))"}
+      ],
+      "depends": ["T2-erc20-migration"],
+      "gate": "compile 绿；PAY-01/02/03/04 单测通过",
+      "acceptance": ["分账正确性 PAY-02", "零地址校验 PAY-03", "0-fee 跳过", "createBill fail-fast"]
+    },
+    "T4-auto-issue-pricing": {
+      "task": "自动发卡 _mintFor + onlyOracle + continue 跳过 + dataAmount=trafficCardQuota",
+      "phase": "P4",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "发卡逻辑收敛(B3/v2-C/A1)", "use": "Deposit.sol", "grade": "modify", "action": "抽 internal _mintFor(user)（三校验 now>=lockExpiry && deposits>0 && userCardCount==0 + trafficCardNFT.mint(user, trafficCardQuota, uri)）；mintTrafficCard(onlyOwner) 重构为 _mintFor 薄壳；issueMonthlyTrafficCards(onlyOracle) 循环 _mintFor + 校验失败 continue(不整批 revert) + nonReentrant(A1)；dataAmount=trafficCardQuota 固定，删 L76 _deposits/100000"},
+        {"need": "禁用 mintBatch", "use": "TrafficCardNFT.sol", "grade": "modify", "action": "mintBatch(L77 this.mint() 撞 onlyOwner) 不接入发卡链路（保留或留注释）"}
+      ],
+      "depends": ["T3-revenue-split"],
+      "gate": "compile 绿；ISS-01/02/03/04/05 单测通过",
+      "acceptance": ["B3 _mintFor 不撞 onlyOwner", "B3 continue 不整批回滚", "B4/v2-C dataAmount 固定无 /100000", "A1 nonReentrant"]
+    },
+    "T5-deploy": {
+      "task": "hardhat.config 421614 + MockUSDT + deploy.ts 补 B2 授权拓扑 + 断言 + handoff",
+      "phase": "P5",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "mock USDT", "use": "contracts/mocks/MockUSDT.sol", "grade": "create", "action": "OZ ERC20 + decimals() override 返回 6 + public mint(to,amount) + symbol USDT"},
+        {"need": "加 421614 网络", "use": "hardhat.config.ts", "grade": "modify", "action": "新增 arbitrum_sepolia(chainId 421614, rpc, accounts)；evmVersion/viaIR 维持(待 T1.5 确认)"},
+        {"need": "deploy wiring(B2/arch ⚠️4)", "use": "scripts/deploy.ts", "grade": "modify", "action": "步骤0 部署 MockUSDT；initialize 参数个数同步 deployProxy 参数数组(Deposit+usdt / Payment+usdt+serviceManager)；补 payment.setOracle + oracle.setPayment + 循环 setOperatorPaymentAddress(11 运营商)；保留现有 setTrafficCardNFT/setDeposit/setOracle/setPlatformWallet/transferOwnership；部署后断言 payment.oracle()==oracle / oracle.payment()==payment / deposit.oracle()==oracle / NFT.owner()==deposit / active operator.paymentAddress!=0"},
+        {"need": "产物 + storage 冻结", "use": "deployments/<net>.json", "grade": "modify", "action": "加 usdt/usdtDecimals/storageLayout/abiHash 字段"},
+        {"need": "后端 handoff", "use": "docs handoff", "grade": "create", "action": "冻结 ABI + selector 变更清单(deposit/payBill 改 selector, monthlySettlement 新签名, 新增 issueMonthlyTrafficCards/applyTrafficCardToBill/setOperatorPaymentAddress/oracle.setPayment) + 金额精度语义(USDT/decimals) + 批量分批约定 + applyTrafficCardToBill 桩语义"}
+      ],
+      "depends": ["T4-auto-issue-pricing"],
+      "gate": "31337 + 421614 两处 deploy 成功；部署后断言全过",
+      "acceptance": ["req A.3 两处部署", "req A.4 mock USDT", "B2 权限链 deploy 跑通", "arch ⚠️4 参数数组同步", "handoff 交付物"]
+    },
+    "T6-tests": {
+      "task": "补测全清单 + 26 it 回归不破 + payable 旧用例重写",
+      "phase": "P6",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "新增/集成/非标/压测用例", "use": "test/erc20.ts", "grade": "create", "action": "MIN-01/02 + ERC-01~03 + PAY-01~04 + ISS-01~05 + MS-01~03(B6 集成) + ATC-01/02(桩权限/存在性) + USDT-01/02(B7 SafeERC20 分支) + DEC-01 + GAS-01(批量压测定 N) + REG-01/02(续期/未注册重写)"},
+        {"need": "非标 USDT mock", "use": "contracts/mocks/", "grade": "create", "action": "transfer/transferFrom 无返回值 mock + 返回 false 恶意 mock，验 SafeERC20 分支"},
+        {"need": "回归重写", "use": "test/linkworld.ts", "grade": "modify", "action": "现有 26 it 金额改 USDT 精度(usdt=(n)=>BigInt(n)*10n**6n)；旧 {value} payable 调用重写为 approve+deposit(amount)/payBill(id)；删 v1 UPG-01(本轮 fresh deploy 不升级)"}
+      ],
+      "depends": ["T5-deploy"],
+      "gate": "全部新增用例 + 26 回归 it 绿",
+      "acceptance": ["B6 MS/ATC 覆盖", "B7 USDT-01/02", "GAS-01 上限写入 handoff", "REG 回归重写", "26 it 不破"]
+    }
+  }
+}
