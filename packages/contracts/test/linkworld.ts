@@ -6,11 +6,21 @@ function feeAt150bps(amount) { return (amount * 150n) / 10000n; }
 const ZA = ZeroAddress;
 
 describe("LinkWorld Contracts Tests", function () {
-  let userRegistry, feeManager, deposit, serviceManager, payment, oracle, trafficCardNFT;
+  let userRegistry, feeManager, deposit, serviceManager, payment, oracle, trafficCardNFT, mockUSDT;
   let owner, user1, user2, user3;
+
+  // USDT 6 位精度辅助：n USDT -> 最小单位
+  function usdt(n) {
+    const [int, frac = ""] = String(n).split(".");
+    const fracPadded = (frac + "000000").slice(0, 6);
+    return BigInt(int) * 1_000_000n + BigInt(fracPadded || "0");
+  }
 
   async function deployAndWire() {
     [owner, user1, user2, user3] = await ethers.getSigners();
+
+    const MockUSDTFactory = await ethers.getContractFactory("MockUSDT");
+    mockUSDT = await MockUSDTFactory.deploy();
 
     const FeeManagerFactory = await ethers.getContractFactory("FeeManager");
     feeManager = await FeeManagerFactory.deploy();
@@ -30,7 +40,7 @@ describe("LinkWorld Contracts Tests", function () {
 
     const DepositFactory = await ethers.getContractFactory("Deposit");
     deposit = await DepositFactory.deploy();
-    await deposit.initialize(await userRegistry.getAddress());
+    await deposit.initialize(await userRegistry.getAddress(), await mockUSDT.getAddress());
 
     const OracleFactory = await ethers.getContractFactory("Oracle");
     oracle = await OracleFactory.deploy();
@@ -137,16 +147,21 @@ it("SM-02  getOperatorsByCountry US non-empty", async function () {
     beforeEach(async function () {
       await deployAndWire();
       await userRegistry.connect(user1).register("u1@linkworld.io");
+      await mockUSDT.mint(user1.address, usdt(1000));
     });
 
     it("DP-01  deposit and getDepositAmount", async function () {
-      await deposit.connect(user1).deposit({ value: parseEther("0.1") });
-      expect(await deposit.getDepositAmount(user1.address)).to.equal(parseEther("0.1"));
+      const amount = usdt(50);
+      await mockUSDT.connect(user1).approve(await deposit.getAddress(), amount);
+      await deposit.connect(user1).deposit(amount);
+      expect(await deposit.getDepositAmount(user1.address)).to.equal(amount);
     });
 
     it("DP-02  unregistered user revert", async function () {
+      await mockUSDT.mint(user2.address, usdt(100));
+      await mockUSDT.connect(user2).approve(await deposit.getAddress(), usdt(50));
       await expect(
-        deposit.connect(user2).deposit({ value: parseEther("0.1") })
+        deposit.connect(user2).deposit(usdt(50))
       ).to.be.revertedWith("Not registered");
     });
 
