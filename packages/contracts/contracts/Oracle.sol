@@ -12,12 +12,11 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
     IDeposit public deposit;
     IPayment public payment;
 
-    /// @notice 月末结算喂价记录事件（仅记录使用量，不参与金额计价）
+    /// @notice 月末结算喂价记录事件（v2-A：记录后端链下算好的 USDT 金额，Oracle 不参与计价）
     event UsageDataSubmitted(
         address indexed user,
         uint256 operatorId,
-        uint256 dataUsage,
-        uint256 callUsage
+        uint256 amount
     );
 
     // 累计使用量（本月）- 不上链，仅月末汇总
@@ -58,35 +57,28 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     /// @notice 月末结算（统一汇总上链，减少Gas消耗）
+    /// @dev v2-A/B1：Oracle 不计价。amounts[i] 是后端链下按资费算好的 USDT 金额，
+    ///      直接传给 createBill；删除原 totalAmount = dataUsage + callUsage 量纲错误求和。
     /// @param users 用户地址列表
     /// @param operatorIds 运营商ID列表
-    /// @param dataUsages 流量使用量列表（字节）- 如果为0则使用累计数据
-    /// @param callUsages 通话时长列表（分钟）- 如果为0则使用累计数据
+    /// @param amounts 链下算好的 USDT 金额列表（精度 = usdt.decimals()）
     function monthlySettlement(
         address[] calldata users,
         uint256[] calldata operatorIds,
-        uint256[] calldata dataUsages,
-        uint256[] calldata callUsages
+        uint256[] calldata amounts
     ) external onlyOwner {
         require(users.length == operatorIds.length, "Length mismatch");
-        require(users.length == dataUsages.length, "Length mismatch");
-        require(users.length == callUsages.length, "Length mismatch");
+        require(users.length == amounts.length, "Length mismatch");
 
         for (uint256 i = 0; i < users.length; i++) {
             address user = users[i];
             uint256 operatorId = operatorIds[i];
+            uint256 amount = amounts[i];
 
-            uint256 dataUsage = dataUsages[i] > 0 ? dataUsages[i] : _monthlyUsage[user][operatorId].dataUsage;
-            uint256 callUsage = callUsages[i] > 0 ? callUsages[i] : _monthlyUsage[user][operatorId].callUsage;
-
-            if (dataUsage > 0 || callUsage > 0) {
-                uint256 totalAmount = dataUsage + callUsage;
-                payment.createBill(user, operatorId, totalAmount);
-
-                emit UsageDataSubmitted(user, operatorId, dataUsage, callUsage);
+            if (amount > 0) {
+                payment.createBill(user, operatorId, amount);
+                emit UsageDataSubmitted(user, operatorId, amount);
             }
-
-            delete _monthlyUsage[user][operatorId];
         }
 
         if (address(deposit) != address(0)) {

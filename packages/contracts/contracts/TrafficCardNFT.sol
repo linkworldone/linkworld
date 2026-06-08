@@ -50,6 +50,9 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
     }
 
     /// @notice 批量 mint
+    /// @dev ⚠️ 勿用于自动发卡：内部 this.mint(...) 是外部调用，以本合约为 msg.sender 会撞 mint 的
+    ///      onlyOwner（owner 已转给 Deposit）→ revert。自动发卡走 Deposit.issueMonthlyTrafficCards
+    ///      逐张 trafficCardNFT.mint(...)。本函数本轮未接入发卡链路（dead code，保留待后续 Round）。
     function mintBatch(
         address[] calldata to,
         uint256[] calldata dataAmounts,

@@ -3,6 +3,7 @@ pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "./interfaces/IDeposit.sol";
 import "./interfaces/IUserRegistry.sol";
 import "./interfaces/ITrafficCardNFT.sol";
@@ -12,7 +13,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Deposit - 用户保证金管理（可升级版，ERC20 USDT）
-contract Deposit is IDeposit, OwnableUpgradeable, UUPSUpgradeable {
+contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
     IUserRegistry public userRegistry;
@@ -80,13 +81,25 @@ contract Deposit is IDeposit, OwnableUpgradeable, UUPSUpgradeable {
         emit DepositWithdrawn(msg.sender, principal, 0);
     }
 
-    /// @notice 为用户 mint 流量卡（锁仓到期后调用，仅 owner）
-    function mintTrafficCard(address user) external onlyOwner returns (uint256) {
-        require(block.timestamp >= _lockExpiry[user], "Lock not expired");
-        require(_deposits[user] > 0, "No deposit");
-        require(trafficCardNFT.getUserCardCount(user) == 0, "Card already active");
+    /// @notice 为用户 mint 流量卡（锁仓到期后调用，仅 owner 手动发卡入口）
+    /// @dev onlyOwner 薄壳，复用 internal _mintFor；手动发卡要求三校验全部满足（不满足 revert）。
+    function mintTrafficCard(address user) external onlyOwner nonReentrant returns (uint256) {
+        require(_canMint(user), "Mint conditions not met");
+        return _mintFor(user);
+    }
 
-        uint256 dataAmount = _deposits[user] / 100000;
+    /// @notice 发卡三校验：锁仓到期 && 有存款 && 当前无卡（幂等）。
+    function _canMint(address user) internal view returns (bool) {
+        return block.timestamp >= _lockExpiry[user]
+            && _deposits[user] > 0
+            && trafficCardNFT.getUserCardCount(user) == 0;
+    }
+
+    /// @notice 内部发卡（B3）：固定额度 trafficCardQuota（v2-C，与存款额/精度解耦）。
+    /// @dev 被 mintTrafficCard(onlyOwner) 与 issueMonthlyTrafficCards(onlyOracle) 复用，逻辑单一。
+    ///      调用方负责权限与 nonReentrant；TrafficCardNFT.mint 内 _userCardCount++ 早于 _safeMint 回调（CEI）。
+    function _mintFor(address user) internal returns (uint256) {
+        uint256 dataAmount = trafficCardQuota;
         uint256 tokenId = trafficCardNFT.mint(user, dataAmount, generateTokenURI(user));
 
         emit TrafficCardMinted(user, tokenId, dataAmount);
@@ -113,10 +126,21 @@ contract Deposit is IDeposit, OwnableUpgradeable, UUPSUpgradeable {
         return _lockExpiry[user];
     }
 
-    /// @notice 月度发放流量卡
-    function issueMonthlyTrafficCards(address[] calldata users) external {
+    /// @notice 月度批量自动发卡（仅 oracle 调）。
+    /// @dev B3：走独立 internal _mintFor（不经 onlyOwner mintTrafficCard，避免 revert）；
+    ///      每个 user 三校验失败则 continue 跳过（不 revert 整批）；幂等靠 getUserCardCount==0。
+    ///      A1：nonReentrant（_mintFor→nft.mint→_safeMint 有 onERC721Received 回调入口）。
+    ///      消歧：禁用 NFT.mintBatch（其内 this.mint 外部调用会撞 onlyOwner），改逐张 mint。
+    function issueMonthlyTrafficCards(address[] calldata users) external nonReentrant {
         require(msg.sender == oracle, "Only oracle");
-        // Implementation for monthly traffic card issuance
+
+        for (uint256 i = 0; i < users.length; i++) {
+            address user = users[i];
+            if (!_canMint(user)) {
+                continue;
+            }
+            _mintFor(user);
+        }
     }
 
     /// @inheritdoc UUPSUpgradeable
