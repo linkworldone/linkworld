@@ -1,22 +1,23 @@
 package main
 
 import (
+	"context"
 	"log"
-	"math/rand"
-	"time"
+	"os"
 
+	"linkworld-backend/internal/blockchain"
 	"linkworld-backend/internal/config"
 	"linkworld-backend/internal/handlers"
 	"linkworld-backend/internal/models"
 	"linkworld-backend/internal/repository"
 	"linkworld-backend/internal/services"
+	"linkworld-backend/internal/sync"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
 	db, err := config.InitDB()
 	if err != nil {
 		log.Fatal(err)
@@ -64,14 +65,29 @@ func main() {
 	userService := services.NewUserService(userRepo)
 	operatorService := services.NewOperatorService(operatorRepo)
 	billingService := services.NewBillingService(billRepo, userRepo)
-	oracleService := services.NewOracleService(userServiceRepo, billRepo)
+	oracleService := services.NewOracleService(userServiceRepo, billRepo, usageRepo, userRepo)
 	notificationService := services.NewNotificationService(userRepo)
 	depositService := services.NewDepositService(depositRepo, userRepo)
 	userServiceService := services.NewUserServiceService(userServiceRepo, operatorRepo, userRepo)
 	virtualGen := services.NewVirtualNumberGenerator()
 	operatorAPI := services.NewOperatorAPISimulator()
-	oracleV2 := services.NewOracleServiceV2(operatorAPI, userRepo, billRepo, usageRepo)
-	usageService := services.NewUsageService(oracleV2, usageRepo, userRepo)
+	oracleV2 := services.NewOracleServiceV2(operatorAPI, userRepo, userServiceRepo, billRepo, usageRepo)
+	usageService := services.NewUsageService(oracleV2, usageRepo, userRepo, userServiceRepo)
+
+	// Initialize blockchain sync (optional - runs in background)
+	if rpcURL := os.Getenv("RPC_URL"); rpcURL != "" {
+		deployments, err := config.LoadDeployments("configs/deployments.json")
+		if err == nil {
+			bcClient, err := blockchain.NewClient(rpcURL, deployments.ChainID, deployments.Proxies)
+			if err == nil {
+				if ethClient := bcClient.EthClient(); ethClient != nil {
+					eventSync := sync.NewEventSync(ethClient, userRepo, deployments.Proxies)
+					go eventSync.Start(context.Background())
+				}
+				log.Println("Blockchain event sync started")
+			}
+		}
+	}
 
 	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService, virtualGen, oracleV2, usageService)
 
@@ -100,6 +116,8 @@ func main() {
 	r.GET("/api/countries", handler.GetCountryList)
 	r.GET("/api/usage/:wallet", handler.GetUsage)
 	r.POST("/api/oracle/monthly-bill", handler.TriggerMonthlyBill)
+	r.POST("/api/usage/submit", handler.SubmitUsage)
+	r.POST("/api/notification/send", handler.SendNotification)
 
 	r.Run(":8080")
 }

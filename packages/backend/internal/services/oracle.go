@@ -19,31 +19,22 @@ func NewVirtualNumberGenerator() *VirtualNumberGenerator {
 
 var (
 	CountryCodes = map[string]string{
-		"US": "+1",   // 美国
-		"GB": "+44",  // 英国
-		"FR": "+33",  // 法国
-		"RU": "+7",   // 俄罗斯
-		"JP": "+81",  // 日本
-		"VN": "+84",  // 越南
-		"LA": "+856", // 老挝
-		"KH": "+855", // 柬埔寨
-		"TH": "+66",  // 泰国
-		"MY": "+60",  // 马来西亚
-		"PH": "+63",  // 菲律宾
+		"US": "+1",
+		"GB": "+44",
+		"FR": "+33",
+		"RU": "+7",
+		"JP": "+81",
+		"VN": "+84",
+		"LA": "+856",
+		"KH": "+855",
+		"TH": "+66",
+		"MY": "+60",
+		"PH": "+63",
 	}
 
 	CountryLengths = map[string]int{
-		"US": 10,
-		"GB": 10,
-		"FR": 9,
-		"RU": 10,
-		"JP": 10,
-		"VN": 9,
-		"LA": 8,
-		"KH": 8,
-		"TH": 9,
-		"MY": 9,
-		"PH": 10,
+		"US": 10, "GB": 10, "FR": 9, "RU": 10, "JP": 10,
+		"VN": 9, "LA": 8, "KH": 8, "TH": 9, "MY": 9, "PH": 10,
 	}
 
 	CountryPrefixes = map[string][]string{
@@ -61,17 +52,9 @@ var (
 	}
 
 	CountryNames = map[string]string{
-		"US": "United States",
-		"GB": "United Kingdom",
-		"FR": "France",
-		"RU": "Russia",
-		"JP": "Japan",
-		"VN": "Vietnam",
-		"LA": "Laos",
-		"KH": "Cambodia",
-		"TH": "Thailand",
-		"MY": "Malaysia",
-		"PH": "Philippines",
+		"US": "United States", "GB": "United Kingdom", "FR": "France", "RU": "Russia",
+		"JP": "Japan", "VN": "Vietnam", "LA": "Laos", "KH": "Cambodia",
+		"TH": "Thailand", "MY": "Malaysia", "PH": "Philippines",
 	}
 )
 
@@ -151,75 +134,82 @@ func (s *OperatorAPISimulator) GetBill(userID, operatorID uint, month time.Time)
 }
 
 type OracleServiceV2 struct {
-	operatorAPI OperatorAPI
-	userRepo    *repository.UserRepository
-	billRepo    *repository.BillRepository
-	usageRepo   *repository.UsageDataRepository
+	operatorAPI     OperatorAPI
+	userRepo        *repository.UserRepository
+	userServiceRepo *repository.UserServiceRepository
+	billRepo        *repository.BillRepository
+	usageRepo       *repository.UsageDataRepository
 }
 
 func NewOracleServiceV2(
 	operatorAPI OperatorAPI,
 	userRepo *repository.UserRepository,
+	userServiceRepo *repository.UserServiceRepository,
 	billRepo *repository.BillRepository,
 	usageRepo *repository.UsageDataRepository,
 ) *OracleServiceV2 {
 	return &OracleServiceV2{
-		operatorAPI: operatorAPI,
-		userRepo:    userRepo,
-		billRepo:    billRepo,
-		usageRepo:   usageRepo,
+		operatorAPI:     operatorAPI,
+		userRepo:        userRepo,
+		userServiceRepo: userServiceRepo,
+		billRepo:        billRepo,
+		usageRepo:       usageRepo,
 	}
 }
 
-func (s *OracleServiceV2) FetchAndCreateBills() error {
+func (s *OracleServiceV2) FetchAndCreateBills() (int, error) {
 	users, err := s.userRepo.FindAll()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	now := time.Now()
 	month := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, now.Location())
 
+	billCount := 0
 	for _, user := range users {
-		services, err := s.usageRepo.FindByUserID(user.ID)
-		if err != nil || len(services) == 0 {
+		userService, err := s.userServiceRepo.GetActiveByUserID(user.ID)
+		if err != nil || userService == nil || !userService.IsActive {
 			continue
 		}
 
-		for _, service := range services {
-			amount, fee, err := s.operatorAPI.GetBill(user.ID, service.OperatorID, month)
-			if err != nil {
-				continue
-			}
-
-			bill := &models.Bill{
-				UserID:      user.ID,
-				OperatorID:  service.OperatorID,
-				Amount:      amount,
-				PlatformFee: fee,
-				IsPaid:      false,
-				CreatedAt:   now,
-			}
-			s.billRepo.Create(bill)
+		amount, fee, err := s.operatorAPI.GetBill(user.ID, userService.OperatorID, month)
+		if err != nil {
+			continue
 		}
+
+		bill := &models.Bill{
+			UserID:      user.ID,
+			OperatorID:  userService.OperatorID,
+			Amount:      amount,
+			PlatformFee: fee,
+			IsPaid:      false,
+			CreatedAt:   now,
+		}
+		s.billRepo.Create(bill)
+		billCount++
 	}
 
-	return nil
+	return billCount, nil
 }
 
-func (s *OracleServiceV2) FetchUsage(userWallet string) (uint64, uint64, error) {
+func (s *OracleServiceV2) FetchUsage(userWallet string) (uint64, uint64, uint, error) {
 	user, err := s.userRepo.FindByWallet(userWallet)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 
-	services, err := s.usageRepo.FindByUserID(user.ID)
-	if err != nil || len(services) == 0 {
-		return 0, 0, nil
+	userService, err := s.userServiceRepo.GetActiveByUserID(user.ID)
+	if err != nil || userService == nil || !userService.IsActive {
+		return 0, 0, 0, nil
 	}
 
-	service := services[0]
-	return s.operatorAPI.GetUsage(user.ID, service.OperatorID)
+	dataUsage, callUsage, err := s.operatorAPI.GetUsage(user.ID, userService.OperatorID)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	return dataUsage, callUsage, userService.OperatorID, nil
 }
 
 func (s *OracleServiceV2) SignData(userID uint, operatorID uint, dataUsage, callUsage uint64) string {
@@ -229,43 +219,51 @@ func (s *OracleServiceV2) SignData(userID uint, operatorID uint, dataUsage, call
 }
 
 type UsageService struct {
-	oracleService *OracleServiceV2
-	usageRepo     *repository.UsageDataRepository
-	userRepo      *repository.UserRepository
+	oracleService   *OracleServiceV2
+	usageRepo       *repository.UsageDataRepository
+	userRepo        *repository.UserRepository
+	userServiceRepo *repository.UserServiceRepository
 }
 
-func NewUsageService(oracleService *OracleServiceV2, usageRepo *repository.UsageDataRepository, userRepo *repository.UserRepository) *UsageService {
+func NewUsageService(oracleService *OracleServiceV2, usageRepo *repository.UsageDataRepository, userRepo *repository.UserRepository, userServiceRepo *repository.UserServiceRepository) *UsageService {
 	return &UsageService{
-		oracleService: oracleService,
-		usageRepo:     usageRepo,
-		userRepo:      userRepo,
+		oracleService:   oracleService,
+		usageRepo:       usageRepo,
+		userRepo:        userRepo,
+		userServiceRepo: userServiceRepo,
 	}
 }
 
 func (s *UsageService) QueryUsage(wallet string) (uint64, uint64, string, error) {
+	dataUsage, callUsage, operatorID, err := s.oracleService.FetchUsage(wallet)
+	if err != nil {
+		return 0, 0, "", err
+	}
+
 	user, err := s.userRepo.FindByWallet(wallet)
 	if err != nil {
 		return 0, 0, "", err
 	}
 
-	records, err := s.usageRepo.FindByUserID(user.ID)
-	if err != nil {
-		return 0, 0, "", err
-	}
+	signature := s.oracleService.SignData(user.ID, uint(operatorID), dataUsage, callUsage)
 
-	var totalData, totalCall uint64
-	for _, r := range records {
-		totalData += r.DataUsage
-		totalCall += r.CallUsage
+	usageData := &models.UsageData{
+		UserID:     user.ID,
+		OperatorID: uint(operatorID),
+		DataUsage:  dataUsage,
+		CallUsage:  callUsage,
+		Timestamp:  time.Now(),
+		Signature:  signature,
 	}
+	s.usageRepo.Create(usageData)
 
-	return totalData, totalCall, "", nil
+	return dataUsage, callUsage, signature, nil
 }
 
 func (s *UsageService) TriggerMonthlyBill() (int, error) {
-	err := s.oracleService.FetchAndCreateBills()
+	count, err := s.oracleService.FetchAndCreateBills()
 	if err != nil {
 		return 0, err
 	}
-	return 1, nil
+	return count, nil
 }

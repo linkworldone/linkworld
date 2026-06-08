@@ -6,24 +6,19 @@ interface ITrafficCardNFT {
         uint256 dataAmount;
         uint256 createdAt;
         bool isDestroyed;
-        uint256 destroyedAt;
     }
-    
+
     event CardMinted(address indexed user, uint256 tokenId, uint256 dataAmount);
-    event CardDestroyed(address indexed user, uint256 tokenId, uint256 creditAmount);
-    event CreditUsed(address indexed user, uint256 amount);
-    event CreditExpired(address indexed user, uint256 amount);
-    
-    function mint(address to, uint256 dataAmount, string calldata tokenURI) external;
+    event CardDestroyed(address indexed user, uint256 tokenId, uint256 dataAmount);
+    event ServiceActivated(address indexed user, uint256 expiresAt);
+
+    function mint(address to, uint256 dataAmount, string calldata tokenURI) external returns (uint256);
     function mintBatch(
         address[] calldata to,
         uint256[] calldata dataAmounts,
         string[] calldata tokenURIs
-    ) external;
+    ) external returns (uint256[] memory);
     function burn(uint256 tokenId) external;
-    function useCredit(address user, uint256 amount) external;
-    function getAvailableCredit(address user) external view returns (uint256);
-    function getCreditExpiry(address user) external view returns (uint256);
     function getCardInfo(uint256 tokenId) external view returns (CardInfo memory);
     function getUserCardCount(address user) external view returns (uint256);
 }

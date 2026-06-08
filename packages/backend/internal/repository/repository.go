@@ -116,6 +116,15 @@ func (r *UserServiceRepository) FindByUserID(userID uint) (*models.UserService, 
 	return &service, nil
 }
 
+func (r *UserServiceRepository) GetActiveByUserID(userID uint) (*models.UserService, error) {
+	var service models.UserService
+	err := r.db.Where("user_id = ? AND is_active = ?", userID, true).First(&service).Error
+	if err != nil {
+		return nil, err
+	}
+	return &service, nil
+}
+
 func (r *UserServiceRepository) Deactivate(userID uint) error {
 	return r.db.Model(&models.UserService{}).Where("user_id = ?", userID).Update("is_active", false).Error
 }

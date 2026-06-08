@@ -6,13 +6,10 @@ import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IPayment.sol";
 import "./interfaces/IFeeManager.sol";
-import "./interfaces/IDeposit.sol";
 
 /// @title Payment - 支付结算（服务商费用 + 平台手续费 + 流量卡抵扣，可升级版）
 contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
     IFeeManager public feeManager;
-    IDeposit public deposit;
-
     address public platformWallet;
     address public oracle;
 
@@ -26,12 +23,9 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
     }
 
     /// @notice Initializer
-    function initialize(
-        address _feeManager,
-        address _platformWallet
-    ) public initializer {
+    function initialize(address _feeManager, address _platformWallet) public initializer {
         __Ownable_init(msg.sender);
-
+        _reentrancyGuardInit();
         feeManager = IFeeManager(_feeManager);
         platformWallet = _platformWallet;
     }
@@ -47,22 +41,21 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
         oracle = _oracle;
     }
 
+    /// @notice 设置平台钱包
     function setPlatformWallet(address _platformWallet) external onlyOwner {
         platformWallet = _platformWallet;
     }
 
-    function setDeposit(address _deposit) external onlyOwner {
-        deposit = IDeposit(_deposit);
+    /// @notice 设置手续费合约
+    function setFeeManager(address _feeManager) external onlyOwner {
+        feeManager = IFeeManager(_feeManager);
     }
 
-    function createBill(
-        address user,
-        uint256 operatorId,
-        uint256 amount
-    ) external onlyOracle {
+    /// @notice 创建服务购买账单（仅 oracle/owner）
+    function createBill(address user, uint256 operatorId, uint256 amount) external onlyOwner {
         require(amount > 0, "Zero amount");
 
-        uint256 fee = feeManager.calculateFee(amount);
+        uint256 platformFee = feeManager.calculateFee(amount);
         uint256 billId = _nextBillId++;
 
         _bills[billId] = Bill({
@@ -70,40 +63,22 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
             user: user,
             operatorId: operatorId,
             amount: amount,
-            platformFee: fee,
+            platformFee: platformFee,
             createdAt: block.timestamp,
-            isPaid: false,
-            trafficCardDeduction: 0
+            isPaid: false
         });
         _userBillIds[user].push(billId);
 
-        emit BillCreated(billId, user, amount, fee);
+        emit BillCreated(billId, user, amount + platformFee, platformFee);
     }
 
-    function applyTrafficCardToBill(uint256 billId) public onlyOracle {
+    /// @notice 用户支付账单
+    function payBill(uint256 billId) external payable {
         Bill storage bill = _bills[billId];
-        require(!bill.isPaid, "Bill already paid");
-
-        address user = bill.user;
-        uint256 availableCredit = deposit.getTrafficCardBalance(user);
-
-        uint256 totalBill = bill.amount + bill.platformFee;
-        uint256 deduction = availableCredit > totalBill ? totalBill : availableCredit;
-
-        if (deduction > 0) {
-            bill.trafficCardDeduction = deduction;
-            deposit.useTrafficCard(user, deduction);
-
-            emit TrafficCardApplied(billId, user, deduction);
-        }
-    }
-
-    function payBill(uint256 billId) external payable nonReentrant {
-        Bill storage bill = _bills[billId];
-        require(bill.user == msg.sender, "Not your bill");
         require(!bill.isPaid, "Already paid");
+        require(bill.user == msg.sender, "Not your bill");
 
-        uint256 total = (bill.amount + bill.platformFee) - bill.trafficCardDeduction;
+        uint256 total = bill.amount + bill.platformFee;
         require(msg.value >= total, "Insufficient payment");
 
         bill.isPaid = true;
@@ -118,7 +93,7 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
             require(refundOk, "Refund failed");
         }
 
-        emit BillPaid(billId, msg.sender, total);
+        emit BillPaid(billId, msg.sender, total, bill.amount);
     }
 
     function getUserBills(address user) external view returns (Bill[] memory) {
@@ -145,47 +120,6 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
             }
         }
         return result;
-    }
-
-    function autoSettle(
-        address[] calldata users,
-        uint256[] calldata operatorIds,
-        uint256[] calldata amounts
-    ) external onlyOracle {
-        require(users.length == operatorIds.length, "Length mismatch");
-        require(users.length == amounts.length, "Length mismatch");
-
-        for (uint256 i = 0; i < users.length; i++) {
-            if (amounts[i] > 0) {
-                uint256 fee = feeManager.calculateFee(amounts[i]);
-                uint256 billId = _nextBillId++;
-
-                _bills[billId] = Bill({
-                    id: billId,
-                    user: users[i],
-                    operatorId: operatorIds[i],
-                    amount: amounts[i],
-                    platformFee: fee,
-                    createdAt: block.timestamp,
-                    isPaid: false,
-                    trafficCardDeduction: 0
-                });
-                _userBillIds[users[i]].push(billId);
-
-                emit BillCreated(billId, users[i], amounts[i], fee);
-            }
-        }
-
-        if (address(deposit) != address(0)) {
-            deposit.issueMonthlyTrafficCards(users);
-            for (uint256 i = 0; i < users.length; i++) {
-                // viaIR: must use this. for a qualified external call to pass type-check
-                IPayment.Bill[] memory unpaidBills = this.getUnpaidBills(users[i]);
-                if (unpaidBills.length > 0) {
-                    applyTrafficCardToBill(unpaidBills[0].id);
-                }
-            }
-        }
     }
 
     /// @inheritdoc UUPSUpgradeable
