@@ -25,16 +25,8 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
     /// @notice Initializer
     function initialize(address _feeManager, address _platformWallet) public initializer {
         __Ownable_init(msg.sender);
-        _reentrancyGuardInit();
         feeManager = IFeeManager(_feeManager);
         platformWallet = _platformWallet;
-    }
-
-    function _reentrancyGuardInit() internal {
-        bytes32 slot_ = _reentrancyGuardStorageSlot();
-        assembly {
-            sstore(slot_, 1) // NOT_ENTERED = 1
-        }
     }
 
     function setOracle(address _oracle) external onlyOwner {
