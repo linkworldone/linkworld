@@ -1,38 +1,39 @@
-# Stage: scan — 项目基线扫描
+# Stage: scan — 合约基线扫描（子项目 contracts 1/3）
 
-> **状态**: completed | **日期**: 2026-06-07 | **Gate**: 0 | **Round**: 1
+> **状态**: completed (DONE_WITH_CONCERNS) | **日期**: 2026-06-08 | **Gate**: 0 | **子项目**: contracts(1/3)
+> 对象：packages/contracts（全栈反转后，合约从 origin 合并落地，需重新摸底）
 
-## 产出摘要
-扫描 `packages/web` 现有代码，产出 4 份基线文档到 `docs/design/linkworld/`。本轮 scan 复用上一轮成果——CodeGraph 索引报告 "Already up to date"（代码自上次索引后无变更），4 份基线文档（2026-06-06 扫描）经主 Agent 逐份复核，内容完整且与当前代码一致，无需重新扫描。现有 web 端完成度约 80%：9 个页面，核心用户流程（注册→存保证金→购买服务→支付账单）已打通。业务逻辑层（hooks/services/utils/types/config）100% 可复用；UI 层约 70% 待按新深蓝主题重设计。
-
-## 关键决策
-| # | 决策 | 理由 |
-|---|------|------|
-| 1 | 保留全部业务逻辑层 | hooks/services/utils/types/config 与 UI 解耦，重构只动表现层 |
-| 2 | 重设计 pages/* 与 layout/*，替换 index.css 色值 | 主题色换深蓝渐变 #0C2340→#1E40AF，当前为 #3b82f6 亮蓝 |
-| 3 | UI 基础组件(ui/*)按新设计系统决定保留或替换 | 由后续 design 阶段定夺 |
-| 4 | 本轮 scan 直接复用现有基线文档，不重扫 | CodeGraph 索引 up-to-date + 文档经复核完整且最新，重扫只会生成相同内容 |
-
-## 产出文件
+## 产出文件（4 份基线，commit 4249a92）
 | 文件 | 内容 |
 |------|------|
-| docs/design/linkworld/components.md | 13 个组件清单(3 UI+3 layout+5 shared+2 wallet)，含 props/变体 |
-| docs/design/linkworld/color-mapping.md | shadcn CSS 变量 + Tailwind 扩展色 token + 硬编码色值 + 深蓝替换计划 |
-| docs/design/linkworld/utils.md | 26+ 个 hooks/工具函数 + 5 真实 API + 1 mock(notifications) |
-| docs/design/linkworld/project-scan.md | 技术栈 + 目录树 + 9 页面路由 + 服务层 + 7 合约 Web3 集成 + 复用度矩阵 |
+| docs/design/linkworld-contracts/project-scan.md | 结构/网络/编译器/UUPS proxy/部署现状/依赖 |
+| docs/design/linkworld-contracts/contracts-inventory.md | 7 合约逐个清单（职责/函数/事件/proxy）|
+| docs/design/linkworld-contracts/erc20-migration-surface.md | ERC20 改写面（payable/msg.value 位置 + Deposit/Payment/FeeManager/TrafficCardNFT 现状）|
+| docs/design/linkworld-contracts/test-deploy-baseline.md | 测试覆盖 + 部署脚本/产物基线 |
 
-## 关键发现
-- 当前主题色：primary #3b82f6 亮蓝，背景 #0a0a14 近黑；目标深蓝渐变 #0C2340→#1E40AF + 金色点缀
-- 色值双轨：业务组件吃 tailwind.config.ts 的 HEX token，UI 原子吃 index.css 的 oklch CSS 变量——改主题需两处同步，重构应统一出口
-- 只有 3 个 UI 原子组件(Button/Badge/Tabs)，缺 Card/Input/Dialog/Sheet 封装，页面手写较多
-- 大量 emoji 当图标，已装 lucide-react 却基本没用——新主题建议统一换 lucide
-- 5 个真实后端 API（User/Operator/Deposit/Billing/Usage）+ 1 个 mock（Notifications，后端未就绪）
-- 7 个合约已集成（UserRegistry/Deposit/Payment/ServiceManager/TrafficCard/FeeManager/Oracle），wagmi+RainbowKit，0G Chain
-- 注意：config/abis/index.ts 漏导出 OracleABI（文件存在）；main.tsx RainbowKit accentColor 硬编码 #3b82f6
-- body 字体 "Inter" 与 --font-sans: Geist 冲突；Orbitron 字体已声明未用
+## 🔴 已验证的关键事实：当前合约编译不通过
+主 Agent 实跑 `npx hardhat compile` 确认失败：
+```
+DeclarationError: Undeclared identifier.
+  --> contracts/Oracle.sol:71:22  emit UsageDataSubmitted(...)   ← 事件未声明
+Error HH600: Compilation failed
+```
+合并自 origin 的合约代码（commit「rom upgrade test commit 0606」）是**编译不过的半成品**。ERC20 迁移前，design/plan 必须先把合约修到可编译（这是地基前置）。
 
-## 用户确认的事项
-- 仅重构 web 端（packages/web）
-- 去掉 figma 与 visual-test 阶段（无 Figma 源 + React 非 Flutter）
-- mode = strict，10 阶段完整 pipeline
-- 主题色换深蓝渐变 linear-gradient(135deg, #0C2340 0%, #1E40AF 50%) + 金色点缀
+## 关键发现（给 design 阶段）
+1. **ERC20 改写面收敛**：payable/msg.value/.call{value} 仅在 Deposit.sol(5处)+Payment.sol(4处)+IDeposit/IPayment 接口各1处。全仓无 ERC20/SafeERC20 引用；OZ ^5.6.1 自带 IERC20+SafeERC20，无需加依赖。
+2. **7 合约全部 UUPS 可升级**：已有 .openzeppelin/unknown-16602.json manifest。改写应走 upgradeProxy + storage layout 只追加规则（新增 usdt state 加末尾）；Arbitrum 是全新部署无此约束。
+3. **Arbitrum 421614 配置完全缺失**：hardhat.config.ts 只有 31337/16600/16602，需新增网络+RPC+部署脚本+mock USDT。
+4. **无 10 USDT 下限**：Deposit 当前仅 require(msg.value>0)；锁仓 30 天+续期逻辑可保留，只换资金通道。
+5. **USDT 精度雷区**：现状全按 18 位。Deposit.mintTrafficCard 的 _deposits/100000、ServiceManager 的 ether requiredDeposit、测试 parseEther、待加 MIN_DEPOSIT 都受 6 位精度冲击。建议读 usdt.decimals() 不硬编码。
+6. **Payment 运营商分账缺口**：payBill 只转 platformFee 到 platformWallet，bill.amount 无出口；ServiceManager paymentAddress 全 address(0)。ERC20 改写须定 amount 去向。
+7. **测试覆盖严重不足**：withdraw/payBill/mintTrafficCard/锁仓时序/最小额/UUPS 升级全无测试，且全用 18 位 parseEther。验收 A.2 的 <10 拒绝/=10 通过单测目前不存在。
+
+## ⚠️ 需 design/arch 复核的遗留问题
+- Oracle.sol 把 payment/deposit 声明为 address 却调其方法；applyTrafficCardToBill 在 Payment.sol 未实现；Oracle 缺 setPayment。当前编译已失败（见上），artifacts/ 与源码不同步。
+- Deposit.issueMonthlyTrafficCards（PRD R7 自动发卡入口）当前是空实现，真正自动发放链路不存在，arch 需补设计。
+- 部署脚本 wiring 缺 payment.setOracle(...)。
+- 编译器用 evmVersion: cancun + viaIR，Payment 依赖 ReentrancyGuardTransient(transient storage)——迁 Arbitrum Sepolia 前需确认 cancun opcode 支持。
+
+## 移交 design
+带着 PRD §三①/§五A/§六 + 上述发现，先确定"修编译→ERC20 改写→Arbitrum 部署+mock USDT→补测"的合约设计方案与状态机/接口签名。
