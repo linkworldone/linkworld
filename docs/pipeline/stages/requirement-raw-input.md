@@ -49,3 +49,14 @@ Link World 是基于区块链的全球去中心化通信平台，连接运营商
 
 - 只 web端 重构
 - 主题色按这个新方案（用户提供参考图：深蓝渐变 linear-gradient(135deg, #0C2340 0%, #1E40AF 50% ...) + 金色点缀 + 米白卡片，Web3「The Decentralized Future」风格）
+
+---
+
+## 三、Round 1 重审触发（2026-06-08 · 突发事件落盘）
+
+> 仅记录触发事实，不含决策结论。供 requirement 重审时由执行者重新核对真实代码 + 跟用户重审。
+
+- 用户在 design 阶段途中报：**后端 + 合约代码已提交**。已 `git fetch` + merge `origin/main`（合并提交 `7ef9677`）落地到本地 `main`。
+- 变更范围：`packages/backend`（链上交互 client/signatures/event_sync、oracle、新 API 端点）+ `packages/contracts`（合约全量改签名，部署至 og_testnet `chainId 16602`，合约地址见 `packages/contracts/deployments/og_testnet.json`）。
+- 触发影响：原 PRD（`requirement.md`）的核心约束 **D2「只动前端，后端/合约不配合」** 前提已不成立，需重审。
+- 重审要求：执行者请**自行读 merge 后的真实代码**（`packages/backend/cmd/main.go` 路由表、`packages/backend/internal/...`、`packages/contracts/contracts/*.sol` 及 interfaces、`packages/web/src/config/{chains,contracts,abis}` 现状），再跟用户逐条重审 `requirement.md` 中受影响的决策，产出修订版 PRD。
