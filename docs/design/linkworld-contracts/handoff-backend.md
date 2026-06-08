@@ -59,7 +59,25 @@ ABI 指纹（keccak256(formatJson)）记入 `deployments/<net>.json` 的 `abiHas
 ## 5. 批量调用约定
 
 - `monthlySettlement` / `issueMonthlyTrafficCards` 由后端**分批调用**，每批 `users` 数量 ≤ N。
-- 合约内**不强制 maxBatch**（保留调用方分批灵活度）。安全上限 N 由 GAS-01 压测量出（T6 产出），后端遵守该上限。建议 N ≤ 100，最终以 T6 压测结论为准。
+- 合约内**不强制 maxBatch**（保留调用方分批灵活度）。安全上限 N 由 GAS-01 压测量出（T6 产出），后端遵守该上限。
+
+### 5.1 GAS-01 压测结论（T6 回填，权威）
+
+压测环境：hardhat（cancun，optimizer runs=200，viaIR），多梯度线性外推；单批安全预算取区块 gas 上限 30,000,000 的 50% = **15,000,000 gas**（留波动 / L1 calldata 成本 / 并发余量）。per-user gas 随批量增大略降（基础 overhead 摊薄），线性无二次方膨胀。
+
+| 入口 | per-user gas（实测） | 15M 预算下理论上限 | **后端遵守的安全上限 N** |
+|------|----------------------|--------------------|--------------------------|
+| `issueMonthlyTrafficCards(address[])` | ≈ 230,000（含 NFT mint + safeMint 回调） | ≈ 65 | **N ≤ 50** |
+| `Oracle.monthlySettlement(address[],uint256[],uint256[])`（全链路：createBill + 发卡 + getUnpaidBills 二次循环 + applyTrafficCardToBill 桩） | ≈ 432,000 | ≈ 34 | **N ≤ 25** |
+
+实测样本：
+- `issueMonthlyTrafficCards`：N=10→2.35M、N=25→5.77M、N=50→11.51M gas（均 < 区块上限，可上链）。
+- `monthlySettlement`：N=10→4.37M、N=20→8.68M、N=30→12.97M gas。
+
+**后端落地建议**：
+- 调 `Oracle.monthlySettlement` 走全链路时，每批 `users` **≤ 25**（最紧约束，含发卡+账单+桩三段）。
+- 仅调 `Deposit.issueMonthlyTrafficCards` 单独发卡时，每批 **≤ 50**。
+- 真机（Arbitrum Sepolia 421614）上链后建议复测一次校准（L2 calldata 计价与本地略有差异），但本地实测的 per-user 量级与梯度线性度可直接作为分批上限依据。
 
 ---
 
