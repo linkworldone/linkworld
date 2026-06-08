@@ -15,6 +15,7 @@ interface IServiceManager {
     event OperatorAdded(uint256 indexed operatorId, string name, string region);
     event OperatorUpdated(uint256 indexed operatorId);
     event OperatorDeactivated(uint256 indexed operatorId);
+    event OperatorPaymentAddressSet(uint256 indexed operatorId, address paymentAddress);
 
     function addOperator(
         string calldata name,
@@ -30,6 +31,7 @@ interface IServiceManager {
         uint256 requiredDeposit
     ) external;
     function deactivateOperator(uint256 operatorId) external;
+    function setOperatorPaymentAddress(uint256 operatorId, address paymentAddress) external;
     function getOperator(uint256 operatorId) external view returns (Operator memory);
     function getActiveOperators() external view returns (Operator[] memory);
     function getOperatorsByCountry(string calldata countryCode) external view returns (Operator[] memory);

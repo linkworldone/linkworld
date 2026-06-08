@@ -198,6 +198,15 @@ contract ServiceManager is IServiceManager, OwnableUpgradeable, UUPSUpgradeable 
         emit OperatorDeactivated(operatorId);
     }
 
+    /// @notice 设置运营商分账收款地址（分账入口，禁零地址）
+    /// @dev T5 部署时为 11 个内置 operator 逐个注入真实地址；测试中手动 set
+    function setOperatorPaymentAddress(uint256 operatorId, address paymentAddress) external onlyOwner {
+        require(paymentAddress != address(0), "Zero payout address");
+        _operators[operatorId].paymentAddress = paymentAddress;
+
+        emit OperatorPaymentAddressSet(operatorId, paymentAddress);
+    }
+
     function getOperator(uint256 operatorId) external view returns (Operator memory) {
         return _operators[operatorId];
     }

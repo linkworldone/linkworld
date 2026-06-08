@@ -17,7 +17,7 @@ interface IPayment {
     event TrafficCardApplied(uint256 indexed billId);
 
     function createBill(address user, uint256 operatorId, uint256 amount) external;
-    function payBill(uint256 billId) external payable;
+    function payBill(uint256 billId) external;
     function getUserBills(address user) external view returns (Bill[] memory);
     function getUnpaidBills(address user) external view returns (Bill[] memory);
     function applyTrafficCardToBill(uint256 billId) external;

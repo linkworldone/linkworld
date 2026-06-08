@@ -36,7 +36,12 @@ describe("LinkWorld Contracts Tests", function () {
 
     const PaymentFactory = await ethers.getContractFactory("Payment");
     payment = await PaymentFactory.deploy();
-    await payment.initialize(await feeManager.getAddress(), owner.address);
+    await payment.initialize(
+      await feeManager.getAddress(),
+      owner.address,
+      await mockUSDT.getAddress(),
+      await serviceManager.getAddress()
+    );
 
     const DepositFactory = await ethers.getContractFactory("Deposit");
     deposit = await DepositFactory.deploy();
@@ -53,6 +58,9 @@ describe("LinkWorld Contracts Tests", function () {
     await deposit.setOracle(await oracle.getAddress());
     await deposit.setTrafficCardNFT(await trafficCardNFT.getAddress());
     await oracle.setDeposit(await deposit.getAddress());
+
+    // Payment 授权 oracle（createBill / applyTrafficCardToBill 的 onlyOracle，B2）
+    await payment.setOracle(await oracle.getAddress());
   }
 
   describe("FeeManager", function () {
@@ -172,19 +180,27 @@ it("DP-03  setOracle stores address", async function () {
   });
 
   describe("Payment", function () {
-    beforeEach(deployAndWire);
+    beforeEach(async function () {
+      await deployAndWire();
+      // createBill 现为 onlyOracle（B2）：用 EOA user3 充当 oracle 直接调用；
+      // 并为 operator 1 设置分账地址，通过 createBill fail-fast 校验。
+      await payment.setOracle(user3.address);
+      await serviceManager.setOperatorPaymentAddress(1, user2.address);
+    });
 
-    it("PM-01  createBill emits BillCreated", async function () {
-      const total = parseEther("1") + feeAt150bps(parseEther("1"));
-      await expect(payment.createBill(user1.address, 1, parseEther("1")))
-        .to.emit(payment, "BillCreated").withArgs(0, user1.address, total, feeAt150bps(parseEther("1")));
+    it("PM-01  createBill (onlyOracle) emits BillCreated", async function () {
+      const amount = usdt(100);
+      const total = amount + feeAt150bps(amount);
+      await expect(payment.connect(user3).createBill(user1.address, 1, amount))
+        .to.emit(payment, "BillCreated").withArgs(0, user1.address, total, feeAt150bps(amount));
     });
 
     it("PM-02  getUserBills returns created bills", async function () {
-      await payment.createBill(user1.address, 1, parseEther("1"));
+      const amount = usdt(100);
+      await payment.connect(user3).createBill(user1.address, 1, amount);
       const bills = await payment.getUserBills(user1.address);
       expect(bills.length).to.equal(1);
-      expect(bills[0].amount).to.equal(parseEther("1"));
+      expect(bills[0].amount).to.equal(amount);
     });
   });
 

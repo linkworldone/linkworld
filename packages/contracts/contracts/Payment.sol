@@ -6,9 +6,14 @@ import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IPayment.sol";
 import "./interfaces/IFeeManager.sol";
+import "./interfaces/IServiceManager.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @title Payment - 支付结算（服务商费用 + 平台手续费 + 流量卡抵扣，可升级版）
+/// @title Payment - 支付结算（服务商费用 + 平台手续费 + 流量卡抵扣，可升级版，ERC20 USDT 链上直分）
 contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
+    using SafeERC20 for IERC20;
+
     IFeeManager public feeManager;
     address public platformWallet;
     address public oracle;
@@ -17,16 +22,32 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
     mapping(uint256 => Bill) private _bills;
     mapping(address => uint256[]) private _userBillIds;
 
+    /// @notice 资金通道代币（USDT，6 位精度）。仅支持标准 ERC20，禁 fee-on-transfer。
+    IERC20 public usdt;
+    /// @notice 运营商目录（查 operator.paymentAddress 做链上分账）
+    IServiceManager public serviceManager;
+
     modifier onlyOracle() {
         require(msg.sender == oracle, "Only oracle");
         _;
     }
 
     /// @notice Initializer
-    function initialize(address _feeManager, address _platformWallet) public initializer {
+    /// @param _feeManager 手续费合约
+    /// @param _platformWallet 平台手续费收款地址
+    /// @param _usdt USDT 代币合约（initialize 注入，避免未设时 safeTransferFrom(address(0)) panic）
+    /// @param _serviceManager 运营商目录（查 operator.paymentAddress 做分账）
+    function initialize(
+        address _feeManager,
+        address _platformWallet,
+        address _usdt,
+        address _serviceManager
+    ) public initializer {
         __Ownable_init(msg.sender);
         feeManager = IFeeManager(_feeManager);
         platformWallet = _platformWallet;
+        usdt = IERC20(_usdt);
+        serviceManager = IServiceManager(_serviceManager);
     }
 
     function setOracle(address _oracle) external onlyOwner {
@@ -43,9 +64,20 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
         feeManager = IFeeManager(_feeManager);
     }
 
-    /// @notice 创建服务购买账单（仅 oracle/owner）
-    function createBill(address user, uint256 operatorId, uint256 amount) external onlyOwner {
+    /// @notice 设置运营商目录合约
+    function setServiceManager(address _serviceManager) external onlyOwner {
+        serviceManager = IServiceManager(_serviceManager);
+    }
+
+    /// @notice 创建服务购买账单（仅 oracle，B2）
+    /// @dev amount 为后端/Oracle 链下按资费算好的 USDT 金额（v2-A，合约不做 usage 求和）
+    function createBill(address user, uint256 operatorId, uint256 amount) external onlyOracle {
         require(amount > 0, "Zero amount");
+        // fail-fast：避免生成永远付不了的账单（operator 分账地址未设时直接拒绝）
+        require(
+            serviceManager.getOperator(operatorId).paymentAddress != address(0),
+            "Operator payout unset"
+        );
 
         uint256 platformFee = feeManager.calculateFee(amount);
         uint256 billId = _nextBillId++;
@@ -64,25 +96,28 @@ contract Payment is IPayment, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
         emit BillCreated(billId, user, amount + platformFee, platformFee);
     }
 
-    /// @notice 用户支付账单
-    function payBill(uint256 billId) external payable {
+    /// @notice 用户支付账单（ERC20 USDT 链上直分）
+    /// @dev 用户须先 approve(payment, amount+fee)；两段 safeTransferFrom 各自从 user 拉款，
+    ///      合约不暂存资金（降低重入面）。CEI：先置 isPaid 再转账。0-fee 跳过第二段。
+    function payBill(uint256 billId) external nonReentrant {
         Bill storage bill = _bills[billId];
         require(!bill.isPaid, "Already paid");
         require(bill.user == msg.sender, "Not your bill");
 
-        uint256 total = bill.amount + bill.platformFee;
-        require(msg.value >= total, "Insufficient payment");
+        address operatorPayout = serviceManager.getOperator(bill.operatorId).paymentAddress;
+        require(operatorPayout != address(0), "Operator payout unset");
 
+        // CEI：状态先改
         bill.isPaid = true;
 
-        if (bill.platformFee > 0) {
-            (bool feeOk, ) = platformWallet.call{value: bill.platformFee}("");
-            require(feeOk, "Fee transfer failed");
-        }
+        uint256 total = bill.amount + bill.platformFee;
 
-        if (msg.value > total) {
-            (bool refundOk, ) = msg.sender.call{value: msg.value - total}("");
-            require(refundOk, "Refund failed");
+        // 主体分账：user -> operator.paymentAddress
+        usdt.safeTransferFrom(msg.sender, operatorPayout, bill.amount);
+
+        // 手续费：user -> platformWallet（0-fee 跳过）
+        if (bill.platformFee > 0) {
+            usdt.safeTransferFrom(msg.sender, platformWallet, bill.platformFee);
         }
 
         emit BillPaid(billId, msg.sender, total, bill.amount);
