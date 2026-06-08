@@ -1,6 +1,6 @@
 # Stage: arch-review — 三角色架构审查 + 合约安全审计（子项目 contracts 1/3）
 
-> **状态**: BLOCKED（本轮 design.md 未通过，含 ❌ 阻塞项，需返工 design 后重跑） | **日期**: 2026-06-08 | **Gate**: 1
+> **状态**: PASS（第 1 轮 BLOCKED → design 返工 v2 → 第 2 轮复审 0 ❌ 通过） | **日期**: 2026-06-08 | **Gate**: 1
 > 审查对象：docs/pipeline/stages/design.md（合约技术设计，commit 9584e4a）
 > 三角色并行：CEO(plan-ceo-review) / Eng(plan-eng-review) / Security(chain-web3-developer:security-review，替代对合约无意义的 UI design-review)
 > 冲突优先级：安全/可行性 > 工程实现 > 视觉
@@ -51,3 +51,30 @@
 - CEO：❌1（B4 dataAmount 语义未拍板）+ ⚠️5 + ✅8。结论：方向对、工程扎实，唯一硬伤是"规范真空"——核心发卡功能正确性留给 implement。
 - Eng：❌2（B5 接口收敛漏声明 / B6 核心函数零测试）+ 多个二义点 + 临界 gas 缺口。结论：不可直接进 implement，修 2 阻塞+拍板 4 二义点后 P1→P6 可落地。
 - Security：BLOCK，❌5（B1计价Critical / B2 createBill权限链 / B3发卡权限链幂等 / B4 dataAmount精度 / B7非标代币）+ ⚠️9 + ✅4。结论：显性资损面扎实，但自动结算两条权限链 deploy 下跑不通 + 计价模型缺失是结构性缺口。
+
+---
+
+## 七、第 2 轮复审（design v2，commit 2b8d4a0）— PASS
+
+design 按本报告返工为 v2（闭合 B1-B7 + 用户 3 决策 + §三消歧项）。Eng + Security 并行验证性复审（Security 因合约资损敏感从严），结论：
+
+| 阻塞 | 第1轮 | 第2轮复审 |
+|------|-------|-----------|
+| B1 计价模型(Critical) | ❌ | ✅ 闭合（删 Oracle usage 求和，金额后端传入）|
+| B2 createBill 权限链 | ❌ | ✅ 闭合（改 onlyOracle + setOracle/setPayment wiring + 拓扑图，三链跑通）|
+| B3 发卡权限链+幂等 | ❌ | ✅ 闭合（internal _mintFor 不撞 onlyOwner + continue 跳过 + userCardCount 幂等）|
+| B4 dataAmount 精度 | ❌ | ✅ 闭合（固定 trafficCardQuota，删 _deposits/100000，全文统一）|
+| B5 接口收敛漏声明 | ❌ | ✅ 闭合（IDeposit/IPayment 补声明 + 连锁编译清单）|
+| B6 核心函数零测试 | ❌ | ✅ 闭合（补 MS-01~03 + ATC-01/02）|
+| B7 非标代币边界 | ❌ | ✅ 闭合（仅标准 ERC20/禁 fee-on-transfer/黑名单/支付降级）|
+
+**剩余 ❌ 阻塞：0。两方一致结论：PASS，可进 plan。**
+
+### 带入 implement 的 ⚠️ 加固项（非阻塞，列入实现验收单）
+1. **A1 发卡路径重入**：`issueMonthlyTrafficCards`/`mintTrafficCard`/`_mintFor` 加 `nonReentrant`（或确认 `_userCardCount++` 在 `_safeMint` 回调前 CEI 顺序）；design §6.2 补 guard 覆盖声明。onlyOracle 信任边界 + 非资金路径，最坏后果是破坏单卡不变量，非直接资损。
+2. **A3 `_reentrancyGuardInit` 无效代码**：经 OZ 5.6.1 源码实证，Payment L33-38 `sstore` 写持久 storage 而 transient guard 用 tload/tstore 读不同空间——该 init 永不被读=无效代码（非"防护形同虚设"，guard 本身有效）。implement 删 L33-38 + initialize L28 调用。
+3. **Arbitrum transient 实测**：P1.5 前移实测 TSTORE 兼容，备 ReentrancyGuardUpgradeable 降级 fallback（设计层无法闭合，implement 验证）。
+4. **deploy.ts 同步**：Payment/Deposit initializer 改参数个数 → deployProxy 参数数组 + MockUSDT 部署顺序（步骤0）须同步改。
+5. **monthlySettlement 旧喂价旁路**：改签名后 Oracle `_monthlyUsage`/`submitUsage` 累计旁路去留，留 plan/implement 与后端(2/3)对齐。
+
+> implement 完成后须重跑 design v2 §十安全清单对照实际 .sol 落地，尤其 MS-01~03 / ATC-01/02 / USDT-01/02 / ISS-04 必须绿。
