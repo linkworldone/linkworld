@@ -1,6 +1,6 @@
 # Stage: arch-review — 三角色审查（CEO/Design/Eng）（子项目 web 3/3）
 
-> **状态**: BLOCKED（6 ❌ 阻塞，需返工 design 重跑） | **日期**: 2026-06-09 | **Gate**: 1
+> **状态**: PASS（第1轮 BLOCKED 6 ❌ → design v2 返工 → 第2轮 Design+Eng 复审 0 ❌ 通过） | **日期**: 2026-06-10 | **Gate**: 1
 > 审查对象：design.md + DESIGN.md（深蓝金视觉+接链交互稿）。三角色全员（web 真有 UI，Design 路首次对口）。冲突优先级：安全/可行性 > 工程 > 视觉。
 
 ## 一、总裁决：BLOCK（6 ❌）
@@ -38,3 +38,27 @@
 - CEO：1 ❌(B1 WalletAuth 留虚)+3 ⚠️+4 ✅。结论：方向对不返工重做，WalletAuth 锁铁律+pending 兜底+验收边界重画。
 - Design：1 ❌(B2 金色对比度)+6 ⚠️，总体 7.4/10。结论：视觉优秀但金额金色 2:1 必修，交互态系统性空洞待补。
 - Eng：4 ❌(B3 tsc 红/B4 无测试/B5 TwoStepAction 状态机/B6 confirmed 来源+getLogs 限流)+多 ⚠️。结论：交互/契约设计扎实但非可直接 implement 的工程方案，补 4 块闭环。
+
+---
+
+## 七、第 2 轮复审（design v2，commit c3c4abd）— PASS
+
+design v2 闭合 B1-B6 + 关键 ⚠️。Design + Eng 验证性复审，0 ❌：
+
+| 阻塞 | 第1轮 | 第2轮 |
+|------|-------|-------|
+| B1 WalletAuth 会话级签名 | ❌ | ✅ DESIGN.md 铁律：会话内签一次(nonce+时间窗)禁每次签 + 已签名态视觉 + EIP-712 |
+| B2 金色对比度 | ❌ | ✅ 卡内金额/文字 navy(≈12:1)、金色仅深底(≈6.5:1)、金在米白禁文字(≈2:1)；AmountDisplay 按底色分流；金色非文本用途豁免 |
+| B3 tsc 绿基线 | ❌ | ✅(文档层) implement T0 先清 RegisterSheet.tsx:22 TS6133 + 全量 tsc 绿前置 |
+| B4 测试策略 | ❌ | ✅ §10 vitest+单元(精度/approve/LockCountdown/billingApi bigint)+组件(mock wagmi)+31337 冒烟 |
+| B5 TwoStepAction 状态机 | ❌ | ✅ §8 allowance 跳步+两笔中间态+approve 成功/action 失败回 approved-idle 不 re-approve |
+| B6 confirmed 来源+getLogs | ❌ | ✅ §9 余额读链+账单轮询后端、不前端监听、getLogs 改后端/限窗+补 error 态、K 块留后端 |
+
+设计师维度评分 7.4→8.7。**剩余 ❌：0，可进 plan。**
+
+### 带入 plan/implement 的前置与跨端项
+1. **implement T0（B3）**：先清 RegisterSheet.tsx:22 TS6133 + 全量 tsc 绿，否则无回归基线。
+2. **WalletAuth nonce 来源 + EIP-712 字段/domain**：跨端待与后端 signatures.go 对齐，web 单方不可闭环。
+3. **B6 getLogs 修复二选一**（后端 NFT 列表端点 vs 限定 fromBlock 窗口）由 implement 定。
+4. **Arbitrum 端到端(D17)**：阻塞于合约真·上链；web DONE 边界=本地 31337 全链路绿，D17 后置不计入 web DONE。
+5. 已修文档残留：§3.4 去「利息」、香槟金明确做、§10 constants 表述、补 Oracle 导出。

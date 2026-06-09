@@ -37,7 +37,7 @@
 ## 2. 复用与修订：深蓝金视觉系统
 
 - **复用 DESIGN.md 全部规范**：色值（navy #0C2340 / 沉稳金 #D4AF37 / 暖米白 #F7F3EA）、字体（Display=Space Grotesk，Body/Data=Geist，删 Inter、弃 Orbitron）、lucide 映射表、**CSS 变量单一出口方案**（index.css `:root` 真源，tailwind token 引 `var()`）、缺失原子组件（ui/card / ui/input）。
-- **本轮修订**：① Product Context `0G Chain 生态` → `Arbitrum Sepolia(421614) + ERC20 USDT 6 位`；② 香槟金 `#F0C75E`（PRD E18 提及）定位为「金线渐变高光端，可选」，**主金仍 #D4AF37，不引入新主色**（R12 视觉不变）。
+- **本轮修订**：① Product Context `0G Chain 生态` → `Arbitrum Sepolia(421614) + ERC20 USDT 6 位`；② 香槟金 `#F0C75E`（PRD E18 提及）**明确做**：金线渐变高光端 `#D4AF37→#F0C75E`，停靠点 0%/50%/100%；**不作独立文字/填充色**（与 DESIGN.md 一致）。**主金仍 #D4AF37，不引入新主色**（R12 视觉不变）。
 - **换肤 delta** 见 `theme-migration.md`（旧色值/emoji 精确分布 + grep 清零基线），本文件不重复。
 
 ---
@@ -82,7 +82,7 @@
 
 ### 3.4 锁仓倒计时（Deposit 提现区）
 - 合约依据：`getLockExpiry(addr)` 时间戳；提现 `require(now >= expiry)`（边界 `>=`）；**每次充值 expiry += 30d 顺延**；提现归 0。
-- 状态：`expiry==0` 无锁仓 / `now<expiry` Withdraw 禁用 + 倒计时「锁仓中 · 剩余 Dd Hh Mm」+ Lock / `now≥expiry` 可点 + Unlock +「锁仓已满，可提取本金+利息」。
+- 状态：`expiry==0` 无锁仓 / `now<expiry` Withdraw 禁用 + 倒计时「锁仓中 · 剩余 Dd Hh Mm」+ Lock / `now≥expiry` 可点 + Unlock +「锁仓已满，可提取本金」。
 - **关键 UX 提示**：因累加语义，Deposit 页须明示「再次充值将把锁仓期顺延 30 天」。
 - 刷新：每分钟（剩余 ≤1 天每秒）；边界与合约 `>=` 对齐。
 
@@ -163,6 +163,7 @@
 5. **WalletAuth 签名格式未定**：EIP-712 vs EIP-191 / 字段顺序 / nonce 来源——implement 与后端 `signatures.go` 敲定；design 已给 UX 规范（与交易签名区分、拒签态）。
 6. **421614 真上链未做**：`deployments/arbitrum_sepolia.json` 不存在，端到端 Arbitrum 验收（D17）阻塞于合约先上链；本地 31337 可先验全链路。
 7. **31337 地址漂移**：contracts.ts 与 deployments/hardhat.json 不一致；建议「deployments json → contracts.ts」单一出口脚本（实现层，arch-review 关注）。
+8. **Oracle ABI 未导出（接链改动面）**：`config/abis/index.ts` 当前导出 6 个（UserRegistry/Deposit/ServiceManager/Payment/FeeManager/TrafficCardNFT）但**缺 OracleABI**（`Oracle.ts` 文件已在，FeeManager 已导出做对照）；implement 需补 `export { OracleABI }`（D11 验收 + 若读结算状态需要）。
 
 ---
 
@@ -206,7 +207,7 @@ idle (输入金额，校验 amount≥10 USDT & ≤钱包USDT余额)
 
 **单元（必测，资损红线）：**
 - `utils/format.ts`：`parseUnits("1.5", 6)===1500000n`、`formatAmount(1500000n, 6, 2)==="1.50"`；**6 位精度**（旧默认 18 → 接链必传 6，差 10^12 倍）；边界 0 / 大额。
-- `config/constants.ts`：`MIN_DEPOSIT` 现 `100n*10n**18n`（**18 位 bug + 值错**），改 **6 位最小单位 + 值 10**（链上 `require amount≥10 USDT`）→ 断言 `=== 10n * 10n**6n`。
+- `config/constants.ts`：`MIN_DEPOSIT_USDT` 现 `100n*10n**18n`，含**两个独立改动**：① **精度修复**——18 位精度 bug，应为 6 位最小单位（接链 USDT 6 位，18→6 差 10^12 倍）；② **值对齐**——值 100→10，对齐链上 `require amount≥10 USDT` 下限。断言目标 `MIN_DEPOSIT_USDT === 10n * 10n**6n`。
 - `billingApi.toBill`：改 **bigint** 后断言 total 用 `BigInt` 加减、无浮点误差、大额不溢出（见 §3.3）。
 - approve 额算法：充值 `=amount`、付账 `=amount + calculateFee(amount)`（exact，禁 infinite）。
 - `LockCountdown` 解锁判定：`now >= expiry`（**`>=` 边界**，到期即解锁；`now===expiry` 必须可提）。
