@@ -122,3 +122,32 @@ const (
 	ChainEventStatusSeen      = "seen"
 	ChainEventStatusConfirmed = "confirmed"
 )
+
+// SettlementBatch 是月度结算的分批幂等记录（design §4.1/§6.1，arch-review B1：幂等键 month+batchIndex）。
+// 月度结算把 amounts[] 切片为每批 ≤25 user 逐批发交易；每批以 (Month, BatchIndex) 唯一标识：
+//   - confirmed 批不重发（重复触发幂等）；
+//   - failed 批可重试（一批失败不影响其他批，失败批续跑）；
+//   - pending_review 批因 L2 熔断/绝对闸阻断，待人工放行后再发（不自动发）。
+// TotalAmount 落该批 sum(amounts)（6 位最小单位字符串），供历史月均熔断计算。
+type SettlementBatch struct {
+	ID          uint   `gorm:"primarykey" json:"id"`
+	Month       string `gorm:"size:7;uniqueIndex:idx_month_batch" json:"month"` // "YYYY-MM"
+	BatchIndex  int    `gorm:"uniqueIndex:idx_month_batch" json:"batch_index"`
+	UserCount   int    `json:"user_count"`
+	TotalAmount string `json:"total_amount"` // 6 位最小单位字符串（design §4.4）
+	// Status：pending(已建未发) → confirmed(receipt.Status=1) / failed(receipt.Status=0 或发送失败，可重试)
+	//        / pending_review(L2 熔断或绝对闸阻断，待人工放行)。
+	Status    string    `gorm:"size:20;index" json:"status"`
+	TxHash    string    `json:"tx_hash,omitempty"`
+	Note      string    `json:"note,omitempty"` // 阻断原因等
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SettlementBatch.Status 取值常量。
+const (
+	BatchStatusPending       = "pending"
+	BatchStatusConfirmed     = "confirmed"
+	BatchStatusFailed        = "failed"
+	BatchStatusPendingReview = "pending_review"
+)

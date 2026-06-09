@@ -291,6 +291,65 @@ func (r *SyncStateRepository) Save(chainID, lastBlock uint64, blockHash string) 
 	return r.db.Save(&s).Error
 }
 
+// SettlementBatchRepository 维护月度结算分批的幂等记录（design §4.1/§6.1，幂等键 month+batchIndex）。
+type SettlementBatchRepository struct {
+	db *gorm.DB
+}
+
+func NewSettlementBatchRepository(db *gorm.DB) *SettlementBatchRepository {
+	return &SettlementBatchRepository{db: db}
+}
+
+// Migrate 自建 settlement_batches 表（自包含，不依赖 main.go 的 AutoMigrate 清单——与 event_sync 同策略）。
+func (r *SettlementBatchRepository) Migrate() error {
+	return r.db.AutoMigrate(&models.SettlementBatch{})
+}
+
+// Get 返回 (month, batchIndex) 的批次记录；无记录返回 (nil, nil)。
+func (r *SettlementBatchRepository) Get(month string, batchIndex int) (*models.SettlementBatch, error) {
+	var b models.SettlementBatch
+	err := r.db.Where("month = ? AND batch_index = ?", month, batchIndex).First(&b).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+// Save upsert 批次记录（按 month+batchIndex 幂等键）。
+func (r *SettlementBatchRepository) Save(b *models.SettlementBatch) error {
+	var existing models.SettlementBatch
+	err := r.db.Where("month = ? AND batch_index = ?", b.Month, b.BatchIndex).First(&existing).Error
+	if err == gorm.ErrRecordNotFound {
+		return r.db.Create(b).Error
+	}
+	if err != nil {
+		return err
+	}
+	b.ID = existing.ID
+	b.CreatedAt = existing.CreatedAt
+	return r.db.Save(b).Error
+}
+
+// HistoricalConfirmedTotals 返回 beforeMonth 之前（严格小于）已 confirmed 批次的总额清单
+//（6 位最小单位字符串），供 L2 历史月均熔断计算。无样本返回空切片（冷启动回退由调用方处理）。
+func (r *SettlementBatchRepository) HistoricalConfirmedTotals(beforeMonth string) ([]string, error) {
+	var rows []models.SettlementBatch
+	err := r.db.
+		Where("month < ? AND status = ?", beforeMonth, models.BatchStatusConfirmed).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, b := range rows {
+		out = append(out, b.TotalAmount)
+	}
+	return out, nil
+}
+
 // ChainEventRepository 维护链上事件幂等去重 + 两阶段状态（design §6.3）。
 type ChainEventRepository struct {
 	db *gorm.DB
