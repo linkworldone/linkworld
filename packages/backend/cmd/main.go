@@ -92,6 +92,16 @@ func main() {
 		if rpcURL != "" {
 			bcClient, err := blockchain.NewClient(rpcURL, deployments.ChainID, deployments.Proxies)
 			if err == nil {
+				// owner key 内存注入开启链上写（design §6.2 / §7.1）：从 env 读，仅内存、不落盘、
+				// 不进日志（client 内仅打 owner address）；缺失或 chainID 不一致 → 写降级关闭，
+				// 只读 + event_sync 仍可跑（owner=平台 root，不 fatal）。
+				if ownerKey := os.Getenv("ORACLE_OWNER_PRIVATE_KEY"); ownerKey != "" {
+					if werr := bcClient.EnableOwnerWrites(ownerKey); werr != nil {
+						log.Printf("WARN: 链上写降级关闭（EnableOwnerWrites 失败）：%v", werr)
+					}
+				} else {
+					log.Println("WARN: 未设置 ORACLE_OWNER_PRIVATE_KEY，链上写降级关闭（只读仍可）")
+				}
 				if ethClient := bcClient.EthClient(); ethClient != nil {
 					eventSync := sync.NewEventSync(ethClient, userRepo, deployments.Proxies)
 					go eventSync.Start(context.Background())
