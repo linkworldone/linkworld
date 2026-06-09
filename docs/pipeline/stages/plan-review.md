@@ -79,13 +79,15 @@
 
 > 以下为 implement 阶段不可逾越的铁律，违反任一即返工。来源：design §7.0/§11 + arch-review §七 + CLAUDE.md 主控-分派规则。
 
-1. **串行执行**：implement 阶段始终串行，一个任务 gate（go build/test）绿且主 Agent 审查通过，才派下一个 subagent（CLAUDE.md）。两任务编辑同一文件必串行（T3/T5/T6 同碰 oracle.go/client.go，严格按 T1→…→T8 顺序）。
-2. **T1 前置 = 合约 PR#1 merge（ABI 冻结）**，非真机上链。基于未 merge ABI 生成绑定会返工（design §7.4）。真机 421614 联调待上链，**不阻塞 implement/test**（全程本地 hardhat 31337 + hardhat.json + simulated.Backend）。
-3. **WalletAuth nonce 台账（arch-review N1，最关键）**：必须服务端一次性 nonce 台账（per-wallet 单调递增或消费式）+ 绑 chainId/domain（EIP-712），**禁止退化为纯 timestamp 时间窗**（窗口内签名可重放）。design §6.6 措辞收紧为「nonce 强制 + 服务端状态」。
-4. **熔断冷启动回退（arch-review N2/L2）**：历史月均熔断在首月/无样本（均值=0）时须回退到 `MAX_BATCH_TOTAL` 绝对闸，**不得因均值=0 失效**。L1/L3 绝对上限始终在。
-5. **operatorId 固定映射**：seed 显式写 `Operator.ID = 链上 operatorId(1..11)`，**绝不靠 name 比对**；启动读链 sanity check 不一致 fail/warn。seed 顺序待 PR#1 merge 后与 `ServiceManager.initialize` 核对（design §4.5）。
-6. **对账单一路径**：资金终态字段（IsPaid/PaidAt、withdraw 记账）**唯一**由 event_sync 链上事件回填；HTTP 写端点最多写 pending 意向，**绝不置终态**。MarkAsPaid 不导出给 HTTP，RecordWithdraw（凭前端 txHash）废弃（design §4.3/§7.0④）。
-7. **金额三层硬闸**：L1 计价层（≤MAX_BILL_PER_USER）/ L2 组批层（单批 sum≤MAX_BATCH_TOTAL + 超月均×N 熔断）/ L3 client 发交易前断言。三闸独立，即使上游漏校验 L3 也挡（design §7.0①）。
-8. **owner = 平台 root 权限**：私钥启动注入进程内存（本地/CI env、生产 secret manager），不落 .env 明文长存、不硬编码、不入库、不进日志（仅打 owner address）；缺失则写降级关闭；chainID 一致校验防签错链（design §6.2/§7.1）。
-9. **占位常量刺眼化**：MAX_BILL_PER_USER/MAX_BATCH_TOTAL/N/K + 费率表全部 PLACEHOLDER 注释 + 启动 `log.Warn`，测试用固定值断言；真值待产品/运营/安全在 implement 前确认（design §0.1 注 / §10）。
-10. **精度 6 位全链路**：链/计价 *big.Int 6 位最小单位，DB string，展示除 10^usdtDecimals（从 deployments 读不硬编码 6）；string→big.Int `SetString(s,10)` 必须校验 ok，失败 fail-fast 不静默（design §6.3/§7.2）。
+| 红线/铁律 | 内容 | 关联任务 | 来源 |
+|-----------|------|----------|------|
+| **串行执行** | implement 阶段始终串行，一个任务 gate（go build/test）绿且主 Agent 审查通过，才派下一个 subagent。两任务编辑同一文件必串行（T3/T5/T6 同碰 oracle.go/client.go，严格按 T1→…→T8 顺序） | T1–T8 | CLAUDE.md 主控-分派 |
+| **T1 前置 = 合约 PR#1 merge（ABI 冻结）** | 非真机上链。基于未 merge ABI 生成绑定会返工。真机 421614 联调待上链，**不阻塞 implement/test**（全程本地 hardhat 31337 + hardhat.json + simulated.Backend） | T1 | design §7.4 |
+| **WalletAuth nonce 台账（最关键）** | 必须服务端一次性 nonce 台账（per-wallet 单调递增或消费式）+ 绑 chainId/domain（EIP-712），**禁止退化为纯 timestamp 时间窗**（窗口内签名可重放）。design §6.6 措辞收紧为「nonce 强制 + 服务端状态」 | T7 | arch-review N1 / design §6.6 |
+| **熔断冷启动回退** | 历史月均熔断在首月/无样本（均值=0）时须回退到 `MAX_BATCH_TOTAL` 绝对闸，**不得因均值=0 失效**。L1/L3 绝对上限始终在 | T6 | arch-review N2/L2 |
+| **operatorId 固定映射** | seed 显式写 `Operator.ID = 链上 operatorId(1..11)`，**绝不靠 name 比对**；启动读链 sanity check 不一致 fail/warn。seed 顺序待 PR#1 merge 后与 `ServiceManager.initialize` 核对 | T5 | design §4.5 |
+| **对账单一路径** | 资金终态字段（IsPaid/PaidAt、withdraw 记账）**唯一**由 event_sync 链上事件回填；HTTP 写端点最多写 pending 意向，**绝不置终态**。MarkAsPaid 不导出给 HTTP，RecordWithdraw（凭前端 txHash）废弃 | T7 / T4 | design §4.3 / §7.0④ |
+| **金额三层硬闸** | L1 计价层（≤MAX_BILL_PER_USER）/ L2 组批层（单批 sum≤MAX_BATCH_TOTAL + 超月均×N 熔断）/ L3 client 发交易前断言。三闸独立，即使上游漏校验 L3 也挡 | T3 / T5 / T6 | design §7.0① |
+| **owner = 平台 root 权限** | 私钥启动注入进程内存（本地/CI env、生产 secret manager），不落 .env 明文长存、不硬编码、不入库、不进日志（仅打 owner address）；缺失则写降级关闭；chainID 一致校验防签错链 | T3 | design §6.2 / §7.1 |
+| **占位常量刺眼化** | MAX_BILL_PER_USER/MAX_BATCH_TOTAL/N/K + 费率表全部 PLACEHOLDER 注释 + 启动 `log.Warn`，测试用固定值断言；真值待产品/运营/安全在 implement 前确认 | T3 / T5 / T6 | design §0.1 注 / §10 |
+| **精度 6 位全链路** | 链/计价 *big.Int 6 位最小单位，DB string，展示除 10^usdtDecimals（从 deployments 读不硬编码 6）；string→big.Int `SetString(s,10)` 必须校验 ok，失败 fail-fast 不静默 | T4 / T5 | design §6.3 / §7.2 |
