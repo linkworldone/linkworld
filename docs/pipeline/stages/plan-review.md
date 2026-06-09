@@ -119,24 +119,29 @@
 
 ## 5. 实现红线与前置
 
-1. **T0 绿基线前置（B3，硬约束）**：先清 `RegisterSheet.tsx:22` `isSuccess` TS6133（现 `tsc -b && vite build` 过不了），跑到**全量 tsc 绿**才有回归基线；同步搭 vitest（`vitest`+`@testing-library/react`+`@testing-library/jest-dom`，jsdom）。否则接链重写新旧错混淆。
-2. **WalletAuth 跨端待对齐（B1）**：会话级一次 + EIP-712 两条铁律 design 锁死，但 **nonce 来源 + 字段/domain 跨端待与后端 `signatures.go` 对齐**，web 单方不可闭环；implement T5 阶段对齐。**禁降级到「每次写操作签」**（唯一能压门槛的杠杆）。
-3. **getLogs 二选一（B6）**：后端 NFT 列表端点 vs 限定 fromBlock 窗口，由 implement T4/T8 定；无论哪种**必补 error 态**，禁 catch 静默置空。
-4. **web DONE 边界**：= 本地 **31337 全链路绿**（充值/提现/付账三态 + 锁仓 + 手续费读链 + WalletAuth 会话签名）；Arbitrum 端到端(D17) + 对账三态真链行为 = **后置强制验收**，阻塞于合约上链（`deployments/arbitrum_sepolia.json` 不存在），不计入 web DONE 也不成孤儿。
-5. **金色铁律（B2）**：卡内金额/文字一律 navy `#0C2340`（≈12:1）；金色仅深底文字（≈6.5:1）/CTA 填充/激活态/卡片金线（非文本用途）。`AmountDisplay` 默认按底色分流，**禁无条件吃金**。
-6. **对账不据 200/txHash 置终态**：充值/提现/付账三处统一 pending「处理中 · 约 1-2 分钟」（不暴露 K 块）；pending 不染绿、不计入可用余额；超时（>~2min）兜底 Arbiscan 逃生链接 +「可安全离开，到账后通知」；reorg 回退不缓存当真。
-7. **精度 6 位资损红线**：format/constants/depositApi 任一漏改差 10^12 倍；implement 必 grep `parseEther`/`decimals=18`/`10n**18n` 清零并以单元测固化（T2/T12）。
-8. **TwoStepAction ★approved-idle 回退**：approve 成功后 action 失败/拒签 → 回 `approved-idle`（已授权可重试），**绝不 re-approve**（allowance≥需求额直跳 ②）。
-9. **隐性串行（换肤依赖接链结构）**：先接链定 DOM 结构（Deposit 两步态/余额卡/Cards 双 Tab），后换肤上色；`main.tsx`/`wagmi.ts`/`Deposit.tsx`/`Cards.tsx` 接链与换肤都碰，串行处理避免返工。implement 阶段始终串行。
+| 红线/前置 | 内容 | 关联任务 | 性质 |
+|-----------|------|----------|------|
+| **T0 绿基线前置（B3）** | 先清 `RegisterSheet.tsx:22` `isSuccess` TS6133（现 `tsc -b && vite build` 过不了），跑到**全量 tsc 绿**才有回归基线；同步搭 vitest（`vitest`+`@testing-library/react`+`@testing-library/jest-dom`，jsdom）。否则接链重写新旧错混淆。 | T0 | 硬约束 |
+| **WalletAuth 跨端待对齐（B1）** | 会话级一次 + EIP-712 两条铁律 design 锁死，但 **nonce 来源 + 字段/domain 跨端待与后端 `signatures.go` 对齐**，web 单方不可闭环。**禁降级到「每次写操作签」**（唯一能压门槛的杠杆）。 | T5 | 跨端待对齐 |
+| **getLogs 二选一（B6）** | 后端 NFT 列表端点 vs 限定 fromBlock 窗口，由 implement 定；无论哪种**必补 error 态**，禁 catch 静默置空。 | T4/T8 | implement 定 |
+| **web DONE 边界** | = 本地 **31337 全链路绿**（充值/提现/付账三态 + 锁仓 + 手续费读链 + WalletAuth 会话签名）；Arbitrum 端到端(D17) + 对账三态真链行为 = **后置强制验收**，阻塞于合约上链（`deployments/arbitrum_sepolia.json` 不存在），不计入 web DONE 也不成孤儿。 | D17 后置 | 验收边界 |
+| **金色铁律（B2）** | 卡内金额/文字一律 navy `#0C2340`（≈12:1）；金色仅深底文字（≈6.5:1）/CTA 填充/激活态/卡片金线（非文本用途）。`AmountDisplay` 默认按底色分流，**禁无条件吃金**。 | T11 | 视觉红线 |
+| **对账不据 200/txHash 置终态** | 充值/提现/付账三处统一 pending「处理中 · 约 1-2 分钟」（不暴露 K 块）；pending 不染绿、不计入可用余额；超时（>~2min）兜底 Arbiscan 逃生链接 +「可安全离开，到账后通知」；reorg 回退不缓存当真。 | T4/T7/T9 | 对账红线 |
+| **精度 6 位资损红线** | format/constants/depositApi 任一漏改差 10^12 倍；implement 必 grep `parseEther`/`decimals=18`/`10n**18n` 清零并以单元测固化。 | T2/T12 | 资损红线 |
+| **TwoStepAction ★approved-idle 回退** | approve 成功后 action 失败/拒签 → 回 `approved-idle`（已授权可重试），**绝不 re-approve**（allowance≥需求额直跳 ②）。 | T3 | 状态机红线 |
+| **隐性串行（换肤依赖接链结构）** | 先接链定 DOM 结构（Deposit 两步态/余额卡/Cards 双 Tab），后换肤上色；`main.tsx`/`wagmi.ts`/`Deposit.tsx`/`Cards.tsx` 接链与换肤都碰，串行处理避免返工。implement 阶段始终串行。 | T1-T11 | 执行顺序 |
 
 ---
 
 ## 6. 自检（writing-plans Self-Review）
 
-- **spec 覆盖**：design §3.1-3.7 / §8 / §9 / §10 / §11 / §12 + DESIGN.md 接链交互 §1-§7 + 两份 delta 全部映射到 T0-T12；arch-review §七 4 项前置 → T0(1)/T5(2)/T4·T8(3)/T12·DONE 边界(4)。
-- **金色铁律 B2**：第 2/3/5 节均落（AmountDisplay 分流 + 卡内 navy）。
-- **WalletAuth B1**：T5 + 第 5 节红线 2（会话级一次+EIP-712+signedPost 非拦截器）。
-- **精度/bigint**：T2 + 第 4/5 节红线 7（format/constants/depositApi/billingApi.toBill）。
-- **类型一致**：`TwoStepAction`/`TxStatusBadge`/`LockCountdown`/`FeeBreakdown` 在 §1/§2 命名一致；`signedPost`/`useWalletAuth`/`useFeeRate`/`useLockExpiry`/`useApprove`/`useAllowance` 一致。
+| 自检项 | 结论 |
+|--------|------|
+| **spec 覆盖** | design §3.1-3.7 / §8 / §9 / §10 / §11 / §12 + DESIGN.md 接链交互 §1-§7 + 两份 delta 全部映射到 T0-T12；arch-review §七 4 项前置 → T0(1)/T5(2)/T4·T8(3)/T12·DONE 边界(4)。 |
+| **金色铁律 B2** | 第 2/3/5 节均落（AmountDisplay 分流 + 卡内 navy）。 |
+| **WalletAuth B1** | T5 + 第 5 节 WalletAuth 红线（会话级一次+EIP-712+signedPost 非拦截器）。 |
+| **精度/bigint** | T2 + 第 4/5 节精度红线（format/constants/depositApi/billingApi.toBill）。 |
+| **类型一致** | `TwoStepAction`/`TxStatusBadge`/`LockCountdown`/`FeeBreakdown` 在 §1/§2 命名一致；`signedPost`/`useWalletAuth`/`useFeeRate`/`useLockExpiry`/`useApprove`/`useAllowance` 一致。 |
+| **每页一任务/依赖顺序/可验收/无超范围** | T0-T12 各对应单一模块面，依赖链 T0→T1-T5→T6-T11→T12 串行无环；每任务 §1 表带 gate 验收门槛；范围限 packages/web 接链+换肤，无超范围扩张。 |
 
 > **下一步**：进 implement，按 T0→T12 **串行**派 subagent（一个完成审查后再派下一个），implement T0 先清 tsc + 搭 vitest。
