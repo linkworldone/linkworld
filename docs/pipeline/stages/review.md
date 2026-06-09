@@ -1,49 +1,37 @@
-# Stage: review — 代码审查 + 安全复审（子项目 contracts 1/3）
+# Stage: review — 代码审查 + 安全复审（子项目 backend 2/3）
 
-> **状态**: PASS（三方 0 ❌ 阻塞，可进 ship） | **日期**: 2026-06-09 | **Gate**: 3
-> 审查对象：**实现代码** diff 7ef9677..1a516c9（vs arch-review 审设计）。资损敏感，标准从严。
-> 三 reviewer 并行：合约安全审计(chain-web3-developer:security-review) / 代码审查(code-reviewer) / CSO 基础设施安全(cso)
+> **状态**: PASS（第1轮 BLOCKED 1 越权 → fix 5d7aea7 → 第2轮双安全 reviewer 0 ❌ 通过） | **日期**: 2026-06-09 | **Gate**: 3
+> 审查对象：后端实现代码 diff 68e8382..HEAD。三 reviewer 并行（合约安全审计/代码审查/CSO）+ 修复后双安全复审。
 
-## 一、总裁决：PASS，0 ❌，可进 ship
-三方一致 0 阻塞。7 大阻塞 B1-B7 + v2-A/B/C + arch-review 5 项 ⚠️ 加固**全部在代码里逐条落地**，实现紧贴 design v2，无遗漏/无超范围。
+## 一、总裁决：PASS（修复后 0 ❌）
+第1轮两个独立安全 reviewer 同时确认 1 个 ❌（WalletAuth 横向越权）→ fixer 修复 → 第2轮双安全 reviewer 逐条核实代码+测试闭合，0 ❌。代码审查第1轮即 0 ❌。
 
-## 二、合约安全审计（资损，核实"代码真做了"）— 0 ❌
-| 审计点 | 结论 | 代码位置 |
-|--------|------|----------|
-| CEI / 重入 | ✅ | Deposit.withdraw 先清零再 safeTransfer(L75-79)；Payment.payBill 先 isPaid=true(L111) 再两段转账 + nonReentrant(L102)；mintTrafficCard(L86)/issueMonthlyTrafficCards(L134) 带 nonReentrant（A1 闭合）|
-| SafeERC20 | ✅ | 全部资金点 safe*，裸 transfer/call{value} 命中 0 |
-| 精度 | ✅ | MIN_DEPOSIT=10*10**usdt.decimals()(Deposit:56)；dataAmount 固定 quota，_deposits/100000 已删 |
-| 分账零地址 | ✅ | createBill fail-fast(L77) + payBill(L108) + setOperatorPaymentAddress(SM:204) 三处 require |
-| 权限链 | ✅ | createBill/issueMonthlyTrafficCards/applyTrafficCardToBill onlyOracle；deploy wiring 后三链可跑通（B2/B3）|
-| 自动发卡幂等 | ✅ | 循环 if(!_canMint)continue 不 revert 整批；userCardCount==0 幂等 |
-| applyTrafficCardToBill 受限桩 | ✅ | onlyOracle，仅校验+emit，不转资金 |
-| A3 _reentrancyGuardInit | ✅ | 已确认删除 |
-- ⚠️ Low SEC-001：MockUSDT public mint 无权限（测试制品，上线门禁须排除 mock）。
-- 报告：docs/security-review/security-cr-20260609-contracts-erc20-usdt-1a516c9.md
+## 二、❌ 阻塞项闭合（R1）
+| # | 阻塞 | 修复 | 复审 |
+|---|------|------|------|
+| R1 | WalletAuth 横向越权(OWASP A01)：中间件验签 signer 并 c.Set(CtxWallet)，但 5 个 handler 从 body 取 wallet 操作他人资源(DeactivateService 即时停用他人服务) | fix 5d7aea7：5 个 handler 改用 c.GetString(CtxWallet) 作操作主体忽略 body wallet；PayBill SetPayIntent owner 基于 authed userID(WHERE id=? AND user_id=?)；FindByWallet 大小写不敏感 | ✅ 合约安全+CSO 双确认闭合 |
+| Medium | WalletAuth action 未绑端点(跨端点 nonce 复用) | NewWalletAuth 增 expectedAction，在 ecrecover/消费 nonce 之前校验；main.go 5 路由各绑 action | ✅ 跨 action nonce 拒绝(不消费)闭合 |
 
-## 三、代码审查（4 维度）— 0 ❌
-- Plan alignment ✅：B1-B7 + v2-A/B/C + 5 加固代码级落地，紧贴 design v2，无遗漏/超范围。
-- Code quality ✅：_mintFor 复用消重、错误信息清晰、Solidity 风格一致。
-- Architecture ✅：接口 SSOT 收敛、initialize 注入、UUPS 追加规则、事件设计合理。
-- Testing ✅：75 passing，断言真验行为（非走过场）。
-- ⚠️ 非阻塞：① Oracle `_monthlyUsage`/`_latestUsage` 经 v2-A 后成死代码（已开 spawn chip 供单独清理）；② 测试走 Factory.deploy() 非 proxy 路径，但 deploy.ts proxy 冒烟兜底。
+新增用例(全绿)：WALLET-AUTHZ-01/02、WALLET-ACTION-01、EmptyAction。最终 79 passing。
 
-## 四、CSO 基础设施安全 — 0 ❌
-- 密钥 ✅：无硬编码私钥/RPC token；git 历史无 .env 误提交；.gitignore 覆盖 .env*；.env.example 纯占位；新网络 accounts 无 key 时空数组（不 fallback 默认 key）。
-- 依赖 ✅：本 diff 无新增依赖；OZ ^5.6.1 + lockfile 兜底。
-- handoff 文档 ✅：无敏感信息泄漏。
-- ⚠️ 非阻塞观察：deployments/ 与 .openzeppelin/ 被 git 追踪（公开信息，OZ 推荐入库，非泄漏）。
+## 三、✅ 第1轮三方认可（资损红线逐条核实在代码里）
+- owner key 仅内存/不日志/缺失降级/chainID 校验；WalletAuth 一次性 nonce 台账 Consume 原子条件 UPDATE 防并发重放、EIP-712 绑 chainId 非纯 timestamp。
+- 三层金额闸 L1/L2/L3 复用单一常量不漂移；冷启动回退无样本不除零仅绝对闸。
+- 对账单一路径：IsPaid 唯一 event_sync BillPaid 回填；bills/pay 仅写 PayIntentTxHash；withdraw 仅 pending；GetTotalByUserID 仅计 confirmed。
+- event_sync：K 块确认两阶段、blockHash 父哈希断回退、(txHash,logIndex)去重、占位零地址跳过、事件来源合约地址校验。
+- 精度 6 位全链路 big.Int、string→big.Int fail-fast；AdminAuth 常量时间比较+缺 key fail；CORS 无 *+credentials；go.mod 固定+verify 通过+无 replace；密钥无硬编码/无误提交/.env gitignore/example 纯占位。
+- 代码质量 staff-level、abigen 纯 Go abiHash 复刻、测试断言验行为、simulated.Backend/Cancun 遗留合理。
 
-## 五、⚠️ 上线前 checklist（本测试网轮次不阻塞，下游/后续 Round 必做）
-1. 所有合约 owner + UUPS upgrade 权限 + platformWallet 从 deployer EOA **转多签**。
-2. 11 个 operator paymentAddress（当前 deployer 派生的黑洞地址，不可提取）**换真实运营商地址**。
-3. 移除未使用的 `axios` 依赖（dead dep）。
-4. hardhat.config og_* 网络的全 0 私钥 fallback 统一为空数组模式。
-5. 上线门禁排除 mock 制品（MockUSDT/NonStandardUSDT）。
-6. 清理 Oracle 死 state（_monthlyUsage 等，已开 chip）。
+## 四、⚠️ 非阻塞清理项（后续/随手）
+- ActivateServiceRequest.Wallet body 死字段（handler 已忽略）→ 清理。
+- 死代码 MarkAsPaid/CreateConfirmed（无调用方）。
+- BillCreated 对账校验收窄（processBillCreated 丢弃 totalAmount，design §4.3 要求校验告警）。
+- oracle.go SignData(SHA256)残留+Generate 死分支；自建表多处 AutoMigrate 竞态技术债；生产 chainID=0 单链假设；Withdraw 日志 tx_hash 未 %q 转义。
+- 补 Activate/Deactivate/Deposit 端点级 e2e 越权回归测试。
 
-## 六、已知限制（不阻塞）
-- Arbitrum Sepolia 421614 真·上链 + TSTORE 链上实测：本环境无 DEPLOYER_PRIVATE_KEY/RPC，未执行。本地 31337/hardhat(cancun, transient) 全绿、配置就绪。记 handoff §10，ship 阶段若配 key 可补做。
+## 五、上线前 checklist（继承+后端新增，正式网必做）
+- owner key 走 secret manager/KMS；占位常量(MAX_BILL/MAX_BATCH/N/K)拍真值；占位合约地址待合约 1/3 真·上链回填(sync-deployments.sh)。
+- 真机端到端：合约上链后 hardhat 31337 或 geth v1.16+ 跑业务合约结算（Cancun 限制，design §7.4 不阻塞本轮）。
 
-## 七、结论
-三方 0 ❌，合约实现代码资损面扎实、紧贴设计、测试充分。**可进 ship。** 上线前 checklist（§五）为正式网/下游事项，本测试网子项不阻塞。
+## 六、结论
+修复后 0 ❌，资损红线代码级闭合 + 越权修复双安全确认，可进 ship。非阻塞清理项与上线 checklist 记录在案。
