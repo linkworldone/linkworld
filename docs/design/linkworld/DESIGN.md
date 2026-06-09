@@ -10,7 +10,7 @@
 ## Product Context
 - **What this is:** 去中心化身份 + 保证金 NFT 流量卡 + 全球号码/运营商对接的 Web3 应用（钱包即身份）。
 - **Who it's for:** 数字游民 / Web3 用户，跨境通信 + 链上保证金场景。
-- **Space/industry:** Web3 / DePIN 通信，0G Chain 生态。
+- **Space/industry:** Web3 / DePIN 通信，**Arbitrum Sepolia(421614) 测试网**（本轮由 0G 迁入，PRD R2；保证金/支付币种为 **ERC20 USDT**，6 位精度）。
 - **Project type:** 移动优先的 web app（单列、430px 容器、底部 5 项导航）。
 
 ## Aesthetic Direction
@@ -192,6 +192,79 @@
 - `Toaster`：保持 `theme="dark"` + `richColors`（贴 navy 画布）。
 - body：删 `font-family: "Inter"`，统一走 `--font-sans`(Geist)。
 
+## 接链交互模式（Round 1 · web 3/3 新增 · 接 Arbitrum Sepolia + ERC20 USDT）
+
+> 本节是「接链交互」的设计源真理。契约签名均已核对真实合约源码（`packages/contracts/contracts/{Deposit,Payment,FeeManager}.sol`）。详细状态机/组件复用/移交风险见 `docs/pipeline/stages/design.md`。
+> 总原则：**对账已反转为「链上事件唯一回填终态」**（后端 handoff §1/§4）——UI 绝不能据合约 tx 成功或 HTTP 200 就显示「成功/已到账/已付」。
+
+### 通用：交易三态（贯穿充值/提现/付账，最重要）
+
+| 态 | 含义 | 视觉 token | 图标 | 文案口径 |
+|----|------|-----------|------|---------|
+| `pending` | 已提交，等链上确认（HTTP 意向 / 监听中 / 未满 K 块） | `status.info`#2563EB 或弱化 `text.on-*.muted` | `Loader2`(animate-spin) / `Clock` | 「确认中 · 约 N 块」「处理中」 |
+| `confirmed` | 事件回填且满 K 块 | `status.success`#22C55E | `CheckCircle2` | 「已完成」「已到账」「已支付」 |
+| `failed` | 交易 revert / reorg 回退 | `status.danger`#EF4444 | `XCircle` | 「失败，请重试」 |
+
+**铁律**：「可用余额」只算 `confirmed`；`pending` 金额单列「处理中 +N USDT」并弱化，不计入可用、不染成功绿；reorg 回退的未确认记录不缓存当真。金额一律 USDT 6 位（`usdtDecimals` 从 deployments 读，禁硬编码 6 / 禁 18 位 `parseEther`）。
+
+### 1. USDT approve 两段式（充值 + 付账）
+- 合约：`deposit(uint256 amount)` 非 payable；`payBill(uint256 billId)` 非 payable nonReentrant；均需前置 `usdt.approve(spender, exactAmount)`。**exact-amount，禁 infinite approve**（资损硬约束 handoff §2）。
+- approve 额：充值 = `amount`；付账 = `amount + FeeManager.calculateFee(amount)`（**直读合约 calculateFee，不自算**）。
+- allowance 检测：`allowance(user, spender) ≥ 需求额` → 跳过 Step 1 直达 Step 2。
+- Stepper：`Step 1/2 Approve → Step 2/2 Deposit`（激活态金色 #D4AF37）；文案传递安全感「仅授权本次所需 N USDT（不做无限授权）」。
+- 按钮文案（idle / 签名中 / 确认中）：`Approve N USDT` / `Waiting for signature…` / `Confirming approval…`；`Deposit N USDT` / `Waiting for signature…` / `Confirming on chain…`。
+- 收尾：合约成功 → POST 意向端点 → **UI 进 pending 态**（不显示终态成功）。
+
+### 2. 对账 pending 态（充值/提现/付账三处复用通用三态）
+- 充值（`Deposit.tsx`）：去掉即时「Deposit confirmed」绿 toast → pending「处理中」，余额读链 `getDepositAmount` 或等 `DepositMade` 事件 confirmed。
+- 提现（`Deposit.tsx`）：**废弃凭 txHash 记账** → pending「提现确认中」，等 `DepositWithdrawn` 事件。
+- 付账（`Billing.tsx`/`BillDetail.tsx`）：Bill status 由 `unpaid/paid/overdue` **扩展为 `unpaid/paying(确认中)/paid/overdue`**；`paying` 用 info 蓝 + `Loader2`，**禁止显示绿「已付」**；`is_paid` 等 `BillPaid` 事件。
+- 历史/列表项：每条带状态点（confirmed 绿 / pending 橙旋转 / failed 红）。
+
+### 3. 锁仓倒计时（Deposit 提现区）
+- 合约：`getLockExpiry(addr)` 返回时间戳秒；提现 `require(block.timestamp >= _lockExpiry)`（**边界 `>=`，到期时刻即可提，倒计时归 0 即解锁**）；**每次充值 `lockExpiry += 30 days`（顺延累加）**，首存 = `now + 30d`，提现成功归 0。
+- 状态：`expiry==0` → 无锁仓（无押金或已全提）；`now < expiry` → Withdraw **禁用** + 倒计时「锁仓中 · 剩余 Dd Hh Mm」+ `Lock`；`now ≥ expiry` → Withdraw **可点** + `Unlock` +「锁仓已满，可提取本金+利息」。
+- **关键提示**：因 lockExpiry 累加，Deposit 页必须明示「再次充值将把锁仓期顺延 30 天」，避免用户困惑倒计时变长。
+- 刷新：每分钟（剩余 ≤1 天时每秒）；边界判定与合约 `>=` 对齐。
+
+### 4. Cards 双 Tab + 移除 Admin 发卡
+- `ui/tabs`（TabsList variant=line）：Tab1「流量卡 NFT」/ Tab2「SIM 领取」。
+- Tab1：**移除「Issue Monthly Card (Admin)」按钮**（`onlyOracle`，用户调必 revert）→ 换「自动发放」说明卡（`Sparkles`/`Info` +「保证金锁仓满 30 天后每月自动发放，无需手动领取」）；NFT 列表读链真实数据，每卡含「不可转卖」标记 +「销毁后 30 天」规则文案；空态 `EmptyState`(icon=`CreditCard`)。
+- Tab2 SIM 领取（前端降级 R9）：选国家 + 收件表单 → 提交 toast 成功 + 写 `localStorage pendingSync`（`utils/pendingSync.ts` 已存在）+「全球通即将推出」；图标 `Nfc`/`MailPlus`。
+
+### 5. 手续费读链展示（D12）
+- 删写死 `PLATFORM_FEE_RATE`；新增 `useFeeRate` 读 `FeeManager.getFeeRate()`（基点，150=1.5%，分母 10000）；精确费额直读 `calculateFee(amount)`。
+- 展示位：① 申请号码弹层（RegionDetail）② 账单页 / BillDetail 费用明细。
+- 形态：明细行「平台手续费 (1.5%)：N USDT」，1.5% = `getFeeRate/100`，金额 = `calculateFee(amount)`。
+- loading / 读链失败：显示 skeleton 或「--」，**不写死兜底**（避免误导）。
+
+### 6. WalletAuth 签名 UX（新增鉴权）
+- 受保护写端点（deposit/withdraw/bills-pay/service 写）请求带钱包签名头；**读端点（GET）不加**（handoff §6）。
+- UX：写操作前多一次钱包签名弹窗，**必须与交易签名视觉区分**——文案「请在钱包中签名以验证身份（不消耗 gas）」，图标 `ShieldCheck`/`PenLine`。
+- 拒签/失败：toast「身份签名被取消，操作未提交」，不进 pending。
+- 减少打扰：建议一次会话签一次（nonce/时间窗），具体格式 implement 与后端 `signatures.go` 敲定。
+
+### lucide 图标映射补充（接 DESIGN.md 上方映射表）
+| 场景 | lucide |
+|------|--------|
+| 交易确认中 / loading | `Loader2`(animate-spin) / `Clock` |
+| 已完成 | `CheckCircle2` |
+| 失败 | `XCircle` |
+| 锁仓中 / 可提现 | `Lock` / `Unlock`(或 `LockOpen`) |
+| 自动发放说明 | `Sparkles` / `Info` |
+| SIM 领取 Tab | `Nfc` / `MailPlus` |
+| 手续费 | `Percent` / `ReceiptText` |
+| 身份签名(WalletAuth) | `ShieldCheck` / `PenLine` |
+| 两步 approve | `KeyRound`(授权) → `ArrowRight`(下一步) |
+
+### 接链专用新增组件建议（接 DESIGN.md「缺失原子组件决策」）
+- `TwoStepAction` — 封装 approve→action 两步态（stepper + 按钮文案 + allowance 跳步），充值/付账复用。
+- `TxStatusBadge` — 通用交易三态徽章（pending/confirmed/failed）。
+- `LockCountdown` — 读 `getLockExpiry` → 渲染倒计时 / 解锁态。
+- `FeeBreakdown` — 费用明细（小计 + 手续费 + 合计），读链费率。
+
+---
+
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|
@@ -201,3 +274,5 @@
 | 2026-06-07 | warning #F59E0B→#F08C2E，金额改吃 gold | 解决金色与 warning 撞色，语义分离 |
 | 2026-06-07 | 色值唯一真源 = CSS 变量，Tailwind token 引用 var() | 消除双轨与 13 文件硬编码 HEX，满足验收 A4 |
 | 2026-06-07 | 保留 ui/* 重着色 + 新增 Card/Input | 集中暖米白卡+金线处理，收口手写 div |
+| 2026-06-09 | 接链交互模式：交易三态(pending/confirmed/failed)、approve 两段式、锁仓倒计时、Cards 双Tab、手续费读链、WalletAuth 签名 | web 3/3 接 Arbitrum+USDT；对账反转为事件驱动，UI 禁止据 tx/200 显示终态 |
+| 2026-06-09 | 香槟金 #F0C75E 仅作金线渐变高光端(可选)，主金仍 #D4AF37 | 回应 PRD E18 两金值；R12 锁定视觉不变，不引入新主色 |
