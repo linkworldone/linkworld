@@ -1,39 +1,25 @@
-# Stage: scan — 合约基线扫描（子项目 contracts 1/3）
+# Stage: scan — 后端基线扫描（子项目 backend 2/3）
 
-> **状态**: completed (DONE_WITH_CONCERNS) | **日期**: 2026-06-08 | **Gate**: 0 | **子项目**: contracts(1/3)
-> 对象：packages/contracts（全栈反转后，合约从 origin 合并落地，需重新摸底）
+> **状态**: completed (DONE_WITH_CONCERNS) | **日期**: 2026-06-08 | **Gate**: 0 | **子项目**: backend(2/3)
+> 对象：packages/backend(Go 1.25)；输入：合约 handoff-backend.md
 
-## 产出文件（4 份基线，commit 4249a92）
-| 文件 | 内容 |
-|------|------|
-| docs/design/linkworld-contracts/project-scan.md | 结构/网络/编译器/UUPS proxy/部署现状/依赖 |
-| docs/design/linkworld-contracts/contracts-inventory.md | 7 合约逐个清单（职责/函数/事件/proxy）|
-| docs/design/linkworld-contracts/erc20-migration-surface.md | ERC20 改写面（payable/msg.value 位置 + Deposit/Payment/FeeManager/TrafficCardNFT 现状）|
-| docs/design/linkworld-contracts/test-deploy-baseline.md | 测试覆盖 + 部署脚本/产物基线 |
+## 产出（4 份基线，commit ba00aec，docs/design/linkworld-backend/）
+project-scan.md / blockchain-integration.md / services-api.md / alignment-surface.md（最关键）
 
-## 🔴 已验证的关键事实：当前合约编译不通过
-主 Agent 实跑 `npx hardhat compile` 确认失败：
-```
-DeclarationError: Undeclared identifier.
-  --> contracts/Oracle.sol:71:22  emit UsageDataSubmitted(...)   ← 事件未声明
-Error HH600: Compilation failed
-```
-合并自 origin 的合约代码（commit「rom upgrade test commit 0606」）是**编译不过的半成品**。ERC20 迁移前，design/plan 必须先把合约修到可编译（这是地基前置）。
+## 🔴 关键发现
+1. **后端链集成几乎全是 stub**：grep 全 internal/ 无 createBill/monthlySettlement/issueMonthly/approve/abigen 绑定/任何链上写调用；client.go 业务方法返零值；event_sync 主循环只 sleep 30s 空转、process* 永不触发。→ 本子项不是「改签名」而是**从零接入链上写 + 事件同步**，链侧接近重写。
+2. **链配置全错**：deployments.json chainId=16602 + rpcUrl=evm-testnet.0g.ai + 7 个 0G 旧地址；缺 usdt/usdtDecimals/abiHash。需换 421614 + Arbitrum RPC + 合约新地址（arbitrum_sepolia.json 尚未生成，依赖合约真·上链）。
+3. **config.go 键名 bug**：struct 读 `proxies`，JSON 是 `contracts` → Proxies 永远空 map，event sync 静默失效。
+4. **计价缺口（产品级）**：后端「计价」是 OperatorAPISimulator.GetBill 返回 rand.Intn(5000)+500 随机数；FetchAndCreateBills 只写 DB Bill，没碰 monthlySettlement，无 amounts[] 构造/分批/真实资费表。handoff 要求 createBill 金额由后端算好传入——**真实资费规则来源未定义，需产品澄清**。
+5. **ABI 严重不全**：abis/ 只 2 份手写裁剪（Deposit 仅事件 + UserRegistry 部分），缺 6 份（FeeManager/ServiceManager/TrafficCardNFT/Payment/Oracle/MockUSDT），无 abigen 绑定。
+6. **event_sync 受影响**：signatures.go 的 BillCreated 是旧 5 参签名（冻结 ABI 是 4 参，topic hash 错匹配不到）；缺 TrafficCardApplied(uint256)；金额事件无落库/无 6 位精度解释。
+7. **签名非链上可用**：SignData 是 SHA256 拼字符串非 ECDSA/secp256k1；后端不持私钥。handoff §7：monthlySettlement 是 onlyOwner=deployer，后端只需 owner 私钥 + 合约 setter 拓扑保证权限。
+8. **RPC 不一致确认**：hardhat 421614 + 旧 16602；后端 evm-testnet.0g.ai。两端历史都指 0G。
 
-## 关键发现（给 design 阶段）
-1. **ERC20 改写面收敛**：payable/msg.value/.call{value} 仅在 Deposit.sol(5处)+Payment.sol(4处)+IDeposit/IPayment 接口各1处。全仓无 ERC20/SafeERC20 引用；OZ ^5.6.1 自带 IERC20+SafeERC20，无需加依赖。
-2. **7 合约全部 UUPS 可升级**：已有 .openzeppelin/unknown-16602.json manifest。改写应走 upgradeProxy + storage layout 只追加规则（新增 usdt state 加末尾）；Arbitrum 是全新部署无此约束。
-3. **Arbitrum 421614 配置完全缺失**：hardhat.config.ts 只有 31337/16600/16602，需新增网络+RPC+部署脚本+mock USDT。
-4. **无 10 USDT 下限**：Deposit 当前仅 require(msg.value>0)；锁仓 30 天+续期逻辑可保留，只换资金通道。
-5. **USDT 精度雷区**：现状全按 18 位。Deposit.mintTrafficCard 的 _deposits/100000、ServiceManager 的 ether requiredDeposit、测试 parseEther、待加 MIN_DEPOSIT 都受 6 位精度冲击。建议读 usdt.decimals() 不硬编码。
-6. **Payment 运营商分账缺口**：payBill 只转 platformFee 到 platformWallet，bill.amount 无出口；ServiceManager paymentAddress 全 address(0)。ERC20 改写须定 amount 去向。
-7. **测试覆盖严重不足**：withdraw/payBill/mintTrafficCard/锁仓时序/最小额/UUPS 升级全无测试，且全用 18 位 parseEther。验收 A.2 的 <10 拒绝/=10 通过单测目前不存在。
-
-## ⚠️ 需 design/arch 复核的遗留问题
-- Oracle.sol 把 payment/deposit 声明为 address 却调其方法；applyTrafficCardToBill 在 Payment.sol 未实现；Oracle 缺 setPayment。当前编译已失败（见上），artifacts/ 与源码不同步。
-- Deposit.issueMonthlyTrafficCards（PRD R7 自动发卡入口）当前是空实现，真正自动发放链路不存在，arch 需补设计。
-- 部署脚本 wiring 缺 payment.setOracle(...)。
-- 编译器用 evmVersion: cancun + viaIR，Payment 依赖 ReentrancyGuardTransient(transient storage)——迁 Arbitrum Sepolia 前需确认 cancun opcode 支持。
+## ⚠️ 遗留/风险（移交 design/requirement）
+- **真实资费/计价规则未定义**（产品/设计层缺口）——design 阶段需跟用户澄清来源（按用量？固定档？运营商费率表？）。
+- arbitrum_sepolia.json 未生成、Arbitrum 上 MockUSDT 地址不存在 → 联调前置依赖合约子项(1/3)真·上链。
+- 敏感端点（oracle/monthly-bill、usage/submit）当前无鉴权，接链后成攻击面（review 重点）。
 
 ## 移交 design
-带着 PRD §三①/§五A/§六 + 上述发现，先确定"修编译→ERC20 改写→Arbitrum 部署+mock USDT→补测"的合约设计方案与状态机/接口签名。
+带着 handoff + 上述发现，确定后端对齐方案：链集成补全（abigen/client/event_sync）、链配置 421614、计价逻辑、签名/owner key、RPC 统一、鉴权。**计价规则是产品决策，design 需先澄清。**
