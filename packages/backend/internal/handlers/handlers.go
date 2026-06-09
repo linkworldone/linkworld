@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"linkworld-backend/internal/middleware"
 	"linkworld-backend/internal/repository"
 	"linkworld-backend/internal/services"
 
@@ -127,7 +128,10 @@ func (h *Handler) ActivateService(c *gin.Context) {
 		return
 	}
 
-	err := h.userServiceService.Activate(req.Wallet, req.OperatorID, req.VirtualNumber, req.Password)
+	// R1 防越权：操作主体唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body.wallet
+	// （攻击者用自签名过闸、body 填受害者地址操作他人服务的横向越权面在此收口）。
+	authWallet := c.GetString(middleware.CtxWallet)
+	err := h.userServiceService.Activate(authWallet, req.OperatorID, req.VirtualNumber, req.Password)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -136,15 +140,10 @@ func (h *Handler) ActivateService(c *gin.Context) {
 }
 
 func (h *Handler) DeactivateService(c *gin.Context) {
-	var req struct {
-		Wallet string `json:"wallet" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	err := h.userServiceService.Deactivate(req.Wallet)
+	// R1 防越权：停用主体唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body
+	// （否则攻击者可即时停用他人服务）。body 不再读 wallet。
+	authWallet := c.GetString(middleware.CtxWallet)
+	err := h.userServiceService.Deactivate(authWallet)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -164,7 +163,9 @@ func (h *Handler) Deposit(c *gin.Context) {
 		return
 	}
 
-	err := h.depositService.Deposit(req.Wallet, req.Amount)
+	// R1 防越权：充值意向归属唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body.wallet。
+	authWallet := c.GetString(middleware.CtxWallet)
+	err := h.depositService.Deposit(authWallet, req.Amount)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -187,19 +188,17 @@ func (h *Handler) GetDeposit(c *gin.Context) {
 // 这里只落 Status=pending 的意向（不计入余额）。鉴权由 WalletAuth 中间件保证（钱包签名 ecrecover）。
 func (h *Handler) Withdraw(c *gin.Context) {
 	var req struct {
-		Wallet string `json:"wallet" binding:"required"`
 		TxHash string `json:"tx_hash"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	_ = c.ShouldBindJSON(&req) // body 仅含可选 tx_hash；wallet 不再从 body 取
+	// R1 防越权：提现意向归属唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body.wallet。
+	authWallet := c.GetString(middleware.CtxWallet)
+	if err := h.depositService.RecordPendingWithdraw(authWallet, req.TxHash); err != nil {
+		log.Printf("Withdraw intent failed wallet=%s tx=%s err=%v", authWallet, req.TxHash, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.depositService.RecordPendingWithdraw(req.Wallet, req.TxHash); err != nil {
-		log.Printf("Withdraw intent failed wallet=%s tx=%s err=%v", req.Wallet, req.TxHash, err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	log.Printf("Withdraw intent recorded (pending) wallet=%s tx=%s", req.Wallet, req.TxHash)
+	log.Printf("Withdraw intent recorded (pending) wallet=%s tx=%s", authWallet, req.TxHash)
 	c.JSON(http.StatusOK, gin.H{"message": "Withdrawal intent recorded (pending; confirmed by on-chain event)"})
 }
 
@@ -229,7 +228,6 @@ func (h *Handler) GetBills(c *gin.Context) {
 // 鉴权由 WalletAuth 中间件保证（钱包签名 ecrecover 绑 wallet，防冒充他人提交意向）。
 func (h *Handler) PayBill(c *gin.Context) {
 	var req struct {
-		Wallet string `json:"wallet" binding:"required"`
 		BillID uint   `json:"bill_id" binding:"required"`
 		TxHash string `json:"tx_hash"`
 	}
@@ -237,7 +235,11 @@ func (h *Handler) PayBill(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.billingService.RecordPayIntent(req.Wallet, req.BillID, req.TxHash); err != nil {
+	// R1 防越权：意向归属唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body.wallet。
+	// RecordPayIntent→SetPayIntent 以 authWallet 解析的 userID 限定，确保 bill 属于已鉴权钱包
+	// （攻击者替他人账单写意向被 user_id 不匹配拒绝）。
+	authWallet := c.GetString(middleware.CtxWallet)
+	if err := h.billingService.RecordPayIntent(authWallet, req.BillID, req.TxHash); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

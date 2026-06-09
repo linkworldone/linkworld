@@ -91,11 +91,11 @@ func e2eSignedReq(method, path, body, wallet, nonce, action, sig string) *http.R
 func e2eRouter(db *gorm.DB) (*gin.Engine, *repository.WalletNonceRepository) {
 	h := t7Handler(db)
 	nonceRepo := repository.NewWalletNonceRepository(db)
-	wa := middleware.NewWalletAuth(nonceRepo, e2eChainID)
 
 	r := gin.New()
-	r.POST("/api/bills/pay", wa, h.PayBill)
-	r.POST("/api/withdraw", wa, h.Withdraw)
+	// 每端点绑定各自 action（与 main.go 一致）。
+	r.POST("/api/bills/pay", middleware.NewWalletAuth(nonceRepo, e2eChainID, "bills/pay"), h.PayBill)
+	r.POST("/api/withdraw", middleware.NewWalletAuth(nonceRepo, e2eChainID, "withdraw"), h.Withdraw)
 	return r, nonceRepo
 }
 
@@ -223,6 +223,82 @@ func TestE2E_WalletAuth_Withdraw_FullChain(t *testing.T) {
 	}
 	if total != "5000000" {
 		t.Fatalf("E2E-AUTH-04 🔴: 全链路下提现 pending 意向不得改余额，期望 5000000，got %s", total)
+	}
+}
+
+// --- WALLET-AUTHZ-01：攻击者用自己钱包签名过闸 + body 填受害者地址 → 不得操作受害者资源 ---
+//
+// review R1 横向越权：handler 旧实现从 body 取 wallet。修复后操作主体唯一取 CtxWallet（已验证签名钱包），
+// body.wallet 被忽略。攻击者 W_atk 为自己签名（header=W_atk），body 填 W_victim 的 wallet + 受害者账单 id：
+// 意向以 W_atk 的 userID 解析 → 该账单不属于 W_atk → SetPayIntent user_id 不匹配 → 拒绝，受害者账单零改动。
+func TestE2E_WalletAuthz_BodyWalletSpoof_PayBill_Blocked(t *testing.T) {
+	db := e2eDB(t)
+	r, nonceRepo := e2eRouter(db)
+	atkKey, atkAddr := e2eKey(t)
+	_, victimAddr := e2eKey(t)
+
+	// 受害者及其账单。
+	db.Create(&models.User{WalletAddr: victimAddr, Email: "v@b.c", IsActive: true})
+	var victim models.User
+	db.First(&victim, "wallet_addr = ?", victimAddr)
+	victimBill := &models.Bill{UserID: victim.ID, OperatorID: 1, Amount: "1000000", IsPaid: false}
+	db.Create(victimBill)
+
+	// 攻击者也注册（有合法签名能力），但没有该账单。
+	db.Create(&models.User{WalletAddr: atkAddr, Email: "atk@b.c", IsActive: true})
+
+	// 攻击者用自己的私钥签名（header=W_atk，签名地址=W_atk，过 ecrecover），body 填受害者 wallet + 账单 id。
+	nonce, _ := nonceRepo.Issue(atkAddr)
+	sig := e2eSign(t, atkKey, atkAddr, nonce, "bills/pay")
+	body := `{"wallet":"` + victimAddr + `","bill_id":` + itoa(victimBill.ID) + `,"tx_hash":"0xattacker"}`
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, e2eSignedReq(http.MethodPost, "/api/bills/pay", body, atkAddr, nonce, "bills/pay", sig))
+
+	// 操作主体=W_atk，受害者账单不属于 W_atk → 拒绝（非 200）。
+	if w.Code == http.StatusOK {
+		t.Fatalf("WALLET-AUTHZ-01 🔴: body.wallet 冒充受害者不得成功操作其账单，got 200 body=%s", w.Body.String())
+	}
+	// 受害者账单零改动（既未被写意向，也未被置 IsPaid）。
+	var got models.Bill
+	db.First(&got, victimBill.ID)
+	if got.PayIntentTxHash != "" || got.IsPaid {
+		t.Fatalf("WALLET-AUTHZ-01 🔴: 受害者账单不得被攻击者改动，PayIntentTxHash=%q IsPaid=%v", got.PayIntentTxHash, got.IsPaid)
+	}
+}
+
+// --- WALLET-AUTHZ-02：PayBill 替他人账单写意向 → 拒绝 ---
+//
+// 同一中间件链路下，已鉴权钱包（W_a）尝试对属于他人（W_b）的账单 id 写支付意向：
+// RecordPayIntent 以 W_a 的 userID 解析，SetPayIntent user_id 不匹配 → 拒绝，他人账单零改动。
+func TestE2E_WalletAuthz_PayOthersBill_Rejected(t *testing.T) {
+	db := e2eDB(t)
+	r, nonceRepo := e2eRouter(db)
+	keyA, addrA := e2eKey(t)
+	_, addrB := e2eKey(t)
+
+	db.Create(&models.User{WalletAddr: addrA, Email: "a@b.c", IsActive: true})
+	db.Create(&models.User{WalletAddr: addrB, Email: "b@b.c", IsActive: true})
+	var userB models.User
+	db.First(&userB, "wallet_addr = ?", addrB)
+	billB := &models.Bill{UserID: userB.ID, OperatorID: 1, Amount: "1000000", IsPaid: false}
+	db.Create(billB)
+
+	// W_a 合法签名（header=W_a），但 bill_id 指向 W_b 的账单。
+	nonce, _ := nonceRepo.Issue(addrA)
+	sig := e2eSign(t, keyA, addrA, nonce, "bills/pay")
+	body := `{"wallet":"` + addrA + `","bill_id":` + itoa(billB.ID) + `,"tx_hash":"0xcrosswrite"}`
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, e2eSignedReq(http.MethodPost, "/api/bills/pay", body, addrA, nonce, "bills/pay", sig))
+
+	if w.Code == http.StatusOK {
+		t.Fatalf("WALLET-AUTHZ-02 🔴: 不得替他人账单写支付意向，got 200 body=%s", w.Body.String())
+	}
+	var got models.Bill
+	db.First(&got, billB.ID)
+	if got.PayIntentTxHash != "" {
+		t.Fatalf("WALLET-AUTHZ-02 🔴: 他人账单意向不得被写，PayIntentTxHash=%q", got.PayIntentTxHash)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"linkworld-backend/internal/middleware"
 	"linkworld-backend/internal/models"
 	"linkworld-backend/internal/repository"
 	"linkworld-backend/internal/services"
@@ -70,6 +71,15 @@ func postJSON(r http.Handler, path string, body interface{}) *httptest.ResponseR
 	return w
 }
 
+// stubWalletAuth 模拟 WalletAuth 中间件：把已验证钱包写入 CtxWallet（裸挂 handler 的 T7 用例用，
+// 不跑真签名链路）。R1 修复后 handler 操作主体唯一取 CtxWallet，故裸挂测试必须显式注入。
+func stubWalletAuth(wallet string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(middleware.CtxWallet, wallet)
+		c.Next()
+	}
+}
+
 // --- PAY-INTENT-01 ---
 
 func TestPayBill_WritesIntent_NotPaid(t *testing.T) {
@@ -82,10 +92,9 @@ func TestPayBill_WritesIntent_NotPaid(t *testing.T) {
 	db.Create(bill)
 
 	r := gin.New()
-	r.POST("/api/bills/pay", h.PayBill)
+	r.POST("/api/bills/pay", stubWalletAuth(user.WalletAddr), h.PayBill)
 
 	w := postJSON(r, "/api/bills/pay", gin.H{
-		"wallet":  user.WalletAddr,
 		"bill_id": bill.ID,
 		"tx_hash": "0xdeadbeef",
 	})
@@ -115,10 +124,9 @@ func TestWithdraw_PendingIntent_NotCountedInBalance(t *testing.T) {
 	db.Create(&models.Deposit{UserID: user.ID, Amount: "5000000", Type: "deposit", Status: models.DepositStatusConfirmed})
 
 	r := gin.New()
-	r.POST("/api/withdraw", h.Withdraw)
+	r.POST("/api/withdraw", stubWalletAuth(user.WalletAddr), h.Withdraw)
 
 	w := postJSON(r, "/api/withdraw", gin.H{
-		"wallet":  user.WalletAddr,
 		"tx_hash": "0xfeed",
 	})
 	if w.Code != http.StatusOK {

@@ -148,8 +148,13 @@ func issueNonce(t *testing.T, repo *repository.WalletNonceRepository, wallet str
 }
 
 func walletRouter(t *testing.T, db *gorm.DB, chainID uint64) (*gin.Engine, *repository.WalletNonceRepository) {
+	return walletRouterAction(t, db, chainID, "bills/pay")
+}
+
+// walletRouterAction 装配绑定指定 expectedAction 的 WalletAuth 路由（action 绑端点测试用）。
+func walletRouterAction(t *testing.T, db *gorm.DB, chainID uint64, action string) (*gin.Engine, *repository.WalletNonceRepository) {
 	repo := repository.NewWalletNonceRepository(db)
-	mw := NewWalletAuth(repo, chainID)
+	mw := NewWalletAuth(repo, chainID, action)
 	r := gin.New()
 	r.POST("/x", mw, func(c *gin.Context) {
 		// 中间件应把已验证 wallet 放进 context，供 handler 取用。
@@ -260,5 +265,49 @@ func TestWalletAuth_UnknownNonce_Rejected(t *testing.T) {
 	r.ServeHTTP(w, walletReq(addr, "never-issued-nonce", "bills/pay", sig))
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("未签发 nonce 应 401，got %d", w.Code)
+	}
+}
+
+// --- WALLET-ACTION-01：为 action="withdraw" 签的 nonce 用于 bills/pay 端点 → 拒绝 ---
+//
+// review Medium：action 进 EIP-712 摘要但未校验匹配端点。绑定后，端点 expectedAction="bills/pay"
+// 而签名/头里 action="withdraw" → action mismatch，401，且不消费 nonce。
+func TestWalletAuth_ActionMismatch_Rejected(t *testing.T) {
+	db := newTestDB(t)
+	// 端点绑定 bills/pay。
+	r, repo := walletRouterAction(t, db, testChainID, "bills/pay")
+	key, addr := newTestKey(t)
+
+	// 但用户为 withdraw 动作签名（合法签名、有效 nonce），挪用到 bills/pay 端点。
+	nonce := issueNonce(t, repo, addr)
+	sig := signWallet(t, key, addr, nonce, "withdraw", testChainID)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, walletReq(addr, nonce, "withdraw", sig))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("WALLET-ACTION-01: 为 withdraw 签的 nonce 用于 bills/pay 端点必须 401（action 绑端点），got %d", w.Code)
+	}
+	// action 不匹配应在消费 nonce 前拒绝：nonce 仍可被正确动作使用（未被作废）。
+	sigOK := signWallet(t, key, addr, nonce, "bills/pay", testChainID)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, walletReq(addr, nonce, "bills/pay", sigOK))
+	if w2.Code != http.StatusOK {
+		t.Fatalf("WALLET-ACTION-01: action 不匹配不应消费 nonce，正确 action 重试应过，got %d body=%s", w2.Code, w2.Body.String())
+	}
+}
+
+// --- WALLET-ACTION：空 action 头 → 拒绝（防绕过绑定）---
+func TestWalletAuth_EmptyAction_Rejected(t *testing.T) {
+	db := newTestDB(t)
+	r, repo := walletRouterAction(t, db, testChainID, "bills/pay")
+	key, addr := newTestKey(t)
+
+	nonce := issueNonce(t, repo, addr)
+	sig := signWallet(t, key, addr, nonce, "", testChainID)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, walletReq(addr, nonce, "", sig))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("空 action 头应 401（action 绑端点），got %d", w.Code)
 	}
 }

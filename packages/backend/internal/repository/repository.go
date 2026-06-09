@@ -23,9 +23,12 @@ func (r *UserRepository) Create(user *models.User) error {
 	return r.db.Create(user).Error
 }
 
+// FindByWallet 按钱包地址查用户。大小写不敏感（EIP-55 checksum 仅为完整性校验，地址本身大小写无关）：
+// WalletAuth 中间件把 CtxWallet 归一为小写，而注册/链上事件可能存入 checksum 混合大小写，
+// 故以 LOWER() 比较，确保已验证钱包能稳定命中其用户记录（R1 修复依赖此匹配）。
 func (r *UserRepository) FindByWallet(wallet string) (*models.User, error) {
 	var user models.User
-	err := r.db.Where("wallet_addr = ?", wallet).First(&user).Error
+	err := r.db.Where("LOWER(wallet_addr) = LOWER(?)", wallet).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +37,7 @@ func (r *UserRepository) FindByWallet(wallet string) (*models.User, error) {
 
 func (r *UserRepository) Exists(wallet string) bool {
 	var count int64
-	r.db.Model(&models.User{}).Where("wallet_addr = ?", wallet).Count(&count)
+	r.db.Model(&models.User{}).Where("LOWER(wallet_addr) = LOWER(?)", wallet).Count(&count)
 	return count > 0
 }
 

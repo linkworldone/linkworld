@@ -170,7 +170,10 @@ func main() {
 		log.Fatalf("AdminAuth 初始化失败：%v", aerr)
 	}
 	// WalletAuth 中间件（design §6.6 / arch-review 🔴 N1）：EIP-712 + ecrecover 绑 wallet + 一次性 nonce 台账。
-	walletAuth := middleware.NewWalletAuth(nonceRepo, walletAuthChainID)
+	// 每个写端点绑定各自的 action（review Medium）：为某动作签的 nonce 不可挪用到别的端点。
+	walletAuth := func(action string) gin.HandlerFunc {
+		return middleware.NewWalletAuth(nonceRepo, walletAuthChainID, action)
+	}
 
 	r := gin.Default()
 
@@ -203,11 +206,11 @@ func main() {
 	r.GET("/api/auth/nonce/:wallet", handler.GetWalletNonce)
 
 	// --- 用户写端点（WalletAuth：钱包签名 ecrecover 绑 wallet，design §6.6）---
-	r.POST("/api/service/activate", walletAuth, handler.ActivateService)
-	r.POST("/api/service/deactivate", walletAuth, handler.DeactivateService)
-	r.POST("/api/bills/pay", walletAuth, handler.PayBill) // B2：仅写 pending 意向不置 IsPaid
-	r.POST("/api/deposit", walletAuth, handler.Deposit)   // 意向记录
-	r.POST("/api/withdraw", walletAuth, handler.Withdraw) // B3：不凭 txHash 记账，仅 pending
+	r.POST("/api/service/activate", walletAuth("service/activate"), handler.ActivateService)
+	r.POST("/api/service/deactivate", walletAuth("service/deactivate"), handler.DeactivateService)
+	r.POST("/api/bills/pay", walletAuth("bills/pay"), handler.PayBill) // B2：仅写 pending 意向不置 IsPaid
+	r.POST("/api/deposit", walletAuth("deposit"), handler.Deposit)     // 意向记录
+	r.POST("/api/withdraw", walletAuth("withdraw"), handler.Withdraw)  // B3：不凭 txHash 记账，仅 pending
 
 	// --- 管理/平台触发端点（AdminAuth：X-Admin-Key 常量时间比较，design §6.6）---
 	r.POST("/api/oracle/monthly-bill", adminAuth, handler.TriggerMonthlyBill)

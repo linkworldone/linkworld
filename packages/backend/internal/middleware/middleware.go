@@ -106,9 +106,13 @@ func WalletAuthDigest(wallet, nonce, action string, chainID uint64) ([]byte, err
 }
 
 // NewWalletAuth 构造 WalletAuth 中间件。chainID 绑定到 EIP-712 domain（防跨链重放）。
-// 校验链路：取头部 (wallet, nonce, action, signature) → 重算 EIP-712 摘要 → ecrecover 还原签名地址
-// → 必须 == 请求 wallet（WALLET-04）→ 消费 nonce 台账（一次性，WALLET-02 重放拒绝）。
-func NewWalletAuth(nonceRepo *repository.WalletNonceRepository, chainID uint64) gin.HandlerFunc {
+// expectedAction 绑定本路由的语义动作（如 "bills/pay"/"withdraw"）：签名摘要里的 action 必须
+// 严格等于 expectedAction（非空），否则拒绝——防止把为某动作签的 nonce 挪用到别的端点
+// （WALLET-ACTION，review Medium：action 入摘要但未校验匹配端点）。expectedAction 为空属装配错误。
+// 校验链路：取头部 (wallet, nonce, action, signature) → action 必须 == expectedAction
+// → 重算 EIP-712 摘要 → ecrecover 还原签名地址 → 必须 == 请求 wallet（WALLET-04）
+// → 消费 nonce 台账（一次性，WALLET-02 重放拒绝）。
+func NewWalletAuth(nonceRepo *repository.WalletNonceRepository, chainID uint64, expectedAction string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		wallet := c.GetHeader(HeaderWalletAddr)
 		nonce := c.GetHeader(HeaderWalletNonce)
@@ -121,6 +125,12 @@ func NewWalletAuth(nonceRepo *repository.WalletNonceRepository, chainID uint64) 
 		}
 		if !common.IsHexAddress(wallet) {
 			c.AbortWithStatusJSON(401, gin.H{"error": "unauthorized: invalid wallet address"})
+			return
+		}
+		// action 绑端点（WALLET-ACTION）：expectedAction 非空且必须与签名摘要里的 action 严格一致，
+		// 否则为某动作签的 nonce 被挪用到别的端点（如 withdraw 的签名打 bills/pay）→ 拒绝。
+		if expectedAction == "" || action != expectedAction {
+			c.AbortWithStatusJSON(401, gin.H{"error": "unauthorized: action mismatch"})
 			return
 		}
 
