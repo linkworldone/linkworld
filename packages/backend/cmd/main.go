@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strconv"
 
 	"linkworld-backend/internal/blockchain"
 	"linkworld-backend/internal/config"
@@ -75,9 +76,20 @@ func main() {
 	usageService := services.NewUsageService(oracleV2, usageRepo, userRepo, userServiceRepo)
 
 	// Initialize blockchain sync (optional - runs in background)
-	if rpcURL := os.Getenv("RPC_URL"); rpcURL != "" {
-		deployments, err := config.LoadDeployments("configs/deployments.json")
-		if err == nil {
+	if deployments, err := config.LoadDeployments("configs/deployments.json"); err == nil {
+		// RPC 单一优先级（design §6.5）：deployments.json.rpcUrl 为准，env RPC_URL 覆盖。
+		rpcURL := deployments.ResolveRPCURL(os.Getenv("RPC_URL"))
+		// chainID 一致校验（design §6.5 / arch-review）：deployments.chainId 必须与 env CHAIN_ID 一致。
+		if envChainID := parseUint64(os.Getenv("CHAIN_ID")); envChainID != 0 {
+			if cerr := deployments.ValidateChainID(envChainID); cerr != nil {
+				log.Fatal(cerr)
+			}
+		}
+		// 占位零地址合约提示（T4 event_sync 据此跳过订阅）。
+		if ph := deployments.PlaceholderContracts(); len(ph) > 0 {
+			log.Printf("WARN: 合约占位零地址（未上链，事件同步将跳过）：%v", ph)
+		}
+		if rpcURL != "" {
 			bcClient, err := blockchain.NewClient(rpcURL, deployments.ChainID, deployments.Proxies)
 			if err == nil {
 				if ethClient := bcClient.EthClient(); ethClient != nil {
@@ -120,4 +132,16 @@ func main() {
 	r.POST("/api/notification/send", handler.SendNotification)
 
 	r.Run(":8080")
+}
+
+// parseUint64 解析 env 字符串为 uint64；空或非法返回 0（视为「未设置」，由调用方决定是否强制）。
+func parseUint64(s string) uint64 {
+	if s == "" {
+		return 0
+	}
+	v, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
 }

@@ -1,13 +1,25 @@
 {
-  "chainId": 16602,
-  "rpcUrl": "https://evm-testnet.0g.ai",
-  "contracts": {
-    "FeeManager": "0xF9d4777b760cc3a0F39eE0E11Cc936E34dcfc033",
-    "UserRegistry": "0x0D0E7AeB3437682964d8164835eAE31c86451268",
-    "ServiceManager": "0x82CB050c84F3BBEfC01D089d8579805Eb493BA14",
-    "TrafficCardNFT": "0x8B29aC425eD0b021CFFb308494707A5f4e6DEd31",
-    "Payment": "0x85Ffe2f47dF883982A6c98f665670e045fd0bfd9",
-    "Deposit": "0x1c73baEceE72d0867b046f939Dd27fbbc714332b",
-    "Oracle": "0x1820f818dF0dE96d29eA3AA7007785eBE46662D1"
+  "_note": "Arbitrum Sepolia (421614) 部署清单。合约 1/3 真·上链前，proxies/usdt 为占位零地址（待 PR#1 上链后用 scripts/sync-deployments.sh 从 packages/contracts/deployments/arbitrum_sepolia.json 回填）。本地联调用 packages/contracts/deployments/hardhat.json (31337)。键名对齐 hardhat.json 范式：proxies/usdt/usdtDecimals/abiHash。",
+  "chainId": 421614,
+  "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+  "proxies": {
+    "FeeManager": "0x0000000000000000000000000000000000000000",
+    "UserRegistry": "0x0000000000000000000000000000000000000000",
+    "ServiceManager": "0x0000000000000000000000000000000000000000",
+    "TrafficCardNFT": "0x0000000000000000000000000000000000000000",
+    "Payment": "0x0000000000000000000000000000000000000000",
+    "Deposit": "0x0000000000000000000000000000000000000000",
+    "Oracle": "0x0000000000000000000000000000000000000000"
+  },
+  "usdt": "0x0000000000000000000000000000000000000000",
+  "usdtDecimals": 6,
+  "abiHash": {
+    "FeeManager": "0x75813eaf919f9b6e95ee77044d9c26e3027695cceefb31c9f05d17fd7df948a1",
+    "UserRegistry": "0xca527da9916960e91d34757251357a77f061befb5f3e778e7cdbc748b79675d8",
+    "ServiceManager": "0x8a634a3b4d0e3e5c0b015500b9bcb4d26499f52ccafd06c6c03a687b0259e370",
+    "TrafficCardNFT": "0xf74ea0faa6f4a2c72d1a6efd9b2858620fdba1200cf5947dd0d826d5411558fd",
+    "Payment": "0xa8579606c85a8c91da901f8400127767da1e93557daf056e11d123b438118356",
+    "Deposit": "0xe876a431188d76a43cb1600aced605d2dca7f68d7516bb053dfc6362b23d37d9",
+    "Oracle": "0xd1d0f83aaff6bb08fb11bbcefa961d55ceef7b6d6f8fe86b272772b20c25f359"
   }
 }
