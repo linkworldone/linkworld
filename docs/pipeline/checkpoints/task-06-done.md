@@ -1,44 +1,46 @@
-# Task 06 — T5 部署脚本 + 421614 网络 + wiring + handoff (P5)
+# Task 06 — T6 组批结算 + L2 熔断 + 幂等键（后端 2/3）
 
-> 子项目 contracts(1/3) | 状态 DONE | 2026-06-08
+> 子项目 backend(2/3) | 状态 DONE | 2026-06-09
 
 ### 产出文件
-- packages/contracts/hardhat.config.ts（新增 arbitrum_sepolia 421614 网络，RPC env fallback，无 DEPLOYER_PRIVATE_KEY 时空数组不报错；保留 31337/16600/16602 + cancun/viaIR）
-- packages/contracts/scripts/deploy.ts（步骤0 部署 MockUSDT；Deposit/Payment initialize 参数数组同步新签名；部署顺序调整 MockUSDT+ServiceManager+FeeManager 先于 Deposit/Payment；补 payment.setOracle/oracle.setPayment/11 运营商 setOperatorPaymentAddress/NFT transferOwnership；部署后 wiring 断言；deployments.json 加 usdt/usdtDecimals/abiHash/storageLayout）
-- packages/contracts/.env.example（新建：DEPLOYER_PRIVATE_KEY/ARBITRUM_SEPOLIA_RPC 样例）
-- docs/design/linkworld-contracts/handoff-backend.md（新建：后端子项 2/3 handoff——ABI/selector 变更 + 金额精度语义 + usdt 来源）
+- packages/backend/internal/services/settlement.go（新：SettlementOrchestrator.SettleMonth 组批→L2闸→发交易→据 receipt 落幂等状态；SettlementClient/SettlementBatchStore 接口 mock 友好；NewSettlementBatchRepoStore 含 string→big.Int fail-fast）
+- packages/backend/internal/services/settlement_test.go（新：6 用例 + fake client/store）
+- packages/backend/internal/services/oracle.go（抽 collectSettlementItems 复用 L1 计价；新增 SettleMonthlyOnChain + SetSettlementOrchestrator）
+- packages/backend/internal/models/models.go（新增 SettlementBatch + 唯一键 idx_month_batch + 4 状态常量）
+- packages/backend/internal/repository/repository.go（新增 SettlementBatchRepository：Get/Save upsert 按幂等键 + HistoricalConfirmedTotals 供月均 + Migrate）
 
 ### git commit
-ebc4b41 feat: 合约 T5 部署脚本+421614 网络+MockUSDT+wiring+后端 handoff
+5720277 feat: 后端 T6 组批结算(≤25)+L2熔断(冷启动回退)+month/batchIndex 幂等键
 
 ### TDD
-T5 为部署/配置基础设施，非新合约行为。验证靠本地部署冒烟（in-process hardhat，部署+wiring+断言全过）+ test 66 passing 不回归。
+先红后绿：先写 settlement_test.go(6 用例) → 红(SettlementItem/NewSettlementOrchestrator/MaxSettlementBatch undefined build failed) → 补 model+repo+settlement.go → 绿(6 PASS，ALERT/WARN 日志可见熔断与失败批续跑路径被走到)。
 
 ### 测试结果
-hardhat compile 0 error。本地部署冒烟（--network hardhat）：7 proxy + MockUSDT 部署成功，11 运营商 paymentAddress 注入，NFT ownership 转 Deposit，All wiring assertions passed（payment.oracle/oracle.payment/oracle.deposit/deposit.oracle/usdt/serviceManager/operator≠0 全断言通过）。hardhat test：66 passing。主 Agent 已独立复跑部署冒烟确认断言全过。
+go build ./... 0 error。go vet 0 warning。go test ./... 全绿不回归。T6 用例：BATCH01_Slicing/BATCH02_OverMaxBatchTotal/CB01_CircuitBreak/CB02_ColdStartFallback/IDEM01_ConfirmedNotResent/FAIL01_FailedBatchRetriable。主 Agent 已独立复跑确认 build exit 0 + services test ok。
 
 ### code-simplifier
-deploy.ts 增量复用现有 deployProxy 骨架，wiring 集中断言；无冗余。
+collectSettlementItems 抽取复用 L1 计价；MaxBatchTotal 复用 blockchain 常量（L2/L3 同源不漂移）；接口 mock 隔离链交互。
 
 ### spec review
-严格按 design §7.0/§7.1/§7.2/§7.3 + arch-review deploy initializer 同步执行：MockUSDT 步骤0、initialize 参数同步、★ B2 必补 wiring（setOracle/setPayment）、11 运营商零地址注入、部署后断言、deployments.json + handoff 交付物。无偏差。
+按 design v2 §7.0/§6.1 + arch-review B1-L2/冷启动回退红线/幂等键 执行。组批≤25、L2 绝对闸+均值熔断、冷启动回退仅查绝对闸（绝不除零）、month+batchIndex 幂等、失败批续跑。未越界（handler/鉴权留 T7，main.go 装配留 T7，T8 端到端留 T8）。
 
 ### 设计还原
-合约无 UI。design §7.0.3 三条权限链（createBill/发卡/桩）前置 wiring 由部署后断言兜底验证；真实 monthlySettlement 一笔交易由 T6 MS-03 集成测试覆盖。
+后端无 UI。design §7.0 金额闸 L2 + 组批 + 幂等逐项落地：30 user→2 批(25+5)、超绝对闸阻断、超月均×N 熔断、冷启动跳过均值闸、confirmed 批不重发、failed 批续跑。
 
 ### 复用检查
-复用现有 deploy.ts UUPS deployProxy 骨架、contracts/mocks/MockUSDT.sol（T2 建）、NFT transferOwnership(deposit)（现状 L88）；新增 arbitrum_sepolia 网络配置 + handoff 文档。
+复用 blockchain.MaxBatchTotal（L2/L3 同源）+ T5 PricingService(L1 计价)+ChainOperatorID + T3 client.MonthlySettlement+receipt + 现有 repository 扩展；编译期断言 *blockchain.Client 满足 SettlementClient。
 
 ### 设计稿对照
-数值对照：新增网络 chainId 421614 vs R2 ✅；MockUSDT decimals=6 vs v2-C ✅；wiring 补全项 5+ 处（setOracle/setPayment/11×setOperatorPaymentAddress/transferOwnership）vs §7.2 ✅；部署后断言项 9 项 vs §7.0.3 ✅；deployments.json 新增字段 usdt/usdtDecimals:6/abiHash/storageLayout vs §7.3 ✅；test 66 passing 无回归 ✅。
+数值对照：MaxSettlementBatch=25 vs handoff §5.1 N≤25 ✅；30 user→2 批(25+5)(BATCH-01) ✅；单批超 MaxBatchTotal 阻断(BATCH-02) vs L2 ✅；冷启动无均值仅查绝对闸不除零(CB-02 红线) ✅；幂等键 month+batchIndex confirmed 不重发(IDEM-01) ✅；6 测全绿 ✅；go build 0 ✅。
 
 ### 新增组件
-无新增合约。新增配置：arbitrum_sepolia 网络、.env.example；新增文档：handoff-backend.md。
+新增 SettlementOrchestrator/SettlementClient/SettlementBatchStore/SettlementBatch 模型/SettlementBatchRepository/SettleMonthlyOnChain；无新增业务合约。
 
 ### 新增色值
-无（合约任务）。
+无（后端任务）。
 
-### 遗留（带入 T6 / 上链）
-- 421614 真·上链未执行（无 DEPLOYER_PRIVATE_KEY/RPC）→ handoff §10：配 key 后 `hardhat run scripts/deploy.ts --network arbitrum_sepolia` + §6.4 TSTORE 链上实测（实测 payBill 确认 transient guard，否则降级）。
-- T6：GAS-01 压测量 monthlySettlement/issueMonthlyTrafficCards 单批安全上限 N 回填 handoff；MS-03 端到端跑真实 monthlySettlement 一笔。
-- deployments/hardhat.json 是 in-process 冒烟产物（确定性地址非真部署），未纳入 commit。
+### ⚠️ 遗留（带入 T7/T8）
+- T7：SettleMonthlyOnChain(ctx,month)→SettlementSummary 已就绪，TriggerMonthlyBill handler 直接调用返回分批摘要 + 加 AdminAuth；main.go 装配 NewSettlementBatchRepoStore→NewSettlementOrchestrator→oracle.SetSettlementOrchestrator（未装配时返明确 error 降级安全）。
+- T8：补 simulated.Backend 端到端真实绑定分批结算（本轮用接口 mock 隔离）。
+- 熔断倍数 N=3 占位待产品/运营/安全拍真值。
+- 绝对闸超限批归 BlockedBatches 计数但 DB 状态用 pending_review（靠 Note 区分原因），如需单列 blocked 终态可 T7/T8 调整。

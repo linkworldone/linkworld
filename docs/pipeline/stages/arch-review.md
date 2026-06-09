@@ -1,80 +1,62 @@
-# Stage: arch-review — 三角色架构审查 + 合约安全审计（子项目 contracts 1/3）
+# Stage: arch-review — 三角色架构审查 + 安全审计（子项目 backend 2/3）
 
-> **状态**: PASS（第 1 轮 BLOCKED → design 返工 v2 → 第 2 轮复审 0 ❌ 通过） | **日期**: 2026-06-08 | **Gate**: 1
-> 审查对象：docs/pipeline/stages/design.md（合约技术设计，commit 9584e4a）
-> 三角色并行：CEO(plan-ceo-review) / Eng(plan-eng-review) / Security(chain-web3-developer:security-review，替代对合约无意义的 UI design-review)
-> 冲突优先级：安全/可行性 > 工程实现 > 视觉
+> **状态**: PASS（第1轮 BLOCKED → design v2 返工 → 第2轮 Eng+Security 0 ❌ 通过） | **日期**: 2026-06-09 | **Gate**: 1
+> 审查对象：design.md（后端对齐设计）。三角色并行：CEO / Eng / 安全审计（替代 UI Design 路）。冲突优先级：安全/可行性 > 工程。
 
-## 一、总裁决：BLOCK — 不可进 plan/implement
-三方合计 **7 大 ❌ 阻塞主题**（去重后），其中 B1 计价模型为 🔴 Critical 资损。design 工程纪律 staff 级（逐行核对、实测编译、决策对比表），但存在结构性资损/可行性缺口，必须返工。
+## 一、总裁决：BLOCK
+安全审计 5 ❌ + CEO 1 ❌（与安全 B2 重叠）+ Eng 0 ❌(6 ⚠️)。design 在 owner key 保密、常量时间鉴权、纯整数计价、事件驱动对账方向上判断专业，但**资损「预防控制」系统性缺失**——全篇依赖事后对账告警(检测)而非发交易前硬上限/reorg 确认/单一对账路径(预防)。
 
-## 二、❌ 阻塞项（去重，必须改 design 才能继续）
+## 二、❌ 阻塞项（去重，必须改 design）
+| # | 阻塞 | 级别 | 修复方向 |
+|---|------|------|----------|
+| B1 | owner 单 EOA 持「凭空造单 amounts[] + 扣款」复合权限，无金额护栏（仅 amount>0 挡不住过大；事后告警是检测非预防） | 🔴Critical | 发交易前硬闸：单 user 单 bill 金额上限 MAX_BILL_PER_USER(config 可审计) + 单批总额上限/异常熔断(超历史均值 N 倍人工放行)；owner key 不落 .env 明文长存(启动注入内存)；web 侧 exact-amount approve 禁 infinite（跨 web 3/3，写 handoff-web）；§7.1 措辞升级：owner=deployer=平台 root 权限(能改分账地址/授权拓扑)，非仅结算权限 |
+| B2 | `/api/bills/pay`→MarkAsPaid 直接置 IsPaid=true 不验链上 + design §4.3「保留但标注不可信」二选一含保留 = 任意请求伪造已付白嫖 | 🔴Critical | 删除「保留」选项；**IsPaid 唯一由 event_sync 监听 BillPaid 回填**；HTTP 端点删写能力或降级为 pending 意向(绝不置 IsPaid)；§6.6 鉴权清单补 /api/bills/pay；显式声明 web 3/3 接口契约 breaking change 写入 handoff-web |
+| B3 | `/api/withdraw`→RecordWithdraw 凭前端任意 txHash 写记账不验链上 + design 把 withdraw 归 AdminAuth（鉴权模型错配：withdraw 是用户操作） | High | withdraw 记账唯一由 DepositWithdrawn 事件回填；HTTP 不接受前端 txHash 记账(最多 pending)；用户写端点鉴权用钱包签名(msg.sender)非 AdminAuth；§6.6 把 withdraw 移出 AdminAuth |
+| B4 | usage 无上界 → dataMB×单价 big.Int 不溢出但产天文金额账单；SubmitUsage 接受前端 uint64 无范围校验 | High | PricingService 对 (dataMB,callMin) 设合理上界超界拒绝+告警；amount6 单 bill 硬上限(同 B1 闸)；SubmitUsage gin binding max= 校验 |
+| B5 | event_sync 无 reorg/确认数：监听到即置 IsPaid/记押金，块被 reorg 不回退 → 已付/押金虚高资损；(txHash,logIndex) 去重只防重复不防回滚 | High | 资金事件落 confirmed 前等 K 块确认；reorg 检测(last-block 记 blockHash 父哈希不连续→回退重扫)；资金事件 pending→confirmed 两阶段，与 §4.3 状态机统一 |
 
-| # | 阻塞项 | 来源 | 级别 | 修复方向 |
-|---|--------|------|------|----------|
-| B1 | 账单金额无计价模型：Oracle `monthlySettlement` L68 把 dataUsage(字节)+callUsage(分钟) 直接相加当 USDT 金额传 createBill，ERC20 真实扣款会扣天文数字、量纲错误 | 安全❌-4 | 🔴Critical | 【用户决策待填】后端/Oracle 链下按资费算好金额传入、合约 createBill 只存不算（去掉 usage 求和）；或链上计价表 |
-| B2 | createBill 权限链断裂：createBill 是 onlyOwner，Oracle 非 Payment owner（deploy 无 payment.transferOwnership(oracle)），monthlySettlement 调 createBill 必 revert，自动结算跑不通 | 安全❌-3 | High | createBill 改 onlyOracle（或 wiring 转 owner）；§7.2 补授权步骤；design 增"部署后 ownership/授权拓扑图" |
-| B3 | 自动发卡权限链+幂等：issueMonthlyTrafficCards(onlyOracle) 若复用 mintTrafficCard(onlyOwner) 内部 mint 会 revert；用 require 会让整批回滚 | 安全❌-2 / Eng | High | 走独立 internal `_mintFor(user)` 不经 onlyOwner；批量循环用 `if(!ok) continue;` 跳过不满足者，不 revert 整批 |
-| B4 | dataAmount 精度耦合：mintTrafficCard L76 `_deposits/100000` 在 6 位精度下发废卡；design §5.1 只写"建议"未锁定，§一表口径矛盾 | CEO❌ / 安全❌-1 / Eng⚠️ | High | 【用户决策待填】锁定 dataAmount 来源（固定 quota 或按保证金阶梯重定义换算）；删 _deposits/100000；统一全文口径 |
-| B5 | 接口收敛漏声明：§5.6⑤ 要把 Oracle 内联接口收敛到 interfaces/，但 IDeposit.sol 无 issueMonthlyTrafficCards、IPayment.sol 无 applyTrafficCardToBill 声明，收敛后编译不过 | Eng❌-1 | High | IDeposit 补 issueMonthlyTrafficCards、IPayment 补 applyTrafficCardToBill 声明；把"接口签名变更→实现同步"列进 §5.6 连锁编译清单 |
-| B6 | 核心新函数零测试：Oracle.monthlySettlement + Payment.applyTrafficCardToBill（本轮新实现的集成路径）design §八测试清单完全未覆盖 | Eng❌-2 | High | 补 monthlySettlement 端到端集成测试 + applyTrafficCardToBill 抵扣测试 |
-| B7 | 非标代币边界：未处理 fee-on-transfer（Deposit 记账虚高→withdraw 直接资损）+ 真实 USDT 黑名单/暂停导致 payBill 失败 | 安全❌-5 | High | design §6.1 补：仅支持标准 ERC20、禁 fee-on-transfer；分账地址非黑名单要求 + 支付失败降级策略 |
+## 三、⚠️ 需 design/implement 落实（非阻塞）
+- **operatorId 固定 ID 映射**（CEO 标最高优先 + Eng#1）：后端 seed 显式写 Operator.ID=链上 operatorId(1..11 合约 initialize 冻结)，**不靠 name 比对**（后端 seed "T-Mobile" vs 链上 "T-Mobile US" 不相等会 miss）；启动期读链 sanity check 不一致 fail/warn。传错=分账打错地址(最隐蔽资损)。
+- **event 解码一律走 abigen Filterer**，signatures.go 仅日志用；UsageDataSubmitted 只 user indexed，operatorId/amount 在 data 区(design 多处写法有歧义)；BillCreated 第三参=amount+platformFee 含费总额别当裸 amount。[Eng#2/#5]
+- **nonce 本地计数器**(发一笔+1，PendingNonceAt 仅初始化/恢复) + **分批必须等回执 WaitMined** 才判失败批；§6.1 与 §4.1 对"是否等回执"表述不一致需统一。[Eng#3]
+- **测试用 go-ethereum simulated.Backend** 部署真实绑定跑分批结算/事件解码，非空 mock RPC。[Eng#4]
+- **T1 真前置 = 合约 PR#1 merge(ABI 冻结)**，非"真机上链"；design §7.4 拆开「ABI 冻结→阻塞 T1」vs「真机上链→只阻塞联调」，避免基于未 merge ABI 生成绑定返工。[CEO]
+- **验收语言澄清**：本轮=计价引擎正确性，usage 仍 OperatorAPISimulator 模拟(rand)；真实计量是独立后续 Round，§5B 验收不得读成"计费痛点已解决"。[CEO 伪胜利]
+- 费率表占位刺眼化(注释 PLACEHOLDER + 启动 warn)+owner+挂真机验收 gate。[CEO]
+- usage 单位锁 MB/min 测试固定断言；seed RequiredDeposit 改整数最小单位+存量迁移脚本；string→big.Int 转换校验 ok fail-fast 不静默；chainID 一致校验(transactor chainID==链上)；deployments.json 占位零地址不得用于 event 过滤(零地址拒启动)；结算批次幂等键(month+batchIndex 落 DB 已确认不重发)；弱随机 password 改 crypto/rand；CORS 生产禁 *+credentials；.env gitignore 确认+.env.example 留空。[安全⚠️/Eng]
 
-## 三、⚠️ 需 design 拍板消歧 / 加固项（不单独阻塞但应一并处理）
+## 四、✅ 三方认可
+- 计价从随机数→可复算整数引擎(纯 big.Int 6 位)、对账从前端自述→链上事件驱动——两个真问题方向解对。
+- 后端角色边界收敛漂亮(只代发 monthlySettlement owner，deposit/payBill 归 web 用户侧)，私钥面最小。
+- scope 切片有纪律(submitUsage 不做链上签名是聪明 subtraction)；本地 hardhat 解耦让串行不死锁；artifacts 栈式分支可用、abiHash 算法两端一致(可行性验证通过)；go build/vet 现状干净。
 
-- usdt 注入路径：锁定为 **initialize 注入**（fresh deploy 无升级包袱），弃 setUSDT 后置（避免 usdt 未设时 deposit panic）。【Eng⚠️-6】
-- P1 compile gate 重定义：design §5.6 "①②④后 compile 应绿"不成立（②Oracle 类型改完缺接口方法、③未实现）；应为"P1 全部子项①-⑤做完后 compile 绿"。【Eng⚠️-5】
-- 批量 mint / monthlySettlement 无界循环 gas：无上限+无测试+后端静默调用（临界缺口）。design 明确分批策略（调用方分批 ≤N，或合约 require maxBatch）+ 补压测。【Eng⚠️-10】
-- applyTrafficCardToBill 抵扣范围：现状只抵第一张未付账单（Oracle L85），单张/全部/按额度语义未定。【Eng⚠️-11 / 关联 B 决策】
-- ServiceManager requiredDeposit：18 位 ether 字面量在 USDT 语境语义错，_operatorRequiredDeposit 当前未被使用。design 明确"本轮不引入运营商保证金校验/标记废弃"。【CEO⚠️ / Eng】
-- 16602/localhost 旧 proxy：design §2.2/§6.3/§8 升级路径尾巴矛盾。明确"本轮一律 fresh deploy 不升级"，删除 storage layout 升级讨论的无效负担。【Eng⚠️】
-- ReentrancyGuardTransient：§6.4 Arbitrum 兼容实测应**前移到 P2 之前**（而非 P5），避免返工；且 Payment L33-38 自定义 _reentrancyGuardInit assembly 本身正确性可疑（向 transient slot 写持久 storage），需厘清而非仅"降级时删"。【Eng⚠️-15 / 安全 6】
-- createBill fail-fast：建议 createBill 也校验 operator.paymentAddress != 0，避免生成永远付不了的账单。【安全 4】
-- 0-fee 跳过：payBill 第二段 fee=0 时跳过（保留现状 Payment L86 `if(platformFee>0)` 判断）。【Eng⚠️-9 / 安全 9】
-- mintBatch 禁用：自动发卡禁止用 NFT.mintBatch（L77 `this.mint()` 外部调用会撞 onlyOwner）。【Eng⚠️-4】
-- 交付物补充：合约子项验收应含"冻结的 ABI + selector 清单 + 金额精度语义说明"作为给后端子项(2/3)的正式 handoff（deposit/payBill 改 selector）；本轮 storage layout 冻结并记入 deployments.json。【CEO⚠️】
-- 测试补充：非标 USDT(transfer 不返回值/返回 false) 用例验证 SafeERC20 分支；锁仓续期不变量、未注册 deposit revert（旧测试用 {value} 调用，改 deposit(amount) 后失效需重写）。【CEO⚠️ / Eng⚠️-14】
+## 五、下一步（硬规则：有 ❌ → 改 design → 重跑）
+架构师返工 design v2 闭合 B1-B5 + 三 ⚠️ 收紧项 → 重跑 arch-review（Eng+Security 复审）→ 0 ❌ 方可进 plan。
 
-## 四、✅ 三方认可的设计优点
-- 修编译设为强依赖拓扑根 + compile P1 gate：排序正确。
-- 迁 Arbitrum + ERC20 USDT 对齐跨境/无 KYC 产品定位，币种对齐用户心智货币。
-- 3 子项串行、合约作地基先行成立，无反向依赖。
-- SafeERC20 选型、CEI 方向、授权精确额、分账零地址 payBill 兜底、fresh deploy storage layout 判断、Arbitrum"先实测再定"姿态——显性资损面处理扎实。
-- 补测清单对验收主路径（A.2 最小额/approve/分账/发卡幂等/精度）覆盖完整。
-
-## 五、下一步（硬规则：有 ❌ → 改 design → 重跑 arch-review）
-1. 用户已就 B1(计价模型)/B4(发卡额度)/applyTrafficCardToBill 范围 三项产品决策拍板（结论回填本报告 B1/B4 + §三）。
-2. 架构师按本报告返工 design.md（闭合 B1-B7 + §三消歧项）。
-3. 重跑 arch-review（至少 Eng + Security 复审），0 ❌ 方可标完成、进 plan。
-
-## 六、三方原始意见存档摘要
-- CEO：❌1（B4 dataAmount 语义未拍板）+ ⚠️5 + ✅8。结论：方向对、工程扎实，唯一硬伤是"规范真空"——核心发卡功能正确性留给 implement。
-- Eng：❌2（B5 接口收敛漏声明 / B6 核心函数零测试）+ 多个二义点 + 临界 gas 缺口。结论：不可直接进 implement，修 2 阻塞+拍板 4 二义点后 P1→P6 可落地。
-- Security：BLOCK，❌5（B1计价Critical / B2 createBill权限链 / B3发卡权限链幂等 / B4 dataAmount精度 / B7非标代币）+ ⚠️9 + ✅4。结论：显性资损面扎实，但自动结算两条权限链 deploy 下跑不通 + 计价模型缺失是结构性缺口。
+## 六、三方原始摘要
+- CEO：1 ❌(B2 对账二选一 one-way door)+ 伪胜利风险 + T1 前置混淆 + owner=root。结论：方向 PASS 但 1 阻塞先消解。
+- Eng：0 ❌ DONE_WITH_CONCERNS，6 ⚠️(operatorId/abigen 解码/nonce 回执/simulated.Backend/BillCreated 含费/对账 pending)。现状诊断逐条源码核对属实，可落地。
+- 安全：BLOCK 5 ❌(owner 护栏/bills-pay 白嫖/withdraw 伪造/usage 上界/reorg)+9 ⚠️。架构判断专业但资损预防控制系统缺失。
 
 ---
 
-## 七、第 2 轮复审（design v2，commit 2b8d4a0）— PASS
+## 七、第 2 轮复审（design v2，commit 9798789）— PASS
 
-design 按本报告返工为 v2（闭合 B1-B7 + 用户 3 决策 + §三消歧项）。Eng + Security 并行验证性复审（Security 因合约资损敏感从严），结论：
+design v2 闭合 B1-B5 + 6 ⚠️ + 新增 §7.0 资损预防控制专节 + handoff-web.md。Eng + Security 验证性复审，结论 0 ❌：
 
-| 阻塞 | 第1轮 | 第2轮复审 |
-|------|-------|-----------|
-| B1 计价模型(Critical) | ❌ | ✅ 闭合（删 Oracle usage 求和，金额后端传入）|
-| B2 createBill 权限链 | ❌ | ✅ 闭合（改 onlyOracle + setOracle/setPayment wiring + 拓扑图，三链跑通）|
-| B3 发卡权限链+幂等 | ❌ | ✅ 闭合（internal _mintFor 不撞 onlyOwner + continue 跳过 + userCardCount 幂等）|
-| B4 dataAmount 精度 | ❌ | ✅ 闭合（固定 trafficCardQuota，删 _deposits/100000，全文统一）|
-| B5 接口收敛漏声明 | ❌ | ✅ 闭合（IDeposit/IPayment 补声明 + 连锁编译清单）|
-| B6 核心函数零测试 | ❌ | ✅ 闭合（补 MS-01~03 + ATC-01/02）|
-| B7 非标代币边界 | ❌ | ✅ 闭合（仅标准 ERC20/禁 fee-on-transfer/黑名单/支付降级）|
+| 阻塞 | 第1轮 | 第2轮 |
+|------|-------|-------|
+| B1 owner 金额护栏 | ❌Critical | ✅ 三层金额硬闸(L1计价/L2组批熔断/L3发交易前断言)+owner key 内存注入+owner=root 措辞+web exact approve |
+| B2 对账单一路径 | ❌Critical | ✅ IsPaid 唯一 BillPaid 事件回填、/api/bills/pay 降级 pending(PayIntentTxHash 解耦)、MarkAsPaid 不导出 HTTP |
+| B3 withdraw 伪造记账 | ❌ | ✅ 唯一 DepositWithdrawn 事件回填、HTTP 不收 txHash、改 WalletAuth(非 AdminAuth) |
+| B4 usage 上界 | ❌ | ✅ 三处校验(gin max=/Price 入口/模拟器)+amount6 单 bill 硬上限 |
+| B5 event_sync reorg | ❌ | ✅ K 块确认+reorg 检测(blockHash 父哈希)+pending→seen→confirmed 两阶段 |
 
-**剩余 ❌ 阻塞：0。两方一致结论：PASS，可进 plan。**
+Eng 6 ⚠️ 全进 v2（operatorId 固定映射/abigen Filterer 解码/nonce 计数器+WaitMined/simulated.Backend/T1 前置拆分/对账 pending），go-ethereum v1.13.5 上技术手段均可构建（已核对）。
 
-### 带入 implement 的 ⚠️ 加固项（非阻塞，列入实现验收单）
-1. **A1 发卡路径重入**：`issueMonthlyTrafficCards`/`mintTrafficCard`/`_mintFor` 加 `nonReentrant`（或确认 `_userCardCount++` 在 `_safeMint` 回调前 CEI 顺序）；design §6.2 补 guard 覆盖声明。onlyOracle 信任边界 + 非资金路径，最坏后果是破坏单卡不变量，非直接资损。
-2. **A3 `_reentrancyGuardInit` 无效代码**：经 OZ 5.6.1 源码实证，Payment L33-38 `sstore` 写持久 storage 而 transient guard 用 tload/tstore 读不同空间——该 init 永不被读=无效代码（非"防护形同虚设"，guard 本身有效）。implement 删 L33-38 + initialize L28 调用。
-3. **Arbitrum transient 实测**：P1.5 前移实测 TSTORE 兼容，备 ReentrancyGuardUpgradeable 降级 fallback（设计层无法闭合，implement 验证）。
-4. **deploy.ts 同步**：Payment/Deposit initializer 改参数个数 → deployProxy 参数数组 + MockUSDT 部署顺序（步骤0）须同步改。
-5. **monthlySettlement 旧喂价旁路**：改签名后 Oracle `_monthlyUsage`/`submitUsage` 累计旁路去留，留 plan/implement 与后端(2/3)对齐。
+**剩余 ❌：0。两方一致 PASS，可进 plan。**
 
-> implement 完成后须重跑 design v2 §十安全清单对照实际 .sol 落地，尤其 MS-01~03 / ATC-01/02 / USDT-01/02 / ISS-04 必须绿。
+### 带入 implement 的验收红线（非阻塞，但 implement 复审会重挑）
+1. **🔴 N1（最关键）WalletAuth 防重放**：必须服务端一次性 nonce 台账(per-wallet 单调递增或消费式)+绑定 chainId/domain(推荐 EIP-712)，**禁止退化为纯 timestamp 时间窗**（否则窗口内签名可重放；当前因 B2/B3 单一对账路径兜底，重放爆炸半径限于 pending 噪声，故非阻塞但强制加固）。design §6.6/handoff-web §3「nonce 或 timestamp」二选一措辞应收紧为「nonce 强制+服务端状态」。
+2. **B1-L2 冷启动熔断**：历史月均熔断在首月/无样本时须回退到 MAX_BATCH_TOTAL 绝对闸，不得因均值=0 失效（L1/L3 绝对上限仍在，故非阻塞）。
+3. 占位常量(MAX_BILL_PER_USER/MAX_BATCH_TOTAL/N/K)待产品/运营/安全拍真值；operatorId seed 顺序待合约 PR#1 merge 后与 ServiceManager.initialize 核对；真机 421614 联调待合约上链。

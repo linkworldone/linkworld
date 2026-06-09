@@ -1,107 +1,126 @@
 {
-  "subproject": "contracts (1/3)",
+  "subproject": "backend (2/3)",
   "stage": "plan",
-  "date": "2026-06-08",
+  "date": "2026-06-09",
+  "branch": "backend/align-arbitrum-usdt",
   "serial": true,
+  "prerequisite": "合约 PR#1 merge（ABI 冻结）",
+  "order": ["T1-abigen", "T2-config", "T3-client", "T4-event-sync", "T5-pricing", "T6-batch-circuit", "T7-auth", "T8-test"],
   "pages": {
-    "T1-fix-compile": {
-      "task": "修编译 + monthlySettlement 改签名 + 接口收敛 + createBill onlyOracle + applyTrafficCardToBill 受限桩",
-      "phase": "P1",
+    "T1-abigen": {
+      "task": "make 脚本 + 生成 8 份 abigen 绑定（7 业务 + MockUSDT）+ abiHash 校验工具",
+      "phase": "T1",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "Oracle 编译修复 + 计价收敛", "use": "Oracle.sol", "grade": "modify", "action": "声明 UsageDataSubmitted 事件 + deposit/payment state 改 IDeposit/IPayment 类型 + 新增 setPayment(address) onlyOwner + monthlySettlement 改 (users,operatorIds,amounts[]) 删 L68 totalAmount 求和 + import interfaces 收敛内联接口"},
-        {"need": "接口补声明(B5)", "use": "interfaces/IDeposit.sol", "grade": "modify", "action": "deposit() 去 payable 改 deposit(uint256) + 补 issueMonthlyTrafficCards(address[] calldata)"},
-        {"need": "接口补声明(B5)", "use": "interfaces/IPayment.sol", "grade": "modify", "action": "payBill() 去 payable 改 payBill(uint256) + 补 applyTrafficCardToBill(uint256)"},
-        {"need": "删 dead code(编译错误②④)", "use": "TrafficCardNFT.sol", "grade": "modify", "action": "删除 DeductionCredit mapping(_deductionCredits L18) + onlyDeposit modifier"},
-        {"need": "createBill 权限(B2) + 桩(v2-B)", "use": "Payment.sol", "grade": "modify", "action": "createBill 改 onlyOracle + 实现 applyTrafficCardToBill(uint256) onlyOracle 受限桩(不转资金, 仅 require 账单存在 + 可选 emit TrafficCardApplied)"}
+        {"need": "8 合约 abigen 绑定", "use": "internal/blockchain/bindings/", "grade": "new", "action": "abigen 从 contracts artifacts 生成 + 入库"},
+        {"need": "make abigen target", "use": "Makefile", "grade": "new", "action": "脚本读 artifacts .abi → 生成绑定"},
+        {"need": "abiHash 比对", "use": "internal/blockchain/abihash.go", "grade": "new", "action": "绑定 ABI 指纹与 deployments.json.abiHash 比对，不一致 fail"}
       ],
-      "depends": [],
-      "gate": "npx hardhat compile 零 error（①-④ 全做完才绿，无中间绿态）",
-      "acceptance": ["compile 0 error", "B1 删求和", "B2 createBill onlyOracle", "B5 接口收敛无 undefined"]
+      "depends": ["合约 PR#1 merge"],
+      "gate": "go build 绿 + abiHash 比对单测过",
+      "acceptance": ["8 绑定可编译", "abiHash 与 deployments.json 一致"]
     },
-    "T1.5-reentrancy-probe": {
-      "task": "ReentrancyGuardTransient 421614 兼容实测 + 删无效 _reentrancyGuardInit assembly",
-      "phase": "P1.5",
+    "T2-config": {
+      "task": "config 键名 bug 修 + struct 扩展 + deployments.json 421614 schema + RPC/chainID 统一 + .env.example + 同步脚本",
+      "phase": "T2",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "guard 兼容实测(arch ⚠️3)", "use": "Payment.sol", "grade": "modify", "action": "421614 实测 Payment 部署 + 一笔 payBill 确认 TSTORE/TLOAD 兼容；不兼容则降级 ReentrancyGuardUpgradeable（改 initialize + __ReentrancyGuard_init）"},
-        {"need": "删无效代码(arch ⚠️2/A3)", "use": "Payment.sol", "grade": "modify", "action": "删 L33-38 _reentrancyGuardInit assembly（sstore 持久 storage 永不被 transient guard 读取=无效）+ initialize L28 调用"}
+        {"need": "键名 bug 修复", "use": "internal/config/config.go", "grade": "modify", "action": "JSON 键 contracts→proxies + 扩展 Usdt/UsdtDecimals/AbiHash + abiHash 校验 + RPC 优先级 + chainID 一致校验"},
+        {"need": "421614 schema", "use": "configs/deployments.json", "grade": "modify", "action": "chainId 421614 + 7 占位地址 + usdt 占位 + usdtDecimals:6 + abiHash 占位；占位零地址不订阅事件"},
+        {"need": "env 模板同步", "use": ".env.example", "grade": "modify", "action": "CHAIN_ID/RPC_URL 改 421614 + 新增 ORACLE_OWNER_PRIVATE_KEY/ADMIN_API_KEY 留空"},
+        {"need": "部署同步脚本", "use": "scripts/sync-deployments.sh", "grade": "new", "action": "从 contracts/deployments/<net>.json 回填 backend/configs/deployments.json"}
       ],
-      "depends": ["T1-fix-compile"],
-      "gate": "421614 实测 payBill 成功（TSTORE 兼容）或 降级方案部署成功；删 assembly 后 compile 仍绿",
-      "acceptance": ["TSTORE 实测结论", "grep 无 _reentrancyGuardInit"]
+      "depends": ["T1-abigen"],
+      "gate": "go build 绿 + config 加载单测 + 零地址跳过断言",
+      "acceptance": ["Proxies 非空 map", "占位零地址不进 event 过滤", "RPC/chainID 单一优先级"]
     },
-    "T2-erc20-migration": {
-      "task": "Deposit/Payment ERC20 迁移 + SafeERC20 + usdt initialize 注入 + MIN_DEPOSIT 按 decimals",
-      "phase": "P2",
+    "T3-client": {
+      "task": "client 读/写真实化 + nonce 计数器 + WaitMined + 金额闸 L3 + owner key 内存注入 + transactor + chainID 校验 + 降级",
+      "phase": "T3",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "Deposit ERC20 改写", "use": "Deposit.sol", "grade": "modify", "action": "引 SafeERC20+IERC20 + using SafeERC20 for IERC20 + usdt state 经 initialize(userRegistry,usdt) 注入 + deposit(uint256) 去 payable 前置 safeTransferFrom + withdraw 改 safeTransfer(CEI) + MIN_DEPOSIT=10*10**usdt.decimals() 不硬编码 + 禁 fee-on-transfer"},
-        {"need": "Payment usdt 注入", "use": "Payment.sol", "grade": "modify", "action": "引 SafeERC20 + usdt/serviceManager state 经 initialize(feeManager,platformWallet,usdt,serviceManager) 注入"}
+        {"need": "读调用真实化", "use": "internal/blockchain/client.go", "grade": "modify", "action": "GetDepositAmount/GetLockExpiry/VerifyServiceActive/GetFeeRate 走 abigen Caller"},
+        {"need": "写调用 owner 签名", "use": "internal/blockchain/client.go", "grade": "modify", "action": "MonthlySettlement/IssueMonthlyTrafficCards 走 Transactor + 本地 nonce 计数器(mutex) + WaitMined + L3 断言(amount∈(0,MAX_BILL_PER_USER]、sum≤MAX_BATCH_TOTAL)"},
+        {"need": "owner key 装配", "use": "cmd/main.go", "grade": "modify", "action": "从 env 注入内存私钥(不长存明文) + NewKeyedTransactorWithChainID + chainID 一致校验 + 缺 key 降级关闭 + 日志脱敏"}
       ],
-      "depends": ["T1.5-reentrancy-probe"],
-      "gate": "compile 绿；MIN-01/02、ERC-01/02/03、DEC-01 单测通过",
-      "acceptance": ["req A.1 无 payable/msg.value 残留", "req A.2 MIN_DEPOSIT", "B7 禁 fee-on-transfer", "精度不硬编码"]
+      "depends": ["T1-abigen", "T2-config"],
+      "gate": "go build 绿 + simulated.Backend 写交易 + L3 拒发单测",
+      "acceptance": ["nonce 连发不复用", "WaitMined 判成败", "L3 越界拒发", "缺 key 只读降级"]
     },
-    "T3-revenue-split": {
-      "task": "Payment payBill 链上直分 + createBill fail-fast + ServiceManager setOperatorPaymentAddress",
-      "phase": "P3",
+    "T4-event-sync": {
+      "task": "FilterLogs 轮询 + 8 事件 Filterer 解码 + 6 位精度 + 去重 + reorg + 两阶段确认 + signatures.go 修正 + models 加列",
+      "phase": "T4",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "payBill 直分 + 0-fee 跳过", "use": "Payment.sol", "grade": "modify", "action": "payBill 去 payable + CEI 先置 isPaid=true + safeTransferFrom(user->operator.paymentAddress, amount) + if(fee>0) safeTransferFrom(user->platformWallet, fee) + require(paymentAddress!=0) + nonReentrant"},
-        {"need": "createBill fail-fast", "use": "Payment.sol", "grade": "modify", "action": "createBill require serviceManager.getOperator(operatorId).paymentAddress != 0"},
-        {"need": "分账地址 setter", "use": "ServiceManager.sol", "grade": "modify", "action": "新增 setOperatorPaymentAddress(uint256 id, address addr) onlyOwner + require(addr != address(0))"}
+        {"need": "真实事件同步", "use": "internal/sync/event_sync.go", "grade": "modify", "action": "替换 sleep 空转为 FilterLogs 轮询(分页+last-block(blockHash)持久化) + 8 事件 abigen Filterer 解码 + 6 位精度(SetString 校验 ok fail-fast) + (txHash,logIndex)去重 + reorg 检测(父哈希断回退重扫) + pending→seen→confirmed 两阶段(资金事件等 K 块) + process 修正"},
+        {"need": "topic 修正", "use": "internal/blockchain/signatures.go", "grade": "modify", "action": "BillCreated 改 4 参 + 新增 TrafficCardApplied/UsageDataSubmitted/DepositWithdrawn；仅日志/轻量过滤用"},
+        {"need": "对账字段", "use": "internal/models/models.go", "grade": "modify", "action": "Bill 加 OnChainBillID/PayIntentTxHash；Deposit 加 Status/BlockHash"}
       ],
-      "depends": ["T2-erc20-migration"],
-      "gate": "compile 绿；PAY-01/02/03/04 单测通过",
-      "acceptance": ["分账正确性 PAY-02", "零地址校验 PAY-03", "0-fee 跳过", "createBill fail-fast"]
+      "depends": ["T1-abigen", "T2-config"],
+      "gate": "go build 绿 + simulated.Backend 解码 + reorg 回退 + 两阶段确认单测",
+      "acceptance": ["8 事件类型安全解码", "UsageDataSubmitted 只 user indexed", "BillCreated 第三参含费总额", "reorg 回退未确认记录", "资金事件等 K 块才置终态"]
     },
-    "T4-auto-issue-pricing": {
-      "task": "自动发卡 _mintFor + onlyOracle + continue 跳过 + dataAmount=trafficCardQuota",
-      "phase": "P4",
+    "T5-pricing": {
+      "task": "PricingService 费率表 + usage 上界 L1 + 单 bill 上限 + 单位锁 MB/min + operatorId 固定映射 + 启动 sanity check",
+      "phase": "T5",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "发卡逻辑收敛(B3/v2-C/A1)", "use": "Deposit.sol", "grade": "modify", "action": "抽 internal _mintFor(user)（三校验 now>=lockExpiry && deposits>0 && userCardCount==0 + trafficCardNFT.mint(user, trafficCardQuota, uri)）；mintTrafficCard(onlyOwner) 重构为 _mintFor 薄壳；issueMonthlyTrafficCards(onlyOracle) 循环 _mintFor + 校验失败 continue(不整批 revert) + nonReentrant(A1)；dataAmount=trafficCardQuota 固定，删 L76 _deposits/100000"},
-        {"need": "禁用 mintBatch", "use": "TrafficCardNFT.sol", "grade": "modify", "action": "mintBatch(L77 this.mint() 撞 onlyOwner) 不接入发卡链路（保留或留注释）"}
+        {"need": "计价引擎", "use": "internal/services/pricing.go", "grade": "new", "action": "OperatorRate 费率表(big.Int 6 位 PLACEHOLDER+启动 warn) + Price(operatorId,dataMB,callMin)→amount6 纯整数；usage 上界 L1(MAX_DATA_MB/MAX_CALL_MIN 拒绝) + amount6 单 bill 上限(MAX_BILL_PER_USER) + 单位锁 MB/min"},
+        {"need": "operatorId 映射", "use": "internal/services/oracle.go", "grade": "modify", "action": "废弃 GetBill 随机金额；operatorId 直接用 Operator.ID(=链上 1..11) 不靠 name 比对 + 启动读链 sanity check 不一致 fail/warn"},
+        {"need": "seed 固定 ID", "use": "cmd/main.go", "grade": "modify", "action": "11 运营商 seed 显式 ID=1..11 + RequiredDeposit 改 6 位整数 + 存量迁移"}
       ],
-      "depends": ["T3-revenue-split"],
-      "gate": "compile 绿；ISS-01/02/03/04/05 单测通过",
-      "acceptance": ["B3 _mintFor 不撞 onlyOwner", "B3 continue 不整批回滚", "B4/v2-C dataAmount 固定无 /100000", "A1 nonReentrant"]
+      "depends": ["T3-client"],
+      "gate": "go build 绿 + 计价复算/上界/精度/operatorId 映射断言单测",
+      "acceptance": ["纯整数 6 位可复算", "usage 超界拒绝+告警", "operatorId 固定映射", "sanity check 不一致 fail/warn"]
     },
-    "T5-deploy": {
-      "task": "hardhat.config 421614 + MockUSDT + deploy.ts 补 B2 授权拓扑 + 断言 + handoff",
-      "phase": "P5",
+    "T6-batch-circuit": {
+      "task": "FetchAndCreateBills 重写：组批 ≤25 + 金额闸 L2 + 熔断(含冷启动回退) + 结算批次幂等键",
+      "phase": "T6",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "mock USDT", "use": "contracts/mocks/MockUSDT.sol", "grade": "create", "action": "OZ ERC20 + decimals() override 返回 6 + public mint(to,amount) + symbol USDT"},
-        {"need": "加 421614 网络", "use": "hardhat.config.ts", "grade": "modify", "action": "新增 arbitrum_sepolia(chainId 421614, rpc, accounts)；evmVersion/viaIR 维持(待 T1.5 确认)"},
-        {"need": "deploy wiring(B2/arch ⚠️4)", "use": "scripts/deploy.ts", "grade": "modify", "action": "步骤0 部署 MockUSDT；initialize 参数个数同步 deployProxy 参数数组(Deposit+usdt / Payment+usdt+serviceManager)；补 payment.setOracle + oracle.setPayment + 循环 setOperatorPaymentAddress(11 运营商)；保留现有 setTrafficCardNFT/setDeposit/setOracle/setPlatformWallet/transferOwnership；部署后断言 payment.oracle()==oracle / oracle.payment()==payment / deposit.oracle()==oracle / NFT.owner()==deposit / active operator.paymentAddress!=0"},
-        {"need": "产物 + storage 冻结", "use": "deployments/<net>.json", "grade": "modify", "action": "加 usdt/usdtDecimals/storageLayout/abiHash 字段"},
-        {"need": "后端 handoff", "use": "docs handoff", "grade": "create", "action": "冻结 ABI + selector 变更清单(deposit/payBill 改 selector, monthlySettlement 新签名, 新增 issueMonthlyTrafficCards/applyTrafficCardToBill/setOperatorPaymentAddress/oracle.setPayment) + 金额精度语义(USDT/decimals) + 批量分批约定 + applyTrafficCardToBill 桩语义"}
+        {"need": "组批 + 熔断", "use": "internal/services/oracle.go", "grade": "modify", "action": "组批切片每批 users≤25 + L2(单批 sum≤MAX_BATCH_TOTAL + 超月均×N 熔断 + 冷启动/均值=0 回退绝对闸) + 逐批调 client.MonthlySettlement + 失败批幂等续跑"},
+        {"need": "批次幂等键", "use": "internal/models/models.go", "grade": "modify", "action": "结算批次表(month+batchIndex 唯一键，已确认批不重发)"},
+        {"need": "分批摘要返回", "use": "internal/handlers/handlers.go", "grade": "modify", "action": "TriggerMonthlyBill 返回成功批数/失败批/txHashes 摘要"}
       ],
-      "depends": ["T4-auto-issue-pricing"],
-      "gate": "31337 + 421614 两处 deploy 成功；部署后断言全过",
-      "acceptance": ["req A.3 两处部署", "req A.4 mock USDT", "B2 权限链 deploy 跑通", "arch ⚠️4 参数数组同步", "handoff 交付物"]
+      "depends": ["T5-pricing"],
+      "gate": "go build 绿 + 分批切片/熔断(含冷启动回退)/幂等不重发单测",
+      "acceptance": ["每批≤25", "L2 熔断暂停", "冷启动回退 MAX_BATCH_TOTAL 绝对闸", "month+batchIndex 不重发"]
     },
-    "T6-tests": {
-      "task": "补测全清单 + 26 it 回归不破 + payable 旧用例重写",
-      "phase": "P6",
+    "T7-auth": {
+      "task": "AdminAuth + WalletAuth 双中间件 + 端点按 §6.6 挂载 + bills/pay 降级 pending + MarkAsPaid 收口 + CORS 收口",
+      "phase": "T7",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "新增/集成/非标/压测用例", "use": "test/erc20.ts", "grade": "create", "action": "MIN-01/02 + ERC-01~03 + PAY-01~04 + ISS-01~05 + MS-01~03(B6 集成) + ATC-01/02(桩权限/存在性) + USDT-01/02(B7 SafeERC20 分支) + DEC-01 + GAS-01(批量压测定 N) + REG-01/02(续期/未注册重写)"},
-        {"need": "非标 USDT mock", "use": "contracts/mocks/", "grade": "create", "action": "transfer/transferFrom 无返回值 mock + 返回 false 恶意 mock，验 SafeERC20 分支"},
-        {"need": "回归重写", "use": "test/linkworld.ts", "grade": "modify", "action": "现有 26 it 金额改 USDT 精度(usdt=(n)=>BigInt(n)*10n**6n)；旧 {value} payable 调用重写为 approve+deposit(amount)/payBill(id)；删 v1 UPG-01(本轮 fresh deploy 不升级)"}
+        {"need": "双鉴权中间件", "use": "internal/handlers/middleware.go", "grade": "new", "action": "AdminAuth(subtle.ConstantTimeCompare,缺 key 启动 fail) + WalletAuth(EIP-712 ecrecover 绑 wallet + 服务端一次性 nonce 台账,禁纯 timestamp)"},
+        {"need": "端点挂载 + 降级", "use": "internal/handlers/handlers.go", "grade": "modify", "action": "按 §6.6 挂鉴权(oracle/monthly-bill+notification/send+usage/submit=AdminAuth；bills/pay+withdraw+deposit+service/activate=WalletAuth；读端点公开)；bills/pay 写 PayIntentTxHash 不置 IsPaid；withdraw 不收 txHash 记账；usage/submit gin max= 校验"},
+        {"need": "对账路径收口", "use": "internal/services/services.go", "grade": "modify", "action": "MarkAsPaid 不导出给 HTTP(仅 event_sync 内部调) + RecordWithdraw(凭前端 txHash)废弃 + 余额只算 confirmed"},
+        {"need": "CORS + 中间件挂载", "use": "cmd/main.go", "grade": "modify", "action": "挂中间件 + CORS 禁 *+credentials(allowlist) + password 改 crypto/rand"}
       ],
-      "depends": ["T5-deploy"],
-      "gate": "全部新增用例 + 26 回归 it 绿",
-      "acceptance": ["B6 MS/ATC 覆盖", "B7 USDT-01/02", "GAS-01 上限写入 handoff", "REG 回归重写", "26 it 不破"]
+      "depends": ["T4-event-sync"],
+      "gate": "go build 绿 + AdminAuth/WalletAuth/nonce 防重放/降级 pending 单测",
+      "acceptance": ["AdminAuth 常量时间+缺 key fail", "WalletAuth nonce 台账防重放(禁纯 timestamp)", "bills/pay 不置 IsPaid", "withdraw 不收 txHash", "CORS 禁 *+credentials"]
+    },
+    "T8-test": {
+      "task": "simulated.Backend 部署真实绑定测分批结算/事件解码/operatorId + 计价/上界/精度 + 鉴权/nonce 防重放 + reorg/幂等单测；go test 覆盖",
+      "phase": "T8",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "链集成测试", "use": "internal/blockchain/client_test.go", "grade": "new", "action": "simulated.Backend 部署真实绑定测分批结算 + L3 拒发 + nonce 不复用 + WaitMined"},
+        {"need": "事件同步测试", "use": "internal/sync/event_sync_test.go", "grade": "new", "action": "simulated.Backend 8 事件解码 + reorg 回退 + 两阶段确认 + 去重"},
+        {"need": "计价测试", "use": "internal/services/oracle_test.go", "grade": "new", "action": "计价复算/上界拒绝/精度/operatorId 映射断言 + 组批切片/熔断(冷启动回退)/幂等不重发"},
+        {"need": "鉴权测试", "use": "internal/handlers/middleware_test.go", "grade": "new", "action": "AdminAuth/WalletAuth/nonce 防重放(同签名二次提交被拒)/降级 pending 中间件测"}
+      ],
+      "depends": ["T1-abigen", "T2-config", "T3-client", "T4-event-sync", "T5-pricing", "T6-batch-circuit", "T7-auth"],
+      "gate": "go test ./... 全绿",
+      "acceptance": ["simulated.Backend 端到端断言过", "覆盖计价/事件/鉴权/reorg/幂等/nonce"]
     }
   }
 }

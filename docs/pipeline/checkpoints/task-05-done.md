@@ -1,45 +1,45 @@
-# Task 05 — T4 自动发卡 + 计价修正 (P4)
+# Task 05 — T5 计价 PricingService + operatorId 固定映射（后端 2/3）
 
-> 子项目 contracts(1/3) | 状态 DONE | 2026-06-08
+> 子项目 backend(2/3) | 状态 DONE | 2026-06-09
 
 ### 产出文件
-- packages/contracts/contracts/Deposit.sol（引入 ReentrancyGuardTransient；新增 internal _canMint 三校验 + _mintFor 固定 trafficCardQuota 发卡，删 _deposits/100000；mintTrafficCard 重构为 onlyOwner+nonReentrant 薄壳；issueMonthlyTrafficCards 真实实现 onlyOracle+nonReentrant+循环 continue 跳过不整批 revert）
-- packages/contracts/contracts/Oracle.sol（monthlySettlement 改签名 (users,operatorIds,amounts[])，删 dataUsage+callUsage 求和，createBill 传 amounts[i]；UsageDataSubmitted 改 (user,operatorId,amount) 仅喂价；length 校验保留）
-- packages/contracts/contracts/TrafficCardNFT.sol（mintBatch 加 dead-code 勿用注释）
-- packages/contracts/test/linkworld.ts（新增 "T4 自动发卡+计价" describe，11 用例）
+- packages/backend/internal/services/pricing.go（新：PricingService + OperatorRate 费率表 big.Int 6 位 + Price() + 占位费率/上界常量）
+- packages/backend/internal/services/operatorid.go（新：SeedOperators 单一事实源 + ChainOperatorID + SanityCheckOperators + OperatorChainReader 接口 + ServiceManagerCaller 适配器）
+- packages/backend/internal/services/{pricing_test.go,operatorid_test.go}（新：PRICE-01..05 + OPID-01..03）
+- packages/backend/internal/services/oracle.go（删 GetBill rand.Intn 随机金额；OperatorAPI 收敛为只 GetUsage；OracleServiceV2 注入 PricingService；FetchAndCreateBills 改 GetUsage→Price 确定计价）
+- packages/backend/cmd/main.go（seed 改 SeedOperators 显式 ID=1..11 + 构造 PricingService + 启动 operatorId sanity check 占位降级）
 
 ### git commit
-6bd6280 feat: 合约 T4 自动发卡（_mintFor+onlyOracle+幂等+nonReentrant）+ 固定 quota + monthlySettlement 计价改 amounts[]
+cb0576e feat: 后端 T5 计价 PricingService(费率表+usage上界L1) + operatorId 固定映射
 
 ### TDD
-先红后绿：测试先写，实现前 10 failing（MS 旧4参签名 no matching fragment、ISS/DEC 未发卡 Card not found）→ 实现后 66 passing 全转绿。
+先红后绿：先写 pricing_test.go+operatorid_test.go → 红(NewPricingService/SeedOperators/ChainOperatorID/MaxDataMB undefined build failed) → 实现 → 绿(ok 0.68s)。
 
 ### 测试结果
-hardhat compile 0 error（仅 2 个 pre-existing warning，非本轮引入）。hardhat test：66 passing / 0 failing（基线 55 + 新 11：ISS-01~05、DEC、DEC-2、MS-01~04）。主 Agent 已独立复跑确认 66 passing（ISS-03 幂等/ISS-04 混合批/ISS-05 固定 quota/MS-01 计价 均绿）。
+go build ./... 0 error。go test ./... 全绿无回归。T5 用例：PRICE-01 固定金额/PRICE-02 usage 上界/PRICE-03 单 bill 上限/PRICE-04 纯整数无浮点(5 子)/PRICE-05 未知运营商/OPID-01 固定映射/OPID-02 sanity check/OPID-03 零地址/SeedShape。主 Agent 已独立复跑确认 build exit 0 + services test ok。
 
 ### code-simplifier
-_canMint/_mintFor 抽取消除 mintTrafficCard 与 issueMonthlyTrafficCards 的校验/发卡逻辑重复（DRY）；monthlySettlement 删求和后逻辑更直白。
+SeedOperators 单一事实源消除 seed 重复；MaxBillPerUser 复用 blockchain 常量（L1/L3 单一事实源不漂移）；OperatorAPI 接口收敛只剩 GetUsage。
 
 ### spec review
-严格按 design §3.1/§4.1/§4.4/v2-A/v2-C + arch-review B1/B3/A1 执行：固定 quota（删 _deposits/100000）、_mintFor internal 不撞 onlyOwner、continue 跳过不整批 revert、幂等 getUserCardCount==0、issueMonthlyTrafficCards+mintTrafficCard 加 nonReentrant、monthlySettlement amounts[] 无求和、禁用 mintBatch。无偏差。
+按 design v2 §4.2/§4.5/§7.0 + arch-review B4 + CEO(占位刺眼化/usage 仍模拟) 执行。usage 上界 L1+单 bill 上限+纯整数计价、operatorId 固定映射不靠 name 比对+sanity check。未越界（组批/熔断 L2 留 T6，handler/鉴权留 T7）。
 
 ### 设计还原
-合约无 UI。design §3.1 状态机落地：锁仓满→issueMonthlyTrafficCards(三校验)→_mintFor→mint NFT(quota 固定)→持卡。§4.4 计价：Oracle 不计价，createBill 收后端算好的 amounts[i]。
+后端无 UI。design §4.2 计价 + §4.5 operatorId 逐项落地：amount6=dataMB×单价+callMin×单价 纯 big.Int，seed ID=链上 operatorId 强契约。
 
 ### 复用检查
-复用 OZ ReentrancyGuardTransient（与 T3 Payment 同栈）、TrafficCardNFT.mint/getUserCardCount、trafficCardQuota state（initialize 已设 100MB）；_mintFor 被 mintTrafficCard 与 issueMonthlyTrafficCards 共用，无重复实现。
+复用 blockchain.MaxBillPerUser（L1/L3 同源）；复用现有 OracleServiceV2 注入扩展；SeedOperators 与 ServiceManager.initialize(id=1..11,countryCode US..PH) 逐一核对对齐。
 
 ### 设计稿对照
-数值对照：dataAmount=trafficCardQuota=100MB 固定（ISS-05/DEC 验证存 10 vs 20 USDT 发卡 quota 一致）vs v2-C ✅；发卡三校验 now≥lockExpiry && deposits>0 && cardCount==0 vs §3.1 ✅；monthlySettlement createBill amount==amounts[i]（MS-01，不再 usage 求和）vs v2-A ✅；nonReentrant 覆盖发卡 2 入口 vs A1 ✅；测试 66 passing（55+11）vs 无回归 ✅；compile error 0 ✅。
+数值对照：PRICE-01 精确断言 100MB×10000+10min×5000=1_050_000 vs 计价公式 ✅；usage 上界 MaxDataMB=1e6/MaxCallMin=1e5 vs B4 ✅；单 bill 上限==blockchain.MaxBillPerUser（PRICE-03 断言相等，L1/L3 不漂移）✅；operatorId seed ID 1..11 vs 链上 ✅；占位费率刺眼 PLACEHOLDER+启动 warn vs CEO ✅；9 测全绿 ✅；go build 0 ✅。
 
 ### 新增组件
-无新增合约。新增 Deposit 函数：internal _canMint、_mintFor；issueMonthlyTrafficCards 从空实现→真实实现。
+新增 PricingService/OperatorRate/SeedOperators/ChainOperatorID/SanityCheckOperators/OperatorChainReader；删 GetBill。无新增业务合约。
 
 ### 新增色值
-无（合约任务）。
+无（后端任务）。
 
-### 遗留（带入 T5/T6）
-- nonReentrant 为发卡路径主防护（NFT _userCardCount++ 在 _safeMint 回调后，依赖 guard 而非 CEI 顺序）——T5 需在 421614 实测 transient guard 真生效。
-- monthlySettlement 签名定型 (users,operatorIds,amounts[]) — 给后端子项 2/3 的 handoff。
-- Oracle _monthlyUsage/_latestUsage/UsageInfo 成 dead state（新签名不读），未删以保 UUPS layout，后续 Round 评估。
-- T5：deploy.ts 补 oracle.setPayment + initialize 参数同步。
+### ⚠️ 遗留（带入 T6/T7）
+- T6：FetchAndCreateBills 当前是逐 user 写 DB Bill 骨架（已用 PricingService 出确定金额），T6 重写为组批 ≤25 + L2 熔断 + 逐批 client.MonthlySettlement + 月度幂等键；组批传 operatorIds[] 用 services.ChainOperatorID(op.ID)。Bill.PlatformFee 当前 "0"，待用链上 FeeManager 回填。
+- T7：TriggerMonthlyBill handler 待加 AdminAuth + 分批结果摘要。
+- usage 仍 rand 模拟（计价引擎正确≠计费正确，真实计量后续 Round）；占位费率/上界待产品拍真值。

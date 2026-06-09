@@ -1,35 +1,47 @@
 package blockchain
 
 import (
-	"encoding/hex"
-
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// Event signatures (keccak256 hashes)
+// 事件 topic0（keccak256(签名)）。
+//
+// design §5.2 / §6.3 铁律：字段解码一律走 abigen `*Filterer.Parse*`（类型安全），本文件仅供
+// 轻量过滤 / 日志用，不参与字段解码。topic0 取自冻结 ABI 注释的权威值（与 bindings 中 abigen
+// 注释的 event ID 一致），避免手写签名字符串再 keccak 出错（历史 bug：BillCreated 写成 5 参）。
+//
+// 与 internal/blockchain/bindings 的 abigen 注释逐一核对（FilterXxx 函数上方 "binding the
+// contract event 0x..." 即该事件 topic0）。
 var (
-	// UserRegistered(address,string,uint256) - computed at runtime
-	UserRegisteredTopic = crypto.Keccak256Hash([]byte("UserRegistered(address,string,uint256)"))
+	// UserRegistered(address indexed user, string email, uint256 tokenId)
+	UserRegisteredTopic = common.HexToHash("0x89105a1c6a3c2fbd471255c66a31ccab604af5697f67d7e2e9a0028c5e4dbd91")
+
+	// DepositMade(address indexed user, uint256 amount)
+	DepositMadeTopic = common.HexToHash("0xd15c9547ea5c06670c0010ce19bc32d54682a4b3801ece7f3ab0c3f17106b4bb")
+
+	// DepositWithdrawn(address indexed user, uint256 principal, uint256 interest)
+	DepositWithdrawnTopic = common.HexToHash("0x7719804546c0185709e60c90d164447ff251a5ba29af0216faa921350f6bebf7")
+
+	// BillCreated(uint256 indexed billId, address indexed user, uint256 totalAmount, uint256 platformFee)
+	// 注意：4 参（旧 signatures.go 错写 5 参，topic 匹配不到）。第三参 totalAmount = amount + platformFee 含费总额。
+	BillCreatedTopic = common.HexToHash("0xcdfdeecd9f301cb609cbfd87c3a7f1e4d3da395ff0ba5084da583d3b6deced21")
+
+	// BillPaid(uint256 indexed billId, address indexed user, uint256 totalAmount, uint256 operatorAmount)
+	BillPaidTopic = common.HexToHash("0x53646f88205e1dd1de6fdaa8898d840fbe17129cb98729533d3c83a3a0e6045a")
+
+	// TrafficCardMinted(address indexed user, uint256 tokenId, uint256 dataAmount)（Deposit 合约 emit）
+	TrafficCardMintedTopic = common.HexToHash("0x3072026fc6418657755f94a3ef0972a28bb4266b72de75d96c3e999d4ff7067d")
+
+	// CardMinted(address indexed user, uint256 tokenId, uint256 dataAmount)（TrafficCardNFT 合约 emit）
+	CardMintedTopic = common.HexToHash("0xcb1c56d5745b05695241c17b7cfaece9a64f70bc32508c0997990633be8056ff")
+
+	// ServiceActivated(address indexed user, uint256 expiresAt)
+	ServiceActivatedTopic = common.HexToHash("0xb80b22a2820bc6903467108d07f27d58e62385559f0805156d5a6d884ad086fb")
+
+	// TrafficCardApplied(uint256 indexed billId)（桩事件，仅记录不改金额）
+	TrafficCardAppliedTopic = common.HexToHash("0x6ee1062e7611525ff44a2bea1e6ccffff047903a965c69aa96334ad680cd8701")
+
+	// UsageDataSubmitted(address indexed user, uint256 operatorId, uint256 amount)
+	// 只有 user indexed；operatorId/amount 在 data 区（design §6.3 解码歧义澄清）。
+	UsageDataSubmittedTopic = common.HexToHash("0x02511b012a361a308c6f48148bcde643071e85e39257f525372ff1161aaf7c9b")
 )
-
-// DepositMadeTopic for Deposit contract
-var DepositMadeTopic = crypto.Keccak256Hash([]byte("DepositMade(address,uint256)"))
-
-// BillCreatedTopic for Payment contract
-var BillCreatedTopic = crypto.Keccak256Hash([]byte("BillCreated(uint256,address,uint256,uint256,uint256)"))
-
-// BillPaidTopic for Payment contract
-var BillPaidTopic = crypto.Keccak256Hash([]byte("BillPaid(uint256,address,uint256,uint256)"))
-
-// TrafficCardMintedTopic for Deposit contract
-var TrafficCardMintedTopic = crypto.Keccak256Hash([]byte("TrafficCardMinted(address,uint256,uint256)"))
-
-func init() {
-	_ = common.HexToHash("0x") // verify common import works
-}
-
-// ComputeUserRegisteredSig returns the event signature for UserRegistered
-func ComputeUserRegisteredSig() string {
-	return hex.EncodeToString(UserRegisteredTopic.Bytes())
-}

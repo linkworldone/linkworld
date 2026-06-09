@@ -1,42 +1,48 @@
-# Task 07 — T6 补测扫尾 (P6)
+# Task 07 — T7 鉴权 + 端点加固 + main 装配（后端 2/3）
 
-> 子项目 contracts(1/3) | 状态 DONE | 2026-06-08 | implement 阶段最后一棒
+> 子项目 backend(2/3) | 状态 DONE | 2026-06-09
 
 ### 产出文件
-- packages/contracts/contracts/mocks/NonStandardUSDT.sol（新建：NoReturnUSDT 无返回值 + FalseReturnUSDT 返回 false，仅测试桩，验 SafeERC20）
-- packages/contracts/test/t6-audit.ts（新建：T6 补测 9 用例）
-- docs/design/linkworld-contracts/handoff-backend.md（回填 §5.1 GAS-01 压测结论：批量安全上限）
+- packages/backend/internal/middleware/middleware.go（新：NewAdminAuth ConstantTimeCompare 缺 key error；WalletAuthDigest EIP-712 TypedData 绑 name/version/chainId；NewWalletAuth ecrecover 绑 wallet + 消费 nonce）
+- packages/backend/internal/middleware/*_test.go（ADMIN-01/WALLET-01~04）
+- packages/backend/internal/models/models.go（新增 WalletNonce 一次性台账：Wallet+Nonce 唯一+Used+ExpiresAt）
+- packages/backend/internal/repository/repository.go（WalletNonceRepository：Issue crypto/rand 签发 + Consume 条件 UPDATE 原子消费防并发重放 + Migrate；BillRepository.SetPayIntent）
+- packages/backend/internal/services/services.go（RecordPayIntent B2；Deposit Status=pending；RecordPendingWithdraw B3 废弃凭 txHash 记账；MarkAsPaid 标注仅 event_sync 内部）
+- packages/backend/internal/handlers/handlers.go（PayBill→RecordPayIntent、Withdraw→RecordPendingWithdraw、SubmitUsage binding max=、TriggerMonthlyBill→SettleMonthlyOnChain 返 SettlementSummary、新增 GetWalletNonce 公开端点）+ handlers_test.go
+- packages/backend/cmd/main.go（nonceRepo Migrate；AdminAuth 缺 key fail-fast；WalletAuth 绑 chainID；结算编排器条件装配；CORS 收口放行鉴权头无 *；按 §6.6 挂中间件）
 
 ### git commit
-be41424 test: 合约 T6 补测扫尾（GAS-01 压测+SafeERC20 非标+续期回归）
+ef8513e feat: 后端 T7 鉴权(AdminAuth+WalletAuth nonce台账)+端点加固+bills/pay降级+main.go装配+CORS收口
 
 ### TDD
-补测阶段，测试即产物。新增 9 用例全绿，未发现合约 bug（未改任何合约业务逻辑）。
+先红后绿：①middleware 测试先写→undefined(WalletNonce/NewAdminAuth/WalletAuthDigest) 编译红→实现绿；②handler 测试先写→PAY-INTENT-01 IsPaid=true 断言红 + USAGE-01 超 max got 200 红→改 service/handler 绿。
 
 ### 测试结果
-hardhat compile 0 error。hardhat test：75 passing / 0 failing（原 66 + 新 9：USDT-01/01b/02/02b、REG-01a/01b、ERC-04、GAS-01/01b）。主 Agent 已独立复跑确认 75 passing。
+go build ./... 0 error。go test ./... 全绿（config/handlers/middleware/services/sync 全 ok，T1-T6 无回归）。用例：AdminAuth(缺key启动fail/正确过/错误·缺header 401)、WalletAuth(ValidSignature过/**ReplayNonce 拒绝 🔴/**WrongChainID/WalletMismatch/UnknownNonce 拒绝)、PayBill_WritesIntent_NotPaid、Withdraw_PendingIntent_NotCountedInBalance、SubmitUsage_OverMax_400/WithinMax_OK。主 Agent 已独立复跑确认 build exit 0 + 全包 test ok。
 
 ### code-simplifier
-仅新增测试 + 测试桩 mock，无业务代码改动。
+中间件单一职责；nonce 消费用条件 UPDATE 原子化（无锁）；复用 crypto/subtle/go-ethereum crypto。
 
 ### spec review
-按 design §八补测清单 + arch-review（GAS-01/USDT-01·02/REG）执行：design §八全清单闭合（UPG-01 N-A，本轮 fresh deploy 不升级）；§十复审重点 B6(MS/ATC)/B7(非标 USDT)/批量 gas 上限均落测并回填 handoff。
+按 design v2 §6.6/§4.3/§4.4 + arch-review N1 红线/B2/B3/CORS 执行。**N1：服务端一次性 nonce 台账(消费式 Used 标记，签过即作废，非纯 timestamp)+EIP-712 绑 chainId/domain**——WALLET-02 重放测拒绝验证。未越界（T8 测试扫尾留 T8；client/event_sync/settlement 核心只调用）。
 
 ### 设计还原
-合约无 UI。design §八验收测试清单逐项落地（见覆盖审计表）。
+后端无 UI。design §6.6 鉴权 + §4.3 对账降级逐项落地：端点鉴权清单挂载、bills/pay 写 PayIntentTxHash 不置 IsPaid、withdraw 不凭 txHash 记账。
 
 ### 复用检查
-复用现有 test/{linkworld,erc20,payment}.ts 已有用例（不重复，仅补真缺口）；复用 MockUSDT；新建非标 mock 仅测试。
+复用 go-ethereum crypto(Ecrecover/SigToPub)、crypto/subtle ConstantTimeCompare、T4 的 IsPaid 唯一事件回填(MarkPaidByOnChainID)、T6 的 SettleMonthlyOnChain；MarkAsPaid 不导出 HTTP 仅 event_sync 备用。
 
 ### 设计稿对照
-数值对照：最终 75 passing（66+9）vs 无回归 ✅；GAS-01 实测 issueMonthlyTrafficCards per-user≈230k → N≤50、monthlySettlement 全链路 per-user≈432k → N≤25（按 15M 单批预算）已回填 handoff §5.1 ✅；非标 USDT（无返回值/返回 false）SafeERC20 行为正确（入账/revert）vs §6.1 ✅；REG-01 续期不变量（未到期叠加/到期重置）vs §3.1 ✅；compile error 0 ✅。
+数值对照：WalletAuth 一次性 nonce 重放拒绝(WALLET-02)vs N1 红线 ✅；EIP-712 绑 chainId(WALLET-03 错 chainId 拒)vs N1 ✅；bills/pay IsPaid 仍 false(PAY-INTENT-01)vs B2 ✅；withdraw pending 不计入余额(WD-01)vs B3 ✅；usage 超 max=1000000/100000→400(USAGE-01)vs B4 ✅；CORS 无 * 固定白名单 ✅；端点鉴权 18 端点全覆盖 ✅；go build 0 ✅。
 
 ### 新增组件
-新增测试 mock：NonStandardUSDT.sol（NoReturnUSDT/FalseReturnUSDT）。无新增业务合约。
+新增 middleware(AdminAuth/WalletAuth/WalletAuthDigest)、WalletNonce 模型、WalletNonceRepository、GetWalletNonce 端点、RecordPayIntent/RecordPendingWithdraw/SetPayIntent。无新增业务合约。
 
 ### 新增色值
-无（合约任务）。
+无（后端任务）。
 
-### implement 阶段总结（T1-T6 全完成）
-T1 修编译(e4bd81d) → T1.5 删无效 assembly(b55ef16) → T2 Deposit ERC20(5fcccff) → T3 Payment 分账(c6838e8) → T4 自动发卡+计价(6bd6280) → T5 部署+handoff(ebc4b41) → T6 补测(be41424)。最终 75 passing，无合约 bug。可进 test 阶段。
-遗留（非 implement 范畴）：421614 真·上链 + TSTORE 链上实测需配 DEPLOYER_PRIVATE_KEY 后执行（handoff §10）。
+### ⚠️ 遗留（带入 T8）
+- T8 端到端可用 middleware.WalletAuthDigest 构造签名头驱动受保护端点。
+- MarkAsPaid 现无 HTTP 调用方（保留供 event_sync 备用），T8 可决定是否清理。
+- WalletNonce 仅 Used 标记+10min 兜底过期，未加过期清理 job（不影响正确性，台账会增长）；后续可加。
+- SettlementSummary=null 降级分支序列化 T8 注意。
