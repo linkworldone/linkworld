@@ -1,6 +1,6 @@
 # Stage: arch-review — 三角色架构审查 + 安全审计（子项目 backend 2/3）
 
-> **状态**: BLOCKED（含 ❌ 阻塞，需返工 design 重跑） | **日期**: 2026-06-09 | **Gate**: 1
+> **状态**: PASS（第1轮 BLOCKED → design v2 返工 → 第2轮 Eng+Security 0 ❌ 通过） | **日期**: 2026-06-09 | **Gate**: 1
 > 审查对象：design.md（后端对齐设计）。三角色并行：CEO / Eng / 安全审计（替代 UI Design 路）。冲突优先级：安全/可行性 > 工程。
 
 ## 一、总裁决：BLOCK
@@ -37,3 +37,26 @@
 - CEO：1 ❌(B2 对账二选一 one-way door)+ 伪胜利风险 + T1 前置混淆 + owner=root。结论：方向 PASS 但 1 阻塞先消解。
 - Eng：0 ❌ DONE_WITH_CONCERNS，6 ⚠️(operatorId/abigen 解码/nonce 回执/simulated.Backend/BillCreated 含费/对账 pending)。现状诊断逐条源码核对属实，可落地。
 - 安全：BLOCK 5 ❌(owner 护栏/bills-pay 白嫖/withdraw 伪造/usage 上界/reorg)+9 ⚠️。架构判断专业但资损预防控制系统缺失。
+
+---
+
+## 七、第 2 轮复审（design v2，commit 9798789）— PASS
+
+design v2 闭合 B1-B5 + 6 ⚠️ + 新增 §7.0 资损预防控制专节 + handoff-web.md。Eng + Security 验证性复审，结论 0 ❌：
+
+| 阻塞 | 第1轮 | 第2轮 |
+|------|-------|-------|
+| B1 owner 金额护栏 | ❌Critical | ✅ 三层金额硬闸(L1计价/L2组批熔断/L3发交易前断言)+owner key 内存注入+owner=root 措辞+web exact approve |
+| B2 对账单一路径 | ❌Critical | ✅ IsPaid 唯一 BillPaid 事件回填、/api/bills/pay 降级 pending(PayIntentTxHash 解耦)、MarkAsPaid 不导出 HTTP |
+| B3 withdraw 伪造记账 | ❌ | ✅ 唯一 DepositWithdrawn 事件回填、HTTP 不收 txHash、改 WalletAuth(非 AdminAuth) |
+| B4 usage 上界 | ❌ | ✅ 三处校验(gin max=/Price 入口/模拟器)+amount6 单 bill 硬上限 |
+| B5 event_sync reorg | ❌ | ✅ K 块确认+reorg 检测(blockHash 父哈希)+pending→seen→confirmed 两阶段 |
+
+Eng 6 ⚠️ 全进 v2（operatorId 固定映射/abigen Filterer 解码/nonce 计数器+WaitMined/simulated.Backend/T1 前置拆分/对账 pending），go-ethereum v1.13.5 上技术手段均可构建（已核对）。
+
+**剩余 ❌：0。两方一致 PASS，可进 plan。**
+
+### 带入 implement 的验收红线（非阻塞，但 implement 复审会重挑）
+1. **🔴 N1（最关键）WalletAuth 防重放**：必须服务端一次性 nonce 台账(per-wallet 单调递增或消费式)+绑定 chainId/domain(推荐 EIP-712)，**禁止退化为纯 timestamp 时间窗**（否则窗口内签名可重放；当前因 B2/B3 单一对账路径兜底，重放爆炸半径限于 pending 噪声，故非阻塞但强制加固）。design §6.6/handoff-web §3「nonce 或 timestamp」二选一措辞应收紧为「nonce 强制+服务端状态」。
+2. **B1-L2 冷启动熔断**：历史月均熔断在首月/无样本时须回退到 MAX_BATCH_TOTAL 绝对闸，不得因均值=0 失效（L1/L3 绝对上限仍在，故非阻塞）。
+3. 占位常量(MAX_BILL_PER_USER/MAX_BATCH_TOTAL/N/K)待产品/运营/安全拍真值；operatorId seed 顺序待合约 PR#1 merge 后与 ServiceManager.initialize 核对；真机 421614 联调待合约上链。
