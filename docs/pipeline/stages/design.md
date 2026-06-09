@@ -1,585 +1,381 @@
-# Stage: design — 合约技术设计（子项目 contracts 1/3）
+# Stage: design — 后端技术设计（子项目 backend 2/3）
 
-> **状态**: v2（按 arch-review 返工） | **版本**: **v2** | **日期**: 2026-06-08 | **Gate**: 1（设计） | **子项目**: contracts(1/3) | **角色**: 架构师
-> **v2 说明**：本版按 arch-review（docs/pipeline/stages/arch-review.md）返工，**逐条闭合 7 大阻塞 B1–B7 + §三 14 项消歧/加固项 + 用户新拍板 3 决策**。变更可追溯见 §十一「arch-review 阻塞闭合对照表」。
-> 输入：requirement.md（PRD §三①/§五A·D/§六）+ scan.md（编译不过 + 7 发现）+ 4 份基线（project-scan / contracts-inventory / erc20-migration-surface / test-deploy-baseline）+ arch-review.md（B1–B7）。
-> 范围：**只产设计**，不改任何 .sol / 脚本 / 测试 / 配置（实现留 implement 阶段）。
-> 注：本文件取代 2026-06-07 旧 design.md（web 视觉版，属 web 子项 3/3，已因全栈反转重新分项）。
-
-### 锁定决策（用户已拍板，不再翻）
-**v1 原有 5 项**：
-- ① 全补齐不留 stub（**例外见 v2-B**：applyTrafficCardToBill 本轮明确冻结为受限桩）；
-- ② 运营商分账=链上直分（amount→operator.paymentAddress，fee→platform）；
-- ③ 自动发卡入口由后端/Oracle 定时调用；
-- ④ mock USDT 6 位精度，合约一律读 `usdt.decimals()` 不硬编码；
-- ⑤ 部署 Arbitrum Sepolia(421614) + 本地 hardhat(31337)，不上主网。
-
-**v2 新增 3 项（arch-review 后用户拍板，最高优先级，全文口径以此为准）**：
-- **v2-A｜计价模型（闭合 B1，🔴Critical）**：账单金额由**后端/Oracle 链下按资费算好后**作为已计价的 USDT 金额传入 `createBill`；**合约不做任何 usage 求和/换算**——`Oracle.monthlySettlement` **删除 `totalAmount = dataUsage + callUsage`** 逻辑，改为传入参数 `amounts[]`（已是 USDT 金额）。Oracle 角色收敛为「喂价/触发」，**不做计价**。
-- **v2-B｜applyTrafficCardToBill = 受限桩 + 语义冻结**：本轮**只实现为权限受控的桩**——`onlyOracle`，**不转移任何资金**，仅做账单存在性校验 + 可选 `emit` 事件，让 Oracle 调用链与编译走通即可。真实「流量卡抵扣账单」语义（额度来源、抵扣范围、精度）**明确冻结到后续 Round**；本轮补测面/资损面**移除其抵扣逻辑**，只测桩的权限与存在性校验。
-- **v2-C｜发卡额度（闭合 B4）**：`dataAmount = 固定 trafficCardQuota`（Deposit L17 已有 state，initialize 设 100MB），**与存款额、与精度彻底解耦**；**删除 `mintTrafficCard` L76 的 `_deposits[user] / 100000`**，全文（§一/§3.1/§4.1/§5.1/§6.1）统一为此口径。
+> **状态**: v1 | **日期**: 2026-06-09 | **Gate**: 1（设计） | **子项目**: backend(2/3) | **角色**: 架构师 | **分支**: backend/align-arbitrum-usdt
+> **输入**：合约 handoff-backend.md（冻结 ABI/selector + USDT 6 位 + 计价归后端 + 批量上限 N）+ scan.md（后端 8 大发现）+ 4 份基线（project-scan/blockchain-integration/services-api/alignment-surface）+ requirement.md §三②/§五B + 真实源码逐文件核对。
+> **用户已拍板锁定 3 决策**（见 §1.3），本设计据此展开，不再二次澄清。
+> **注**：合约子项目(1/3) 的 design 见 git commit `2b8d4a0`（本 stage 文件按子项目串行复用，前版已入库）。
+>
+> ⚠️ 本文档只产设计，不写 .go 代码。implement 阶段按 §8 任务划分执行。
 
 ---
 
-## 〇、已核对真实代码清单（含行号引用）
+## 1. 背景与目标
 
-本设计基于逐行核对，引用以下源码（均已 Read）：
+### 1.1 为什么（问题陈述）
 
-| 文件 | 关键行号 / 核对结论 |
-|------|---------------------|
-| `contracts/Deposit.sol` | `deposit() payable` L41-53；`withdraw() .call{value}` L56-68；`mintTrafficCard onlyOwner` L71-81，`dataAmount=_deposits[user]/100000` L76（**B4 根因·v2-C 改为固定 trafficCardQuota**）；`trafficCardQuota` state L17 + initialize 设 100MB L27；`issueMonthlyTrafficCards(onlyOracle)` L104-107 **空实现 / 注释占位**（B3：复用 onlyOwner `mintTrafficCard` 会 revert）；state L13-21（无 usdt）；`_operatorRequiredDeposit` L21 **从未被读** |
-| `contracts/Payment.sol` | `payBill() payable` L76-97；fee→platformWallet L86-89，**amount 无出口**；**`createBill` 是 `onlyOwner` L55**（已定义 `onlyOracle` modifier L20-23 但 createBill 未用 → **B2 根因**）；`ReentrancyGuardTransient` L11 + 自定义 `_reentrancyGuardInit` assembly L33-38（向 `_reentrancyGuardStorageSlot()` `sstore(slot,1)` → **B2 消歧·正确性需厘清**）；**无 `applyTrafficCardToBill`**（Oracle L85 调用 → 编译错误③）；**无 `setUSDT`** |
-| `contracts/FeeManager.sol` | `FEE_DENOMINATOR=10000` L10、`MAX_FEE_RATE=1000` L11、`calculateFee=amount*rate/10000` L34-36；满足 R5，本轮不改逻辑 |
-| `contracts/TrafficCardNFT.sol` | `mint onlyOwner` L45-62；`mintBatch onlyOwner` L65-80 **L77 `this.mint()` 外部调用会撞 onlyOwner → 自动发卡禁用**；`burn` L83-94 emit `ServiceActivated(now+30days)`；**L18 `DeductionCredit` 类型未定义（编译错误②/④）**；`onlyDeposit` L27-30 / `_deductionCredits` L18 dead code |
-| `contracts/Oracle.sol` | `deposit`/`payment` 声明为 `address` L10-11 却调 `.createBill`/`.issueMonthlyTrafficCards`/`.applyTrafficCardToBill`（**编译错误①根因**）；`UsageDataSubmitted` L71 **未声明（实测唯一报错点）**；**L68 `totalAmount = dataUsage + callUsage` → B1 量纲错误根因**；`monthlySettlement onlyOwner` L55；**无 `setPayment`**；文件尾内联 `IPayment`/`IDeposit` L105-122（IPayment 内联含 `applyTrafficCardToBill` L117，但 interfaces/IPayment.sol 无 → B5 漂移） |
-| `contracts/ServiceManager.sol` | 11 内置运营商 L21-153，`requiredDeposit` 用 `0.0xx ether`（18 位）；**全部 `paymentAddress=address(0)`**；`addOperator` 已带 paymentAddress 入参 L156-177，`updateOperator` L179-192 **无 paymentAddress 入参** |
-| `contracts/UserRegistry.sol` | 邮箱注册 L22-37，无 phone（对齐 R10）；本轮不改 |
-| `contracts/interfaces/*.sol` | `IDeposit.deposit() payable` L9，`IDeposit` **无 `issueMonthlyTrafficCards`（B5）**；`IPayment.payBill() payable` L19，`IPayment` **无 `applyTrafficCardToBill`（B5）**；`IServiceManager.Operator.paymentAddress` 已有 L12 |
-| `scripts/deploy.ts` | UUPS 全量 L9-89；现有 wiring L80-84（`trafficCardNFT.setDepositContract` / `deposit.setTrafficCardNFT` / `deposit.setOracle` / `payment.setPlatformWallet` / `oracle.setDeposit`）；`trafficCardNFT.transferOwnership(deposit)` L88（NFT owner→Deposit）；**缺 `payment.setOracle`、`oracle.setPayment`、operator.paymentAddress、mock USDT、`payment.setServiceManager`、`*.setUSDT`**；**Payment owner 仍是 deployer，Oracle 非 Payment owner → B2：`monthlySettlement→createBill(onlyOwner)` 必 revert** |
-| `hardhat.config.ts` | solidity 0.8.27 / `evmVersion:"cancun"` L15 / `viaIR:true` L16；networks 仅 31337/16600/16602 L19-35，**无 421614** |
-| `test/linkworld.ts` | 直接 `Factory.deploy()`+手动 `initialize`（不走 proxy）；全用 `parseEther`（18 位）；**无 withdraw/payBill/mintTrafficCard/最小额/升级 测试** |
+合约子项目(1/3)已完成 ERC20(USDT) 迁移 + selector 变更 + 计价归后端 + onlyOracle 权限收口，并产出冻结 ABI（handoff-backend.md）。但后端(2/3)**链集成几乎全为 stub**（scan 8 大发现，逐文件核对确认）：
 
-**实跑 `npx hardhat compile` 结论**：编译在 `Oracle.sol:71 UsageDataSubmitted` 第一个 DeclarationError 处中止（编译器只报首错）。修掉它后会暴露后续错误（Oracle address-vs-contract、TrafficCardNFT `DeductionCredit`），见 §六编译错误清单。
+- `blockchain/client.go`：业务方法全部返回零值/`not implemented`，无任何合约 ABI 绑定、无链上写交易。
+- `sync/event_sync.go`：主循环只 `time.Sleep(30s)` 空转，`FilterLogs`/`SubscribeFilterLogs` 从未调用，`process*` 永不触发。
+- `services/oracle.go`：「计价」是 `OperatorAPISimulator.GetBill` 返回 `rand.Intn(5000)+500` 随机数；`FetchAndCreateBills` 只写 DB Bill，**完全不碰 `monthlySettlement`/`createBill`**；`SignData` 是 SHA256 拼字符串（非 ECDSA）。
+- `config/config.go`：struct 读 `proxies` 键，但 `deployments.json` 写的是 `contracts` 键 → `Proxies` 永远反序列化为空 map（**真实 bug**，event sync 静默失效）。
+- `configs/deployments.json`：`chainId=16602`(0G) + `rpcUrl=evm-testnet.0g.ai` + 7 个 0G 旧地址；缺 `usdt`/`usdtDecimals`/`abiHash`。
+- `signatures.go`：`BillCreated` 是旧 5 参签名（冻结 ABI 是 4 参，topic hash 错匹配不到）；缺 `TrafficCardApplied`/`UsageDataSubmitted`。
 
----
-
-## 一、背景与目标
-
-### 1.1 为什么做这次合约改造
-合并自 origin 的合约（commit `7ef9677`）是**编译不过的半成品**，且 PRD Round1 全栈反转后确定把资金通道从原生币切到 ERC20 USDT、目标链切到 Arbitrum Sepolia。本轮合约层（子项 1/3）是后端（2/3）/web（3/3）的地基：合约不编译、ABI 不稳、地址不产出，后两子项无法对齐。
+→ 本子项目的「对齐」**不是改几处调用签名，而是从零接入链上写 + 真实事件同步 + 真实计价 + owner 签名 + 端点鉴权**。规模评估：链侧接近重写，业务 DB 层（services.go/repository/models）基本复用。
 
 ### 1.2 本轮范围边界
-**做**：① 修编译（4 类错误）；② Deposit/Payment ERC20 USDT 改写（approve+transferFrom、SafeERC20、最小额 10 USDT）；③ Payment 链上直分（amount→operator.paymentAddress，fee→platform）；④ TrafficCardNFT mint/burn/有效期 wiring；⑤ Oracle wiring（setPayment）+ **计价收敛（v2-A：createBill 接收链下算好的 USDT 金额，Oracle 不求和）** + `issueMonthlyTrafficCards` 真实自动发卡逻辑（走独立 `_mintFor`，**v2-C 固定 quota 发卡**）+ `applyTrafficCardToBill` **受限桩（v2-B，不转资金）**；⑥ mock USDT(6 decimals) 自部署；⑦ hardhat.config 加 421614 + deploy.ts 补 wiring（含 B2 ownership/授权拓扑）；⑧ 补测（验收 A.2 + B6 集成测试 + B7 非标 USDT）。
 
-**不做（红线）**：❌ 不上 Arbitrum One 主网；❌ 不加 phone 注册（R10）；❌ 不改业务路由/前端/后端；❌ 不引入新业务功能（实体 SIM 等留后续 Round）；❌ **流量卡抵扣账单真实语义**（v2-B 冻结到后续 Round，本轮只做桩）；❌ **运营商保证金校验**（`_operatorRequiredDeposit` 本轮明确废弃，不引入资金校验，见 §二消歧）；❌ **不升级任何旧 proxy**（16602/localhost 一律 fresh deploy，删除一切 storage layout 升级讨论的无效负担，见 §6.3）。
+| 做（in） | 不做（out / 留后续） |
+|----------|----------------------|
+| abigen 生成 8 份合约绑定（7 业务 + MockUSDT） | ❌ 不改主流程业务路由结构 |
+| `client.go` 真实写调用（monthlySettlement/issueMonthly…）+ 读调用 | ❌ 不动 web、不动 packages/contracts |
+| `event_sync.go` 真实 FilterLogs 多事件落库（6 位精度） | ❌ 不做流量卡资金抵扣对账（合约侧仅桩，handoff §6） |
+| 真实计价：费率表 × usage → amounts[] → monthlySettlement 分批 | ❌ 不补 NotificationService 真实 SMTP（保持 stub，本轮非阻塞） |
+| owner key 从 env 读 + `bind.NewKeyedTransactorWithChainID` 真实签名发交易 | ❌ 不接 phone 字段 / 本地号码注册（requirement R10） |
+| 敏感端点（oracle/monthly-bill、usage/submit、withdraw 回调）加管理员鉴权 | ❌ 不引入 KMS（本轮 env 私钥 + 部署侧最小权限，KMS 留后续 Round） |
+| config 键名 bug 修复 + deployments.json 421614 schema + 本地 31337 联调机制 | ❌ 端到端真机联调**待合约 1/3 真·上链**（依赖项，标注不阻塞 implement/test） |
+| go test 覆盖（计价/分批/精度/签名构造/事件解码，含 mock RPC） | |
 
-### 1.3 技术指标
-| 指标 | 目标 |
-|------|------|
-| 编译 | `hardhat compile` 零 error（当前 1 error 中止）。**P1 compile gate 重定义（消歧）：不是「①②④后绿」，而是「§5.6 的 ①–⑤ 全部子项做完后 compile 绿」**——因为 ②Oracle 类型改完后仍缺接口方法（B5）、③/桩未实现前编译不过 |
-| 单测 | 新增覆盖验收 A.2（<10 拒绝/=10 通过）、approve/transferFrom、分账正确性、自动发卡权限/时序、锁仓提取、精度；**B6：`monthlySettlement` 端到端集成测试 + `applyTrafficCardToBill` 桩权限测试**；**B7：非标 USDT（transfer 无返回值/返回 false）SafeERC20 分支**；现有 26 it 不回归（金额改 USDT 精度后重写） |
-| 部署 | 31337 + 421614 两处 `deploy.ts` 成功，产出 `deployments/<net>.json`（含 7 proxy + mock USDT + decimals） |
-| 精度 | 合约内零硬编码 18/6，`MIN_DEPOSIT=10*10**usdt.decimals()` |
-| 资损 | SafeERC20 全覆盖、分账零地址 require、CEI + ReentrancyGuard、整数运算无溢出/截断隐患 |
+### 1.3 用户已拍板锁定决策（必须落进实现）
 
----
-
-## 二、整体方案
-
-### 2.1 总体顺序（5 大模块，强依赖拓扑）
-
-```
-① 修编译（地基，必须最先；4 类错误见 §5.6 ①–⑤）
-   └─ Oracle: address→接口类型 + 声明 UsageDataSubmitted 事件 + 加 setPayment
-   │          + 【v2-A】删 totalAmount=dataUsage+callUsage，monthlySettlement 增 amounts[] 入参
-   │          + 接口收敛到 interfaces/（依赖 B5：IDeposit/IPayment 先补声明，否则收敛后编译不过）
-   └─ TrafficCardNFT: 删除 DeductionCredit + onlyDeposit dead code
-   └─ Payment: createBill 改 onlyOracle（B2）+ 实现 applyTrafficCardToBill 受限桩（v2-B，不转资金）
-   └─ interfaces/: IDeposit 补 issueMonthlyTrafficCards、IPayment 补 applyTrafficCardToBill（B5）
-        ↓ ①–⑤ 全做完后 compile 应绿（P1 gate，消歧重定义）
-② ERC20 迁移（Deposit/Payment 资金通道 + SafeERC20 + usdt state(initialize 注入) + 最小额）
-   └─ 【B7】仅支持标准 ERC20，禁 fee-on-transfer；usdt 锁定 initialize 注入（弃 setUSDT 后置）
-        ↓
-③ 分账（Payment.payBill 链上直分 amount→operator.paymentAddress, fee→platform）
-   └─ 依赖 ServiceManager 暴露 paymentAddress + 设置入口 + 零地址校验
-   └─ 【B7】分账地址非黑名单要求 + 支付失败降级；【B2】createBill fail-fast 校验 paymentAddress
-        ↓
-④ 自动发卡（Deposit.issueMonthlyTrafficCards → 独立 internal _mintFor，不经 onlyOwner mintTrafficCard）
-   └─ 【B3】批量循环 if(!ok) continue 跳过不 revert 整批；【v2-C】dataAmount=固定 trafficCardQuota
-   └─ 【消歧】批量分批上限策略（调用方分批 ≤N 或合约 require maxBatch）+ 压测
-        ↓
-④.5 【消歧·前移】ReentrancyGuardTransient 在 421614 实测（原 §6.4 从 P5 前移到 P2 之前/与 P1 并行验证）
-        ↓
-⑤ 部署（hardhat.config 加 421614 + mock USDT + deploy.ts 补全 wiring + B2 ownership/授权拓扑）
-        ↓
-⑥ 补测（贯穿，TDD 优先；含 B6 集成测试 + B7 非标 USDT + 回归重写）
-```
-
-> 顺序铁律：**①修编译必须最先**。当前代码连 `compile` 都过不了，任何 ERC20/分账/发卡逻辑都无法验证。implement 阶段先把 ① 的 5 个子项全做完跑到 `compile` 绿，再动 ②③④。
-> **B2 关键**：步骤 ⑤ 必须落地「部署后 ownership/授权拓扑」（见新增 §七.0），否则 `monthlySettlement` 在 deploy 下跑不通。
-
-### 2.2 关键选型对比
-
-| 决策点 | 选项 A | 选项 B | **本轮选定** | 理由 |
-|--------|--------|--------|-------------|------|
-| ERC20 安全转账 | 裸 `IERC20.transfer/transferFrom` | **SafeERC20** | **B** | OZ 5.6.1 自带，处理无返回值/返回 false 的非标准代币；资损敏感必须用 |
-| Arbitrum 落地方式 | `upgradeProxy` 升级 16602 旧 proxy | **fresh deploy 全新部署 421614** | **B** | 421614 是新链无旧 proxy；fresh deploy 无 storage layout 约束，最干净（scan §五 已确认 421614 零配置） |
-| 16602/localhost 旧 proxy | 升级 16602 旧 proxy | **一律 fresh deploy，不升级** | **fresh deploy** | **消歧拍板**：验收只认 31337+421614（R11）；16602 旧产物基于 payable 旧版，**本轮不升级、不讨论 storage layout 迁移**（删除该无效负担，§6.3 同步精简） |
-| USDT 精度 | 合约硬编码 6 | **读 `usdt.decimals()`** | **读链** | 锁定决策④；mock 设 6，正式 USDT 也 6，但合约不假设 |
-| usdt 注入路径 | initialize 注入 | setUSDT 后置 setter | **initialize 注入** | **消歧拍板**：fresh deploy 无升级包袱；避免 usdt 未设时 deposit `safeTransferFrom(address(0))` panic |
-| ReentrancyGuard | 沿用 `ReentrancyGuardTransient`(transient/cancun) | 换 `ReentrancyGuardUpgradeable`(普通 storage) | **先实测后定（§6.4）** | 取决于 Arbitrum 对 TSTORE 支持；**实测前移到 P2 之前**（消歧），避免 P5 才发现需返工改 guard |
-| createBill 权限 | 沿用 `onlyOwner`（B2 根因，monthlySettlement 必 revert） | **改 `onlyOracle`** | **`onlyOracle`** | **B2 闭合**：Payment 已有 `onlyOracle` modifier L20-23，createBill 改用它即可；Oracle 经 `payment.setOracle(oracle)` wiring 获权（比 transferOwnership 更精确、影响面小） |
-| 计价归属 | 合约链上求和 dataUsage+callUsage | **链下算好 USDT 金额传入 createBill** | **链下（v2-A）** | **B1 闭合**：量纲错误（字节+分钟≠USDT）；Oracle 只触发不计价 |
-| applyTrafficCardToBill | 本轮实现真实抵扣 | **受限桩，冻结语义** | **受限桩（v2-B）** | **B6 关联**：抵扣额度/范围/精度未定，本轮只让编译+调用链走通，不动资金 |
-| 自动发卡触发 | 合约内定时（不可能，EVM 无定时器） | **外部 onlyOracle 批量调用** | **B** | 锁定决策③；合约暴露 `issueMonthlyTrafficCards`，后端定时调 |
-| mock USDT | 引第三方 mock | **自写 6-decimals ERC20** | 自写 | OZ ERC20 + 重写 `decimals()` 返回 6 + `mint` 便于测试发币 |
-
-### 2.3 模块划分（受影响合约）
-- **改写核心**：`Deposit.sol`、`Payment.sol`
-- **修编译 + wiring**：`Oracle.sol`、`TrafficCardNFT.sol`
-- **加分账入口**：`ServiceManager.sol`（setPaymentAddress + getter）
-- **新增**：`mocks/MockUSDT.sol`（仅测试/测试网部署）
-- **不改逻辑**：`FeeManager.sol`（满足 R5）、`UserRegistry.sol`（R10 邮箱）
-- **接口同步**：`IDeposit.sol`、`IPayment.sol`、`IServiceManager.sol`、（Oracle 内联接口收敛到 interfaces/）
+1. **计价 = 按用量 × 费率表**：后端维护费率表（每 MB 流量单价 + 每分钟通话单价，可按运营商/地区），`usage × 单价` 算出 USDT 金额（6 位最小单位），传 `monthlySettlement` 的 `amounts[]`。**替换现状 `rand.Intn` 随机数。**
+2. **范围 = 建真实链集成 + 单测**：abigen 8 份绑定 → client.go 真实写（后端作 owner 角色调 `Oracle.monthlySettlement`）→ event_sync 真实监听落库；链配置 421614；go test 覆盖。端到端联调待合约真·上链（依赖项标注）。
+3. **敏感端点加管理员鉴权**：`oracle/monthly-bill`、`usage/submit` 等加 API key 或签名校验。
 
 ---
 
-## 三、领域模型与状态机
+## 2. 已核对真实代码清单（文件:行 / 结论）
 
-### 3.1 保证金 → 锁仓 → 自动发卡 → NFT 有效期 状态机
-
-```
-[未注册] --register(email)--> [已注册]
-   │
-[已注册] --approve(usdt, deposit, amount)--> [已授权]
-   │
-[已授权] --deposit(amount≥10USDT)--> [锁仓中]  (lockExpiry = now+30d；复存叠加+30d)
-   │                                      │
-   │                          withdraw(): require(now≥lockExpiry) ✘ revert "Lock not expired"
-   │
-[锁仓中] --now≥lockExpiry--> [可发卡 / 可提取]
-   │                              │
-   │   issueMonthlyTrafficCards(由 Oracle 批量调，校验到期+有存款+无卡)
-   │        --> mint NFT --> [持卡中]   (CardInfo.createdAt=now, isDestroyed=false)
-   │                              │
-   │                         burn(tokenId) --> [服务激活] (ServiceActivated: now+30d)
-   │
-[可提取] --withdraw()--> usdt.safeTransfer(principal) --> [已提取] (deposits=0, lockExpiry=0)
-```
-
-**关键不变量**：
-- **【B3】`issueMonthlyTrafficCards` 不复用 `mintTrafficCard`（onlyOwner，会 revert）**，改走独立 internal `_mintFor(user)`：内含与 mintTrafficCard 相同的三条校验（`now≥lockExpiry` && `deposits>0` && `userCardCount==0`）+ 调 `trafficCardNFT.mint(...)`。`mintTrafficCard(onlyOwner)` 重构为 `_mintFor` 的 onlyOwner 外壳，避免逻辑两份。
-- **【B3】批量循环幂等 + 不整批回滚**：`issueMonthlyTrafficCards` 遍历 users，每个 user 的三校验失败时 `continue` 跳过（**不 `require` 整批 revert**）；同一用户重复调因 `userCardCount==0` 校验保证不重复发卡。
-- **【v2-C】`dataAmount = trafficCardQuota`（固定，Deposit L17 state，initialize 设 100MB）**，**删除 `_deposits[user]/100000`**，与存款额/精度完全解耦。
-- 锁仓续期：`deposit()` 时若已到期则重置 `now+30d`，未到期则在原到期点 `+30d`（沿用现状 L46-50，不改）。
-- NFT 有效期：burn 后服务 30 天（`ServiceActivated`），`DEDUCTION_VALIDITY=30 days` 常量。
-
-### 3.2 账单 创建 → 支付 → 分账 状态机
-
-```
-后端链下按资费算好 amounts[i]（已是 USDT 金额）         ← v2-A：合约不再求和
-   │
-[无账单] --Oracle.monthlySettlement(users,operatorIds,amounts[])--> createBill(onlyOracle) --> [未支付账单]
-            (createBill 内：require(amount>0); platformFee = feeManager.calculateFee(amount); 存 bill)
-            (createBill fail-fast：建议同时校验该 operator.paymentAddress≠0，避免生成永远付不了的账单 ← 消歧)
-   │
-[未支付] --用户 approve(usdt, payment, amount+fee)--> [已授权]
-   │
-[已授权] --payBill(billId)-->  校验 !isPaid && bill.user==msg.sender && operator.paymentAddress≠0
-   │         ├─ isPaid = true                                                     ← CEI：状态先改
-   │         ├─ usdt.safeTransferFrom(user, operator.paymentAddress, bill.amount)   ← 主体直分
-   │         └─ if(bill.platformFee>0) usdt.safeTransferFrom(user, platformWallet, bill.platformFee)  ← 0-fee 跳过（消歧）
-   │         emit BillPaid(billId, user, total, operatorAmount)
-   │
-[已支付] (终态)
-
-桩：applyTrafficCardToBill(billId)  ← v2-B：本轮受限桩（onlyOracle，不转资金），
-                                       仅 require 账单存在 + 可选 emit；Oracle 在 monthlySettlement 中调用以走通调用链。
-                                       真实「流量卡抵扣账单」语义冻结到后续 Round。
-```
-
-> **分账实现要点**：`operator.paymentAddress` 必须非零（部署/设置时 require + payBill 时 require + createBill fail-fast 校验）。两段 `safeTransferFrom` 各自从 user 拉款（用户 approve 总额 `amount+fee` 给 Payment），避免合约暂存资金（降低重入面）。CEI：先置 `isPaid=true` 再转账。`if(platformFee>0)` 保留（0-fee 跳过，沿用现状 Payment L86 判断）。
+| 文件:行 | 核对结论（权威，本设计据此） |
+|---------|------------------------------|
+| `internal/blockchain/client.go:22-33` | `NewClient` 真 `ethclient.Dial`（唯一生效部分）；`:40-71` 业务方法全 stub 返零值/`not implemented`，**无 ABI 绑定** |
+| `internal/blockchain/signatures.go:20` | `BillCreated` 写死 **5 参** `BillCreated(uint256,address,uint256,uint256,uint256)` → 与冻结 ABI 4 参不符，topic 错 |
+| `internal/blockchain/signatures.go:13-26` | 只定义 5 个 topic；缺 `TrafficCardApplied(uint256)`、`UsageDataSubmitted`、`DepositWithdrawn` |
+| `internal/config/config.go:13-17` | struct tag `json:"proxies"`，但 JSON 键是 `contracts` → **Proxies 永远空 map**（bug 根因）；无 Usdt/UsdtDecimals/AbiHash 字段 |
+| `internal/sync/event_sync.go:33-45` | `syncUserRegistered` 主循环只 `time.Sleep(30s)`，**从未调 FilterLogs**；`processDepositMade:61` 空返回 nil |
+| `internal/sync/event_sync.go:47-59` | `processUserRegistered` 落库 `RegisteredAt=time.Unix(0,0)`，不解析 email/tokenId |
+| `internal/services/oracle.go:130-134` | `GetBill` 返回 `rand.Intn(5000)+500` + 2.5% fee，**随机数，无精度语义** |
+| `internal/services/oracle.go:160-194` | `FetchAndCreateBills` 只写 DB Bill，**不调任何合约**，无分批，无 amounts[] |
+| `internal/services/oracle.go:215-219` | `SignData` 是 `sha256.Sum256(拼字符串)`，**非 ECDSA/secp256k1**，链上不可验证 |
+| `internal/models/models.go:29-50` | `Deposit.Amount`/`Bill.Amount`/`Bill.PlatformFee`/`Bill.TrafficCardDeduction` 全 `string`；`UsageData.DataUsage/CallUsage` 是 `uint64` |
+| `cmd/main.go:40-50` | 11 运营商 seed，`RequiredDeposit="0.01"` 等小数字符串，单位语义不明 |
+| `cmd/main.go:78-90` | 仅 `RPC_URL` 非空才起 event sync；用 `deployments.Proxies`（当前空 map）；**无 owner key 装配** |
+| `cmd/main.go:103-120` | 18 业务端点，**无任何鉴权中间件**（仅 CORS） |
+| `configs/deployments.json:1-13` | `chainId:16602` + `rpcUrl:evm-testnet.0g.ai` + 键名 `contracts` + 7 个 0G 旧地址；缺 usdt/usdtDecimals/abiHash |
+| `packages/contracts/deployments/hardhat.json` | **后端应对齐的范式**：键名 `proxies`，含 `usdt`(0x5FbD…aa3) + `usdtDecimals:6` + `abiHash`(7 合约) |
+| `packages/contracts/contracts/interfaces/IPayment.sol:15-17` | `BillCreated(uint256,address,uint256,uint256)`（4 参，权威）、`BillPaid(uint256,address,uint256,uint256)`、`TrafficCardApplied(uint256)` |
+| `packages/contracts/contracts/interfaces/IDeposit.sol:5-16` | `DepositMade(address,uint256)`、`DepositWithdrawn(address,uint256,uint256)`、`TrafficCardMinted(address,uint256,uint256)`；`deposit(uint256)`/`withdraw()`/`issueMonthlyTrafficCards(address[])` |
+| `packages/contracts/contracts/Oracle.sol:54-86` | `monthlySettlement(address[],uint256[],uint256[]) onlyOwner`，per-bill emit **`UsageDataSubmitted(user,operatorId,amount)`**，内部 `payment.createBill` + `deposit.issueMonthlyTrafficCards` + `applyTrafficCardToBill` 桩 |
+| `packages/contracts/contracts/Oracle.sol:89` | `submitUsage(address,uint256,uint256,uint256)` 预留接口，v2-A 不参与计价 |
 
 ---
 
-## 四、接口与事件定义（变更前后对比）
+## 3. 整体方案
 
-### 4.1 Deposit
-
-| 项 | 变更前（现状） | 变更后（本轮） | 说明 |
-|----|----------------|----------------|------|
-| `deposit` | `function deposit() external payable` | `function deposit(uint256 amount) external` | 去 payable；前置 `usdt.safeTransferFrom(msg.sender, address(this), amount)`；`require(amount >= MIN_DEPOSIT)` |
-| `withdraw` | `.call{value: principal}` 退原生币 | `usdt.safeTransfer(msg.sender, principal)` | CEI：先清零再转账 |
-| `issueMonthlyTrafficCards` | `(address[]) external` **空实现** | `(address[]) external` **真实 mint 逻辑** | `require(msg.sender==oracle)`；遍历 users，**走独立 internal `_mintFor(user)`（B3，不经 onlyOwner `mintTrafficCard`）**；对满足「到期+有存款+无卡」者 mint，**不满足者 `continue` 跳过（B3，不 revert 整批）**；`dataAmount=trafficCardQuota`（v2-C） |
-| `mintTrafficCard` | `(address) onlyOwner`，`dataAmount=_deposits/100000` L76 | `(address) onlyOwner` 重构为 `_mintFor(user)` 的薄壳，`dataAmount=trafficCardQuota`（v2-C） | **删 `_deposits/100000`**；与批量发卡共用 `_mintFor`，逻辑单一 |
-| 新增 internal | — | `_mintFor(address user) internal returns(uint256)` | 三校验 + `trafficCardNFT.mint(user, trafficCardQuota, uri)`；被 `mintTrafficCard`（onlyOwner）与 `issueMonthlyTrafficCards`（onlyOracle）复用 |
-| 新增 state | — | `IERC20 public usdt;` | **追加在 storage 末尾**（UUPS 兼容）；fresh deploy 无约束 |
-| 注入 USDT | — | **`initialize(_userRegistry, _usdt)` 注入（消歧锁定，弃 setUSDT 后置）** | 避免 usdt 未设时 `safeTransferFrom(address(0))` panic；fresh deploy 无升级包袱 |
-| `IDeposit.deposit` | `() external payable` | `(uint256 amount) external` | 接口同步；**改 function selector**，冲击后端 ABI |
-| **`IDeposit` 新增声明** | **无 `issueMonthlyTrafficCards`（B5）** | **补 `function issueMonthlyTrafficCards(address[] calldata) external;`** | **B5 闭合**：否则 §5.6⑤ 接口收敛后 Oracle import IDeposit 调用编译不过 |
-| 事件 | `DepositMade(user,amount)` 不变 | 同前 | 金额单位语义→USDT（值类型不变，监听方需知精度=decimals） |
-
-> ⚠️ **MIN_DEPOSIT 取值**：不可硬编码常量（USDT 6 位 → 10 USDT = 10_000_000）。设计为 `function _minDeposit() internal view returns(uint256){ return 10 * 10**usdt.decimals(); }` 或 initialize 时按 decimals 计算并存 state。验收 A.2 单测 9.999999 USDT 拒绝 / 10.000000 USDT 通过。
-> ⚠️ **【v2-C】dataAmount 全文统一**：发卡额度 = `trafficCardQuota`（固定 100MB），**不再有 `_deposits/100000`**。§一表口径、§3.1、§5.1、§6.1 已同步。
-
-### 4.2 Payment
-
-| 项 | 变更前 | 变更后 | 说明 |
-|----|--------|--------|------|
-| `createBill` | `(user,operatorId,amount) onlyOwner` L55 | `(user,operatorId,amount) onlyOracle` | **B2 闭合**：改用 Payment 已有 `onlyOracle` modifier（L20-23）；amount 是**链下算好的 USDT 金额**（v2-A，Oracle 不再求和）；**fail-fast：建议 require `serviceManager.getOperator(operatorId).paymentAddress != 0`**（消歧，避免生成永付不了的账单） |
-| `payBill` | `(uint256) external payable`，fee→platform，**amount 无出口**，多退少补 | `(uint256) external`（去 payable），CEI 先置 isPaid，再 `safeTransferFrom(user→operator.paymentAddress, amount)` + `if(fee>0) safeTransferFrom(user→platformWallet, fee)` | 链上直分；ERC20 精确金额无找零；用户须先 approve `amount+fee`；0-fee 跳过（消歧） |
-| `applyTrafficCardToBill` | **不存在**（Oracle 已调用 → 编译错误③） | **`(uint256 billId) external onlyOracle` 受限桩（v2-B）** | **不转移任何资金**；仅 `require` 账单存在（`billId < _nextBillId` 或对应 bill.user≠0）+ 可选 `emit TrafficCardApplied(billId)`；真实抵扣语义冻结到后续 Round |
-| 新增 state | — | `IERC20 public usdt; IServiceManager public serviceManager;` | 查 operator.paymentAddress 需引 ServiceManager |
-| 注入路径 | — | **`initialize(_feeManager,_platformWallet,_usdt,_serviceManager)` 注入（消歧锁定）** 或保留 setOracle 后置（Oracle 地址 deploy 时才有） | usdt/serviceManager 走 initialize；oracle 仍走 `setOracle`（部署顺序所限，B2 拓扑详见 §七.0） |
-| `IPayment.payBill` | `(uint256) external payable` | `(uint256) external` | 接口同步 |
-| **`IPayment` 新增声明** | **无 `applyTrafficCardToBill`（B5）** | **补 `function applyTrafficCardToBill(uint256 billId) external;`** | **B5 闭合**：收敛 Oracle 内联接口到 interfaces/IPayment（单一 SSOT），否则收敛后编译不过 |
-| 事件 `BillPaid` | `(billId,user,totalAmount,operatorAmount)` | 不变（语义对齐：operatorAmount=bill.amount） | |
-| 新增事件（可选） | — | `event TrafficCardApplied(uint256 indexed billId)` | v2-B 桩的可选 emit；后端据此知 Oracle 已触发（本轮无资金语义） |
-
-### 4.3 ServiceManager（分账入口）
-
-| 项 | 变更前 | 变更后 | 说明 |
-|----|--------|--------|------|
-| `updateOperator` | `(id,name,region,requiredDeposit)` **无 paymentAddress** | 增 `setOperatorPaymentAddress(uint256 id, address addr) onlyOwner` | 倾向**新增独立 setter**（减小 ABI 影响面）而非改 updateOperator 签名；`require(addr != address(0))` |
-| 11 内置运营商 | `paymentAddress=address(0)` | 部署后逐个 `setOperatorPaymentAddress` 注入真实地址 | 部署脚本补；测试网可用 deployer 派生地址 |
-| `requiredDeposit` | `0.0xx ether`（18 位，initialize L26/38/50…） | **本轮明确废弃：不引入任何运营商保证金校验/标记，字段保留但不读不校验** | **消歧拍板**：scan §七雷区；`_operatorRequiredDeposit`（Deposit L21）从未被读，本轮不动它、不引入资金校验，避免 USDT 语境下 18 位字面量语义错引发误用 |
-
-### 4.4 Oracle（修编译 + wiring）
-
-| 项 | 变更前 | 变更后 | 说明 |
-|----|--------|--------|------|
-| `deposit`/`payment` state | `address public` L10-11 | `IDeposit public deposit; IPayment public payment;` | **编译错误①根因**：address 类型无 `.createBill` 等方法 |
-| `UsageDataSubmitted` 事件 | **未声明**（L71 emit 报错） | 声明 `event UsageDataSubmitted(address indexed user, uint256 operatorId, uint256 dataUsage, uint256 callUsage)` | 实测唯一中止点 |
-| **`monthlySettlement` 签名** | `(users,operatorIds,dataUsages,callUsages)`，L68 `totalAmount=dataUsage+callUsage` | **`(users,operatorIds,amounts[])`**，直接 `payment.createBill(user,operatorId,amounts[i])` | **B1/v2-A 闭合**：删除 L68 求和；`amounts[i]` 是后端链下算好的 USDT 金额；Oracle 不计价。`dataUsages/callUsages` 可保留为 `UsageDataSubmitted` 事件的喂价记录（仅 emit，不参与金额） |
-| `setPayment` | **缺失** | 新增 `setPayment(address) onlyOwner` | scan 遗留：Oracle 无法设 payment（B2 拓扑依赖此 setter） |
-| 内联 `IPayment`/`IDeposit` L105-122 | 文件尾内联（含 `applyTrafficCardToBill`/`issueMonthlyTrafficCards`） | 收敛：import `./interfaces/IPayment.sol` + `IDeposit.sol`（统一 SSOT） | **依赖 B5**：interfaces/ 两接口先补对应声明，否则收敛后编译不过 |
-
-### 4.5 TrafficCardNFT（修编译）
-
-| 项 | 变更前 | 变更后 | 说明 |
-|----|--------|--------|------|
-| `_deductionCredits` | `mapping(address=>DeductionCredit)` L18，**`DeductionCredit` 未定义（编译错误②）** | 二选一：(a) 定义 `struct DeductionCredit{uint256 amount; uint256 expiresAt;}`；(b) 删除该 dead-code mapping + `onlyDeposit` modifier | **倾向 (b) 删 dead code**（最小改动、scan §④ 确认未被任何函数使用）；若 applyTrafficCardToBill 抵扣需要额度则用 (a) |
-
-### 4.6 ERC20 两段式调用序列（approve / transferFrom）
+### 3.1 链集成补全顺序（依赖驱动，串行）
 
 ```
-存款流程（Deposit）:
-  1. user → USDT.approve(depositAddr, amount)          ← 前端第一步（检测 allowance）
-  2. user → Deposit.deposit(amount)
-       └─ USDT.safeTransferFrom(user, depositAddr, amount)  ← 需 allowance≥amount
-
-支付流程（Payment）:
-  1. user → USDT.approve(paymentAddr, amount+fee)       ← approve 总额
-  2. user → Payment.payBill(billId)
-       ├─ USDT.safeTransferFrom(user, operator.paymentAddress, amount)
-       └─ USDT.safeTransferFrom(user, platformWallet, fee)
+T1 abigen 8 份绑定 ──┐
+T2 config 修复 + schema ──┴─> T3 client.go 真实读/写 ──> T4 owner 签名(transactor)
+                                      │
+T5 event_sync 真实监听落库 <──────────┘（依赖 T1 绑定 + T2 地址表）
+T6 计价费率表 + amounts[] + 分批 ──> 依赖 T3(写) + T4(签名)
+T7 敏感端点鉴权中间件（独立，可与 T6 并行）
+T8 go test 覆盖（依赖 T1–T7）
 ```
 
-> 前端（子项 3/3）据此做「allowance 不足→approve→deposit/pay」两步态（PRD D.13）。后端（子项 2/3）监听事件不变，但金额按 decimals 解释；注意 `deposit()`→`deposit(uint256)` 改 selector，ABI 需重生成。
+顺序理由：绑定（T1）是一切链调用的前提；config（T2）提供地址表/精度/RPC；client 写（T3）依赖绑定；owner 签名（T4）是写交易能落链的前提；event_sync（T5）依赖绑定+地址表；计价（T6）依赖写+签名；鉴权（T7）独立；测试（T8）收口。
+
+### 3.2 关键选型
+
+| 选型点 | 决策 | 理由 |
+|--------|------|------|
+| ABI 绑定方式 | **abigen 生成 Go 绑定**（`go-ethereum/cmd/abigen`），8 份 | vs 手写 `bind.NewBoundContract`：abigen 自动产出类型安全的 `*Caller`/`*Transactor`/`*Filterer`，编码/解码事件无需手写 topic 匹配；与冻结 ABI 一一对应，`abiHash` 可比对。手写易错且无类型保护。ABI 来源 = `packages/contracts/artifacts/contracts/<Name>.sol/<Name>.json` 的 `.abi`（handoff §1） |
+| 绑定生成时机 | **构建期生成 + 提交到仓库**（`internal/blockchain/bindings/`），非运行时 | 可审查、可 diff、`go test` 离线可跑；提供 `make abigen` 脚本由 implement 阶段定义，从 contracts artifacts 取 ABI |
+| owner key 管理 | **从 env `ORACLE_OWNER_PRIVATE_KEY` 读**，绝不硬编码、绝不入库、绝不进日志；启动时若缺失则**链上写功能降级关闭**（只读 + 事件同步仍可跑） | handoff §7：后端对外只需一个能调 `Oracle.monthlySettlement` 的 owner(=deployer) 私钥，链上权限传导由合约 setter 拓扑保证。本轮 env 注入，KMS 留后续 |
+| 签名/发交易 | **`bind.NewKeyedTransactorWithChainID(privKey, chainID)`** + nonce 管理 + gas 估算 | 替换 `SignData` 的 SHA256；这是 go-ethereum 标准发交易路径 |
+| 金额内部表示 | 链上/计价用 **`*big.Int`（6 位最小单位）**；DB 仍存 string（最小单位字符串）；展示层除 10^usdtDecimals | 避免浮点；与合约 `uint256` 对齐；精度从 `deployments.json.usdtDecimals` 读不硬编码 |
+| 计价模拟器去留 | **保留 `OperatorAPISimulator.GetUsage`（产 usage），新增 `PricingService` 做 usage×费率**；废弃 `GetBill` 随机金额 | usage 仍可模拟（真实运营商 API 留后续），但金额必须确定可复算 |
 
 ---
 
-## 五、关键技术设计（按合约展开）
+## 4. 数据流与领域模型
 
-### 5.1 Deposit — ERC20 改写 + 锁仓 + 最小额
-- import `SafeERC20` + `IERC20`（`@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol`），`using SafeERC20 for IERC20;`
-- **`initialize(_userRegistry, _usdt)` 注入 usdt（消歧锁定，弃 setUSDT 后置）**——避免 usdt 未设时 `safeTransferFrom(address(0))` panic；fresh deploy 无升级包袱。
-- **【B7】仅支持标准 ERC20，禁 fee-on-transfer**：若 token 转账实扣 < amount，Deposit 记账虚高 → withdraw 资损。本轮 mock 为标准 ERC20；正式 USDT 无 fee-on-transfer。设计层禁用 fee-on-transfer token（README/handoff 注明），不做「实收差额」补偿逻辑。
-- `deposit(uint256 amount)`：`require(userRegistry.isRegistered(msg.sender))` + `require(amount >= 10*10**usdt.decimals(), "Below min deposit")` → `usdt.safeTransferFrom(msg.sender, address(this), amount)` → 累加 + 锁仓续期（沿用 L46-50）→ emit。
-- `withdraw()`：CEI——先 `principal=_deposits[...]; _deposits[...]=0; _lockExpiry[...]=0;` 再 `usdt.safeTransfer(msg.sender, principal)`；加 `nonReentrant`。
-- **【B3 / v2-C】发卡逻辑收敛到 internal `_mintFor(user)`**：三校验（`now≥lockExpiry` && `deposits>0` && `userCardCount==0`）+ `trafficCardNFT.mint(user, trafficCardQuota, generateTokenURI(user))`。`mintTrafficCard(onlyOwner)` 调 `_mintFor` 并 require 成功；`issueMonthlyTrafficCards(onlyOracle)` 循环调 `_mintFor`，校验失败 `continue` 跳过（不 revert 整批）。
-- **【v2-C】`dataAmount = trafficCardQuota`（固定 100MB，Deposit L17 state / initialize L27），删除 L76 `_deposits[user]/100000`**——与存款额、与 USDT 精度彻底解耦，杜绝 6 位精度下发废卡（旧逻辑 10 USDT=1e7 /100000=100 单位含义不明）。全文口径统一为此。
+### 4.1 月度结算主数据流（计价 → 上链 → 落库对账）
 
-### 5.2 Payment — 分账 + 手续费走 FeeManager
-- 引 `IServiceManager` 查 `getOperator(operatorId).paymentAddress`。
-- **【B2】`createBill` 改 `onlyOracle`**（用 Payment 已有 modifier L20-23）；**【消歧】createBill fail-fast：require `serviceManager.getOperator(operatorId).paymentAddress != 0`**，避免生成永远付不了的账单。amount 为链下算好金额（v2-A）。
-- `payBill`：去 payable + 去找零；**CEI 先置 `bill.isPaid=true`**；`require(operator.paymentAddress != address(0), "Operator payout unset")`；`safeTransferFrom(user→operator, amount)` + `if(bill.platformFee>0) safeTransferFrom(user→platform, fee)`（**0-fee 跳过，消歧**）；加 `nonReentrant`（沿用现有 guard 或降级，见 §六.4）。
-- **【B7】支付失败降级**：分账地址要求非黑名单/非暂停（部署时选用非黑名单地址；handoff 注明）；任一 `safeTransferFrom` revert → 整 tx 原子回滚，账单仍 unpaid，用户可换地址/重试。
-- 手续费仍在 `createBill` 用 `feeManager.calculateFee(amount)` 存入 `bill.platformFee`（满足 R5，不改）。
-- **【v2-B】`applyTrafficCardToBill(uint256 billId) external onlyOracle` = 受限桩**：**不转移任何资金**；仅 `require` 账单存在（如 `require(_bills[billId].user != address(0), "Bill not found")`）+ 可选 `emit TrafficCardApplied(billId)`。Oracle 在 monthlySettlement 中调用以走通编译/调用链。**真实「流量卡抵扣账单」语义（额度来源/抵扣范围/精度）明确冻结到后续 Round**，本轮不实现、补测面只覆盖权限与存在性校验（见 §八 ATC-01/02）。
+```
+[触发] POST /api/oracle/monthly-bill (管理员鉴权 T7)
+   │
+   ▼
+OracleServiceV2.FetchAndCreateBills() 重写：
+   1. userRepo.FindAll() → 过滤激活服务用户
+   2. 对每个 (user, operatorId)：
+        usage = OperatorAPISimulator.GetUsage(userID, opID)   // (dataMB, callMin)
+        amount6 = PricingService.Price(operatorId, usage)     // *big.Int, 6 位最小单位
+        若 amount6 == 0 → 跳过（合约侧 amount>0 才 createBill）
+   3. 构造三等长数组 (users[], operatorIds[], amounts[])
+   4. 分批切片：每批 users ≤ 25（handoff §5.1 monthlySettlement 全链路最紧约束）
+   5. 逐批：client.OracleMonthlySettlement(owner transactor, batch) → 发交易 → 等回执
+        失败批：记录 + 幂等重试（合约逐用户 continue，issueMonthly 幂等）
+   6. 本地 DB Bill 落库策略：见 §4.3「DB 与链的关系」
+   │
+   ▼（链上）Oracle.monthlySettlement → payment.createBill(emit BillCreated)
+            + issueMonthlyTrafficCards(emit TrafficCardMinted)
+            + applyTrafficCardToBill 桩(emit TrafficCardApplied)
+            + per-bill emit UsageDataSubmitted
+   │
+   ▼（异步）event_sync FilterLogs 监听上述事件 → 6 位精度解码 → 回填/对账 DB Bill（IsPaid/TxHash/链上 billId）
+```
 
-### 5.3 TrafficCardNFT — mint/销毁/有效期
-- 修编译（§4.5）后逻辑基本不动：`mint`（Deposit 持 ownership 调用）、`burn`（emit ServiceActivated now+30d）、`DEDUCTION_VALIDITY=30 days`。
-- 自动发卡走 Deposit→NFT.mint 链路（ownership 已在 deploy 转给 Deposit，L88）。
-- **【消歧】自动发卡禁用 `NFT.mintBatch`**：`mintBatch` L77 内 `this.mint(...)` 是**外部调用**，会以 NFT 合约自身为 `msg.sender` 撞 `mint` 的 `onlyOwner`（owner 已是 Deposit）→ revert。批量发卡一律由 Deposit 侧 `issueMonthlyTrafficCards` 循环单张 `trafficCardNFT.mint(...)` 完成。mintBatch 本轮不用（保留或留注释，不接入发卡链路）。
+### 4.2 计价费率表（数据结构，费率值占位，结构锁定）
 
-### 5.4 Oracle — wiring + 自动发卡触发
-- 修 state 类型为接口（§4.4）、声明事件、加 setPayment、收敛内联接口（依赖 B5 接口先补声明）。
-- **【B1/v2-A】`monthlySettlement` 改签名 `(users, operatorIds, amounts[])`**：删除 L68 `totalAmount = dataUsage + callUsage`；循环内直接 `payment.createBill(user, operatorId, amounts[i])`（amounts 为后端链下算好的 USDT 金额）。`dataUsages/callUsages` 若保留仅用于 `emit UsageDataSubmitted`（喂价记录，不参与金额）。onlyOwner 保留。
-- **【B2】调用权限闭合**：`monthlySettlement → payment.createBill` 现可成功，因 createBill 改 `onlyOracle` 且 deploy 执行 `payment.setOracle(oracleAddr)`（见 §七.0 拓扑），Oracle 即为 Payment 授权的 oracle。`deposit.issueMonthlyTrafficCards` 同理依赖 `deposit.setOracle(oracleAddr)`（已在 deploy.ts L82）。
-- **【v2-B】applyTrafficCardToBill 桩调用**：`monthlySettlement` 末段对每个 user 的首张未付账单调 `payment.applyTrafficCardToBill(billId)`（桩，不转资金，仅走通调用链）。
-- **【消歧·批量 gas】无界循环上限策略**：`monthlySettlement` / `issueMonthlyTrafficCards` 由后端**分批调用（每批 users ≤ N，建议 N≤100）**；本轮**不在合约内强制 maxBatch**（保留调用方分批），但补**压测用例**（§八 GAS-01）量出单批安全上限，写入 handoff 供后端遵守。
-- **自动发卡触发链**：后端（子项 2/3）定时 → `Oracle.monthlySettlement(...)` 或直接 `Deposit.issueMonthlyTrafficCards(...)`（onlyOracle）。`Deposit.issueMonthlyTrafficCards` 权限 = `require(msg.sender==oracle)`（沿用 L105），实现真实批量 mint（§5.1 `_mintFor` + B3 跳过不 revert）。
+费率表是后端新增的领域模型。结构如下（implement 阶段落为 Go struct + seed，可选后续转 DB 表）：
 
-### 5.5 mock USDT（6 decimals）
-- `contracts/mocks/MockUSDT.sol`：`ERC20`（OZ 标准）+ `decimals() returns(6)` override + `mint(to, amount)`（public，测试网任意发币）+ symbol "USDT"。
-- 仅本地/测试网部署；deploy.ts 部署后写 `deployments/<net>.json` 的 `usdt` 字段 + `usdtDecimals:6`。
+```go
+// 计价单位约定：data 以 MB 计，call 以 minute 计；单价以 USDT 6 位最小单位/单位用量计
+type OperatorRate struct {
+    OperatorID    uint     // 对应 models.Operator.ID（与链上 operatorId 对齐，见 §4.5 风险）
+    Region        string   // 冗余便于按地区批量配置
+    DataUnitPrice *big.Int // 每 1 MB 流量单价（6 位最小单位 USDT）。占位示例：10000 = 0.01 USDT/MB
+    CallUnitPrice *big.Int // 每 1 分钟通话单价（6 位最小单位 USDT）。占位示例：5000 = 0.005 USDT/min
+    MinBillAmount *big.Int // 最小出账金额（低于此不出账，避免 dust）。占位示例：0
+}
 
-### 5.6 编译错误清单与逐个修复方案
+// PricingService.Price(operatorId, dataMB, callMin) → *big.Int(6位)
+//   amount6 = dataMB * rate.DataUnitPrice + callMin * rate.CallUnitPrice
+//   if amount6 < rate.MinBillAmount → return 0（不出账）
+```
 
-| # | 文件:行 | 错误 | 根因 | 修复 |
-|---|---------|------|------|------|
-| ① | `Oracle.sol:71` | `DeclarationError: UsageDataSubmitted` 未声明 | 事件从未定义（实测唯一中止点） | 在 Oracle 声明 `event UsageDataSubmitted(address indexed,uint256,uint256,uint256)` |
-| ② | `Oracle.sol:69/78/85`（修①后暴露） | `payment.createBill` / `deposit.issueMonthlyTrafficCards` / `payment.applyTrafficCardToBill` —— `address` 类型无成员 | `deposit`/`payment` 声明为 `address`（L10-11）却当合约调 | 改 state 为 `IDeposit public deposit; IPayment public payment;`，import 接口 |
-| ③ | `Payment.sol`（Oracle 调 `applyTrafficCardToBill`） | Payment 无此函数 | Oracle 内联接口声明了但 Payment 未实现 | **【v2-B】Payment 实现 `applyTrafficCardToBill(uint256) onlyOracle` 受限桩**（不转资金，§5.2）；同时 `createBill` 改 `onlyOracle`（B2） |
-| ④ | `TrafficCardNFT.sol:18` | `DeclarationError: DeductionCredit` 未定义 | 类型从未定义（dead code，scan §④ 确认未用） | 删除该 mapping + `onlyDeposit` modifier（dead code，倾向删） |
-| ⑤ | `Oracle.sol` 内联接口 vs interfaces/ | 双份 IPayment/IDeposit 漂移风险 | 历史内联 | 收敛为 import interfaces/。**【B5 连锁编译清单】先在 interfaces/IDeposit.sol 补 `issueMonthlyTrafficCards(address[])`、interfaces/IPayment.sol 补 `applyTrafficCardToBill(uint256)`**，否则 Oracle import 后调用编译不过；**接口签名变更 → 实现同步**：IDeposit.deposit 去 payable → Deposit 实现同步；IPayment.payBill 去 payable → Payment 实现同步 |
+费率表数据来源（本轮）：**代码内 seed map（按 operatorId）**，与 `cmd/main.go` 的 11 运营商 seed 并列；费率值由产品/运营后续填真实数，本轮用占位值并在测试中固定断言可复算。
 
-> **【B5 连锁编译清单】接口签名变更 → 实现/调用方必须同步**（任一漏改即编译失败）：
-> 1. `IDeposit.deposit() payable` → `deposit(uint256)`：同步 Deposit.sol 实现 + 调用方。
-> 2. `IDeposit` 补 `issueMonthlyTrafficCards(address[])`：Oracle 收敛后据此调用。
-> 3. `IPayment.payBill() payable` → `payBill(uint256)`：同步 Payment.sol。
-> 4. `IPayment` 补 `applyTrafficCardToBill(uint256)`：Oracle 收敛 + Payment 桩实现据此。
-> 5. `IPayment.createBill` 权限收紧（onlyOracle）属实现内修饰符，不改接口签名但改 deploy 授权拓扑（§七.0）。
->
-> **implement 顺序 / P1 compile gate（消歧重定义）**：①（事件/类型/monthlySettlement 改签名）+ ④（删 dead code）+ ⑤（先补 interfaces/ 声明）+ ②（state 类型）+ ③（createBill onlyOracle + applyTrafficCardToBill 桩）—— **必须 ①–⑤ 全部做完，compile 才会绿**（②类型改完后缺接口方法、③桩未实现前都编译不过，不存在「②④后即绿」的中间态）。每完成一类 `npx hardhat compile` 观察剩余报错收敛。
+> 设计要点：金额必须**纯整数运算**（MB/min 为整数，单价为整数最小单位），杜绝浮点。usage 的 dataMB/callMin 来自 `OperatorAPISimulator.GetUsage`（本轮模拟，单位需在 implement 明确为 MB/min）。
 
----
+### 4.3 DB 与链的关系（对账模型）
 
-## 六、非功能性设计
+后端是 oracle/owner 角色，月度结算的**金额事实源在后端计价**，**资金事实源在链上**。三者关系：
 
-### 6.1 资损 checklist（🔴 = arch-review 安全审计重点）
+- **Bill 金额**：后端计价算出，传入 `createBill`；event_sync 监听 `BillCreated(billId,user,totalAmount,platformFee)` 回填**链上 billId**（DB 当前无此字段，需补 `OnChainBillID` + `TxHash`）。
+- **Bill 已付状态**：链上 `BillPaid` 事件为准；event_sync 监听后置 `IsPaid=true`+`PaidAt`+`TxHash`。废弃现状「前端传 txHash 即标记已付」的无确认路径（`BillingService.MarkAsPaid` 改为只受 event_sync 驱动，或保留但标注不可信）。
+- **TrafficCardDeduction**：合约侧 `applyTrafficCardToBill` 为受限桩（handoff §6 不转资金）→ **本字段本轮恒为 "0"，不参与抵扣对账**。event_sync 监听 `TrafficCardApplied(billId)` 仅记录事件发生，不改金额。
+- **Deposit/Withdraw**：event_sync 监听 `DepositMade(user,amount)`/`DepositWithdrawn(user,principal,interest)` 落库（6 位精度）；`/api/deposit` `/api/withdraw` 端点改为**记账由事件回填驱动**，前端调用仅做意向记录（标注 pending，事件到达后转 confirmed）。
 
-| 项 | 风险 | 设计对策 |
-|----|------|----------|
-| 🔴 ERC20 重入 | safeTransferFrom 回调（恶意/非标 token） | CEI：状态先改（isPaid/deposits 清零）再转账；payBill/withdraw 加 `nonReentrant` |
-| 🔴 授权额度 | approve 总额 vs 实际扣款不一致、无限授权风险 | 合约只 `safeTransferFrom(精确额)`；前端 approve 精确额（不无限授权） |
-| 🔴 精度 | 硬编码 18/6 导致金额错算（scan §七雷区） | 全程 `usdt.decimals()`；`MIN_DEPOSIT=10*10**decimals`；**【v2-C】`dataAmount=trafficCardQuota` 固定，删除 `_deposits/100000`，与精度彻底解耦** |
-| 🔴 计价量纲 | **【B1】Oracle L68 `dataUsage(字节)+callUsage(分钟)` 当 USDT 金额传 createBill → ERC20 扣天文数字** | **【v2-A】合约不计价**：amount 由后端链下按资费算好的 USDT 金额传入 createBill；删除 L68 求和；Oracle 仅喂价/触发 |
-| 🔴 分账零地址 | operator.paymentAddress=address(0) → USDT 转入黑洞 | payBill `require(paymentAddress != address(0))`；setOperatorPaymentAddress 零地址 require；**createBill fail-fast 校验（消歧）**；部署脚本补全 |
-| 🔴 非标代币 fee-on-transfer | **【B7】token 实扣 < amount → Deposit 记账虚高 → withdraw 资损** | **仅支持标准 ERC20，禁 fee-on-transfer**（handoff/README 注明）；mock 为标准 ERC20，正式 USDT 无此特性；不做实收差额补偿 |
-| 🔴 真实 USDT 黑名单/暂停 | **【B7】operator/platform 地址被 USDT 黑名单或合约暂停 → payBill 永久失败** | 分账地址要求**非黑名单**（部署选用，handoff 注明）；**支付失败降级**：任一 transferFrom revert → 整 tx 回滚、账单仍 unpaid、用户可换地址重试 |
-| 整数溢出 | `amount+fee`、`*rate/10000` | Solidity 0.8 内置 checked；calculateFee 小额截断为 0 可接受（费率本就向下取整） |
-| 找零逻辑移除 | ERC20 无 msg.value，旧多退少补删除 | payBill 精确 transferFrom，无残留资金 |
-| 部分扣款失败 | 两段 transferFrom 第一段成功第二段失败 | 同一 tx 原子性，任一 revert 全回滚 |
-| applyTrafficCardToBill 资损面 | v1 设想真实抵扣 → 额度/精度未定有资损风险 | **【v2-B】本轮受限桩不转资金 → 零资损面**；真实抵扣语义连同其资损评估冻结到后续 Round |
+### 4.4 模型字段调整（最小改动）
 
-### 6.2 安全（权限矩阵）
-
-| 函数 | 权限 | 校验 |
+| 模型 | 调整 | 理由 |
 |------|------|------|
-| `Deposit.deposit` | 任意已注册用户 | `isRegistered` + `amount≥MIN` |
-| `Deposit.withdraw` | 持仓用户 | `now≥lockExpiry` + `deposits>0` |
-| `Deposit.issueMonthlyTrafficCards` | **onlyOracle** | `msg.sender==oracle` + 逐用户三校验（失败 continue，不 revert 整批 / B3）；走 `_mintFor` |
-| `Deposit.mintTrafficCard` | onlyOwner | 三校验（薄壳调 `_mintFor`） |
-| `Payment.createBill` | **onlyOracle（B2）** | amount>0 + fail-fast paymentAddress≠0（消歧）；Oracle 经 `payment.setOracle` 获权 |
-| `Payment.payBill` | 账单本人 | `!isPaid` + `bill.user==sender` + paymentAddress 非零；CEI 先置 isPaid |
-| `Payment.applyTrafficCardToBill` | **onlyOracle（桩 / v2-B）** | 仅账单存在；**不转资金** |
-| `Oracle.monthlySettlement` | onlyOwner | 长度一致；amounts 链下算好（v2-A，无求和） |
-| `ServiceManager.setOperatorPaymentAddress` | onlyOwner | 非零地址 |
-| `setUSDT/setOracle/setPayment/...` | onlyOwner | |
+| `models.Bill` | 新增 `OnChainBillID uint64`；`TxHash`/`PaidAt` 由事件回填；`TrafficCardDeduction` 恒 "0" | 对账需链上 billId 关联 |
+| `models.Deposit` | `Amount` 语义统一为「6 位最小单位字符串」；可加 `Status`(pending/confirmed) | 精度一致 + 事件回填 |
+| `models.Operator` | `RequiredDeposit` 语义重定义为 6 位最小单位（当前 "0.01" 含义不明）；与费率表 OperatorID 对应 | 精度一致 |
+| `models.UsageData` | `DataUsage`/`CallUsage` 保持 uint64，**明确单位 = MB / minute** | 计价输入 |
 
-- SafeERC20 全覆盖；ReentrancyGuard 覆盖 payBill/withdraw。
+> 字段调整属 implement 阶段执行，design 仅锁定语义。AutoMigrate 兼容（GORM 加列）。
 
-### 6.3 升级兼容（UUPS storage layout）
-> **消歧拍板：本轮 16602/localhost 一律 fresh deploy，不升级任何旧 proxy。** 因此 v1 关于「升级 16602 旧 proxy 的 storage layout 约束 / mapping 删除占位风险」的讨论**全部删除（无效负担）**。下列只保留 fresh deploy 口径。
-- **fresh deploy 421614 + 31337**：无旧 storage 约束。新增 `usdt`/`serviceManager` state 与删除 `_deductionCredits` mapping 均无 layout 风险，按显式声明顺序排布即可（推荐新增 state 放各合约 storage 末尾，仅为未来 Round 升级预留习惯，非本轮约束）。
-- **storage layout 冻结（交付物）**：本轮部署后，将各 proxy 的 storage layout 与 ABI **冻结记入 `deployments/<net>.json`**（见 §七.3），作为后续 Round 升级的基线。本轮不做升级，故无需 `unsafeAllow`。
+### 4.5 operatorId 映射风险（需 arch-review 确认）
 
-### 6.4 Arbitrum 兼容确认项（🔴 **消歧：实测前移到 P2 之前 / 与 P1 并行**，不留到 P5）
-> **消歧拍板**：原 v1 把 transient storage 兼容实测排在 P5（部署阶段），风险是 P5 才发现不支持 → 已写好的 Payment guard 逻辑返工。**本版前移：P1 compile 绿后、动 ②ERC20 之前**，先在 421614 实测 Payment 部署 + 一笔 payBill，确认 TSTORE 可用再继续；不可用则**先**切 guard 方案再写后续。
-| 项 | 现状 | 风险 | 确认动作（前移） |
-|----|------|------|----------|
-| 🔴 `evmVersion: cancun` + `viaIR` | hardhat.config L15-16 | Arbitrum Sepolia 对 cancun opcode 支持？ | **P2 之前**在 421614 跑一笔交易验证；Arbitrum Nitro 已支持多数 cancun，但 **transient storage(TSTORE/TLOAD)** 需重点确认 |
-| 🔴 `ReentrancyGuardTransient` | Payment L11（依赖 TSTORE） | 若 Arbitrum 不支持 TSTORE → Payment 部署/调用失败 | 二选一：(a) 确认支持后保留；(b) 降级 `ReentrancyGuardUpgradeable`（普通 storage，需改 initialize + 删自定义 `_reentrancyGuardInit` assembly L33-38）。**实测前移到 P2 之前** |
-| 🔴 自定义 `_reentrancyGuardInit` assembly 正确性 | Payment L33-38：`sstore(_reentrancyGuardStorageSlot(), 1)` | **消歧·正确性可疑**：`ReentrancyGuardTransient` 用的是 **transient slot（tstore/tload）**，而此处用 `sstore`（持久 storage）写 NOT_ENTERED，**slot 类型与 guard 读取方式可能不一致**——可能既无效又浪费 storage | implement 阶段**厘清** OZ `ReentrancyGuardTransient` 实际读哪个 slot/用哪个 opcode：若 guard 用 tload 读，则此 sstore 初始化无意义应删；若保留 transient guard 通常**无需手动 init**（transient 每 tx 自动归零）。**不只是「降级时删」，而是先确认其当前是否正确**。若走 (b) 降级则随 `ReentrancyGuardUpgradeable` 的 `__ReentrancyGuard_init()` 一并删除此段 |
-| chainId/RPC | 无 421614 | — | hardhat.config 加网络 |
-
-### 6.5 异常与监控
-- 事件不变（DepositMade/BillCreated/BillPaid/CardMinted/ServiceActivated）+ 新增 `UsageDataSubmitted`（Oracle 喂价记录）+ 可选 `TrafficCardApplied(billId)`（v2-B 桩）；后端 event_sync 据此监听（子项 2/3）。
-- revert 文案统一英文短串（"Below min deposit"/"Operator payout unset"/"Lock not expired"/"Only oracle"/"Bill not found"）。
+后端 `models.Operator.ID`（DB 自增）与合约 `ServiceManager` 的 `operatorId` **是否一致未经证实**。`monthlySettlement` 传的 `operatorIds[]` 必须是**链上 operatorId**，否则 `createBill` 关联错运营商/分账地址错。implement 阶段必须建立**后端 operatorID ↔ 链上 operatorId 映射**（读 `ServiceManager.getActiveOperators` 比对 name/region，或部署时固定映射表）。**列为 arch-review 重点。**
 
 ---
 
-## 七、部署设计
+## 5. ABI / 接口对齐（对照 handoff 真实值）
 
-### 7.0 部署后 ownership / 授权拓扑图（🔴 B2/B3 核心交付）
+### 5.1 函数 selector 对照（写调用，handoff §2 权威）
 
-> 这是 B2/B3 的核心闭合：自动结算两条权限链（createBill / issueMonthlyTrafficCards / applyTrafficCardToBill）在 deploy 下必须能跑通。本节明确**谁是谁的 owner、哪些 setter 在 deploy 调用、每条权限链如何闭合**。
+| 函数 | selector | 后端调用方 | 调用前置 | 现状 |
+|------|----------|-----------|----------|------|
+| `Oracle.monthlySettlement(address[],uint256[],uint256[])` | `0x01eb00ca` | 月度结算主入口（owner 签名） | owner=deployer 账户；三数组等长；每批 ≤25 | 完全未实现 |
+| `Payment.createBill(address,uint256,uint256)` | `0xceb323e8` | **不直接调**（由 Oracle 内部 onlyOracle 调） | — | — |
+| `Deposit.issueMonthlyTrafficCards(address[])` | `0x0948eaad` | 可选单独发卡（owner→Oracle，或经 monthlySettlement 内部） | 每批 ≤50 | 完全未实现 |
+| `Deposit.deposit(uint256)` | `0xb6b55f25` | **后端不代发**（用户钱包侧）；后端只读 `getDepositAmount` | 用户先 `usdt.approve` | client stub |
+| `Payment.payBill(uint256)` | `0xf0975190` | **后端不代发**（用户钱包侧） | 用户先 `usdt.approve(amount+fee)` | — |
+| `ServiceManager.setOperatorPaymentAddress(uint256,address)` | `0xadb76801` | 部署侧一次性（onlyOwner） | 非零地址 | — |
 
-#### 7.0.1 owner 关系（部署后终态）
-```
-deployer(EOA)
-  ├── owner of: FeeManager, UserRegistry, ServiceManager, Payment, Oracle  ← 保留为 deployer
-  ├── owner of: Deposit                                                     ← 保留为 deployer
-  └── NFT ownership: TrafficCardNFT.owner = Deposit(合约)                    ← deploy.ts L88 transferOwnership(deposit)
+> 关键判断：**后端只代发 `monthlySettlement`（owner 角色）**。`deposit`/`payBill` 是用户钱包侧操作（web 调），后端不持用户私钥、不代发。后端对这两者只做**只读 + 事件回填**。
 
-注：Payment / Oracle 的 owner 仍是 deployer（不再 transferOwnership 给谁）。
-   Oracle 调用 Payment/Deposit 的权限不通过 ownership，而通过各自的 oracle 授权字段（见下）。
-```
+### 5.2 事件 topic 对照（event_sync 监听，interfaces 权威）
 
-#### 7.0.2 调用授权字段（非 ownership，通过 setter 注入）
-| 授权关系 | 注入 setter（deploy 调用） | 用途 | 现状 |
-|----------|---------------------------|------|------|
-| `Payment.oracle = Oracle` | **`payment.setOracle(oracleAddr)`** | createBill / applyTrafficCardToBill 的 `onlyOracle` 放行 Oracle | **deploy.ts 现缺 → B2 必补** |
-| `Deposit.oracle = Oracle` | `deposit.setOracle(oracleAddr)` | issueMonthlyTrafficCards 的 `msg.sender==oracle` 放行 | deploy.ts L82 已有 ✅ |
-| `Oracle.payment = Payment` | **`oracle.setPayment(paymentAddr)`** | Oracle 调 `payment.createBill/applyTrafficCardToBill` | **Oracle 现无 setPayment + deploy 缺 → B2 必补** |
-| `Oracle.deposit = Deposit` | `oracle.setDeposit(depositAddr)` | Oracle 调 `deposit.issueMonthlyTrafficCards` | deploy.ts L84 已有 ✅ |
-| `Deposit.trafficCardNFT = NFT` | `deposit.setTrafficCardNFT(nftAddr)` | Deposit `_mintFor` 调 `nft.mint` | deploy.ts L81 已有 ✅ |
-| `TrafficCardNFT.owner = Deposit` | `trafficCardNFT.transferOwnership(depositAddr)` | NFT.mint 的 `onlyOwner` 放行 Deposit | deploy.ts L88 已有 ✅ |
-| `Payment.serviceManager = SM` | **`payment.setServiceManager(smAddr)`**（或 initialize 注入） | payBill / createBill 查 operator.paymentAddress | **现缺 → 必补** |
-| `Payment.usdt`, `Deposit.usdt` | **initialize 注入 MockUSDT**（消歧锁定） | ERC20 资金通道 | **现缺 → 必补** |
-| `ServiceManager` 11 运营商 paymentAddress | **循环 `serviceManager.setOperatorPaymentAddress(id, addr)`** | 分账非零地址 | **现全 address(0) → 必补** |
+| 事件签名（冻结 ABI） | 后端用途 | signatures.go 现状 | 改动 |
+|----------------------|----------|---------------------|------|
+| `UserRegistered(address,string,uint256)` | 注册落库（解析 email/tokenId） | ✅ 正确，但 process 不解析 data | 修 process 解码 email/tokenId/时间 |
+| `DepositMade(address,uint256)` | 押金落库（6 位） | ✅ topic 对，但无落库 | 补 process |
+| `DepositWithdrawn(address,uint256,uint256)` | 提现落库（principal+interest） | 🔴 缺 | 新增 topic + process |
+| `BillCreated(uint256,address,uint256,uint256)` | 账单落库 + 回填 OnChainBillID | 🔴 **现状 5 参错** | 改 4 参 `BillCreated(uint256,address,uint256,uint256)` |
+| `BillPaid(uint256,address,uint256,uint256)` | 标记已付（事实源） | ✅ 正确，无 process | 补 process（置 IsPaid/PaidAt/TxHash） |
+| `TrafficCardMinted(address,uint256,uint256)` | NFT 发卡落库 | ✅ topic 对，无 process | 补 process |
+| `TrafficCardApplied(uint256)` | 桩事件，仅记录（不改金额） | 🔴 缺 | 新增 topic + process（只记录） |
+| `UsageDataSubmitted(user,operatorId,amount)` | monthlySettlement per-bill emit，对账金额 | 🔴 缺 | 新增 topic + process（对账校验后端计价 = 链上入账） |
 
-#### 7.0.3 三条权限链闭合验证（B2/B3）
-```
-链 A：自动结算账单（B2）
-  后端 → Oracle.monthlySettlement(onlyOwner=deployer 调)
-       → Payment.createBill(onlyOracle)
-         放行条件：Payment.oracle == Oracle   ← 由 payment.setOracle(oracle) 注入（B2 必补）
-       ✅ 闭合后不再 revert
+> abigen 生成的 `*Filterer` 自带类型化事件解析，可替代手写 topic 常量；但 `signatures.go` 仍保留供轻量过滤/日志用，需同步修正避免误导。
 
-链 B：自动发卡（B3）
-  Oracle.monthlySettlement → Deposit.issueMonthlyTrafficCards(onlyOracle)
-         放行条件：Deposit.oracle == Oracle   ← deploy.ts L82 已注入
-       → 内部走 _mintFor（不经 onlyOwner mintTrafficCard）
-       → TrafficCardNFT.mint(onlyOwner)
-         放行条件：NFT.owner == Deposit        ← deploy.ts L88 已注入
-       逐用户 if(!三校验) continue（不 revert 整批）
-       ✅ 闭合，幂等
+### 5.3 abigen 绑定清单（8 份，handoff §1 来源）
 
-链 C：applyTrafficCardToBill 桩（v2-B）
-  Oracle.monthlySettlement → Payment.applyTrafficCardToBill(onlyOracle)
-         放行条件：Payment.oracle == Oracle   ← 同链 A
-       → 桩：require 账单存在 + 可选 emit，不转资金
-       ✅ 走通调用链，零资损面
-```
+从 `packages/contracts/artifacts/contracts/<Name>.sol/<Name>.json` 的 `.abi` 取全量：
 
-> **B2 关键修正**：v2 选定 **createBill 改 `onlyOracle` + `payment.setOracle(oracle)` 授权**，而非 `payment.transferOwnership(oracle)`。理由：Payment 的 owner 还要保留给 setPlatformWallet/setFeeManager/setServiceManager 等管理操作；用 oracle 字段精确授权调用权，影响面最小、语义最清。
+| # | 合约 | 绑定用途 | abiHash 比对源 |
+|---|------|----------|----------------|
+| 1 | `Oracle` | monthlySettlement（写，owner）+ verifyServiceActive（读） | hardhat.json.abiHash.Oracle |
+| 2 | `Payment` | createBill/payBill/getUnpaidBills（读）+ 事件 | .Payment |
+| 3 | `Deposit` | getDepositAmount/getLockExpiry（读）+ issueMonthly（写）+ 事件 | .Deposit |
+| 4 | `FeeManager` | getFeeRate/calculateFee（读，展示用） | .FeeManager |
+| 5 | `ServiceManager` | getActiveOperators/getOperator（读，operatorId 映射） | .ServiceManager |
+| 6 | `TrafficCardNFT` | getCardInfo/getUserCardCount（读）+ 事件 | .TrafficCardNFT |
+| 7 | `UserRegistry` | isRegistered/getUserInfo（读）+ UserRegistered 事件 | .UserRegistry |
+| 8 | `MockUSDT` | decimals/balanceOf/allowance（读，校验精度/余额） | （从 artifacts/mocks 取，正式 USDT 同 6 位） |
 
-### 7.1 hardhat.config.ts
-新增网络（不动现有 31337/16600/16602）：
-```ts
-arbitrum_sepolia: {
-  url: process.env.ARBITRUM_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
-  chainId: 421614,
-  accounts: [DEPLOYER_KEY],
-  timeout: 60000,
-}
-// 可选：显式 localhost(31337) 指向 http://127.0.0.1:8545（deploy:local 用）
-```
-- `evmVersion`/`viaIR` 维持，待 §6.4 确认；若 transient 不支持则全局或 Payment 单独降级。
-
-### 7.2 deploy.ts 增量（授权拓扑见 §7.0）
-顺序（在现有 7 合约 deployProxy 基础上）。**usdt/serviceManager 走 initialize 注入（消歧锁定），oracle 因部署顺序仍走 setter**：
-```
-0. 部署 MockUSDT(decimals=6)  ← 测试网/本地；本轮无正式 USDT，全用 mock
-1-7. proxy 部署（initialize 注入 usdt/serviceManager）：
-   - Deposit.initialize(userRegistry, usdt)                       // ← usdt initialize 注入
-   - Payment.initialize(feeManager, platformWallet, usdt, serviceManager)  // ← usdt/SM initialize 注入
-   （其余合约 initialize 不变）
-
-§7.0 授权 wiring 补全（★ = 现状缺，B2 必补）：
-  ★ + payment.setOracle(oracleAddr)        // B2：createBill/applyTrafficCardToBill 的 onlyOracle 放行
-  ★ + oracle.setPayment(paymentAddr)       // B2：Oracle 无 setPayment，本轮新增
-  ★ + 循环 serviceManager.setOperatorPaymentAddress(id, payoutAddr)  // 11 运营商，非零（测试网用 deployer 派生地址）
-    （现有）trafficCardNFT.setDepositContract / deposit.setTrafficCardNFT / deposit.setOracle / oracle.setDeposit / payment.setPlatformWallet / transferOwnership(deposit, NFT)
-```
-> 校验：deploy 完成后断言 `payment.oracle()==oracle`、`oracle.payment()==payment`、`deposit.oracle()==oracle`、`NFT.owner()==deposit`、每个 active operator.paymentAddress≠0（§7.0.3 三条链闭合的前置）。
-
-### 7.3 deployments 产出 + 给后端(2/3)的 handoff 交付物（消歧·CEO⚠️）
-`deployments/<net>.json` 增字段：
-```json
-{ "chainId": 421614, "proxies": {...7...},
-  "implementations": {...7...},
-  "usdt": "0x...", "usdtDecimals": 6,
-  "storageLayout": { "Deposit": "...", "Payment": "...", ... },   // ← storage layout 冻结记入（消歧）
-  "abiHash": { "Deposit": "0x...", "Payment": "0x..." }            // ← ABI 指纹，供后端比对
-}
-```
-两处部署：`deploy:arbitrum-sepolia`（421614）+ `deploy:local`（31337）。供后端 configs/deployments.json（子项 2/3）+ 前端 contracts.ts（子项 3/3）对齐。
-
-#### 7.3.1 合约子项 → 后端子项(2/3) 正式 handoff 清单（验收交付物）
-合约子项验收**必须产出**以下 handoff（消歧·CEO⚠️），交给后端对齐：
-1. **冻结 ABI**：7 合约 + MockUSDT 的最终 ABI（本轮 selector 已变，后端必须重生成）。
-2. **selector 清单 + 变更标注**：重点标 `deposit()`→`deposit(uint256)`、`payBill()`→`payBill(uint256)`（去 payable 改 selector）、`monthlySettlement` 新签名（含 amounts[]，v2-A）、新增 `issueMonthlyTrafficCards`/`applyTrafficCardToBill`/`setOperatorPaymentAddress`/`oracle.setPayment`。
-3. **金额精度语义说明**：所有金额字段单位 = USDT，精度 = `usdt.decimals()`（mock 6）；**createBill 的 amount 是后端链下算好的 USDT 金额（v2-A），后端负责计价**；MIN_DEPOSIT=10×10^decimals。
-4. **storage layout 冻结**：记入 deployments.json（见上），作为后续 Round 升级基线。
-5. **批量调用约定**：monthlySettlement/issueMonthlyTrafficCards 后端分批 ≤N（压测 GAS-01 量出的安全上限）。
-6. **applyTrafficCardToBill 语义说明**：本轮为受限桩（不抵扣资金），后端不要据此做抵扣对账（v2-B 冻结）。
+> implement 阶段提供 `make abigen` 或脚本：读 artifacts → abigen 生成到 `internal/blockchain/bindings/<name>.go`，并校验 `abiHash` 与 `deployments.json` 一致（不一致 fail，提示重新生成）。
 
 ---
 
-## 八、补测策略（验收 A.2 等）
+## 6. 关键技术设计（按模块）
 
-新增/重写测试（建议新建 `test/erc20.ts` 或扩 `linkworld.ts`；TDD 优先）：
+### 6.1 `blockchain/client.go` — abigen 绑定 + 真实读/写
 
-| 编号 | 用例 | 验收点 |
-|------|------|--------|
-| MIN-01 | deposit 9.999999 USDT → revert "Below min deposit" | **A.2 <10 拒绝** |
-| MIN-02 | deposit 10.000000 USDT → 成功 | **A.2 =10 通过** |
-| ERC-01 | 未 approve → deposit revert（ERC20InsufficientAllowance） | approve 前置 |
-| ERC-02 | approve 后 deposit → `_deposits` 增、USDT 余额转移正确 | transferFrom |
-| ERC-03 | withdraw 锁仓未到 → revert；到期后 → USDT 退回本金 | 锁仓 + safeTransfer |
-| PAY-01 | payBill 未 approve → revert | 支付授权 |
-| PAY-02 | payBill 成功 → operator.paymentAddress 收 amount、platformWallet 收 fee、isPaid=true | **分账正确性** |
-| PAY-03 | operator.paymentAddress=0 → payBill revert "Operator payout unset" | 零地址校验 |
-| PAY-04 | fee = `calculateFee(amount)` 与链上 FeeManager 一致 | R5 |
-| ISS-01 | 非 oracle 调 issueMonthlyTrafficCards → revert "Only oracle" | **自动发卡权限** |
-| ISS-02 | oracle 调，锁仓到期用户 → mint NFT；未到期用户 → 跳过不 revert | **自动发卡时序 / B3 不整批回滚** |
-| ISS-03 | 已有卡用户重复 issue → 不重复 mint | 幂等 |
-| ISS-04 | 一批含「合格+不合格」混合用户 → 合格者 mint、不合格者 continue 跳过、整批不 revert | **B3 核心** |
-| ISS-05 | issueMonthlyTrafficCards 发卡 dataAmount == trafficCardQuota（固定，与存款额无关） | **v2-C** |
-| DEC-01 | mock USDT.decimals()=6；MIN_DEPOSIT 随 decimals 计算 | **精度（不硬编码）** |
-| **B6 集成测试** | | |
-| MS-01 | deploy 全 wiring 后 owner 调 `monthlySettlement(users,operatorIds,amounts[])` → 对应 user 生成账单 amount==amounts[i]（**v2-A 不求和**）、platformFee 正确 | **B1/B6：计价 + createBill onlyOracle 链通** |
-| MS-02 | createBill 的调用方非授权 oracle → revert "Only oracle" | **B2：createBill onlyOracle** |
-| MS-03 | monthlySettlement 端到端：createBill + issueMonthlyTrafficCards + applyTrafficCardToBill 桩 全程不 revert（验证 §7.0.3 三条链闭合） | **B6 集成主路径** |
-| ATC-01 | 非 oracle 调 applyTrafficCardToBill → revert "Only oracle" | **B6/v2-B：桩权限** |
-| ATC-02 | oracle 调 applyTrafficCardToBill(存在账单) → 不 revert、不发生任何 USDT 转移（余额不变）；调不存在账单 → revert "Bill not found" | **v2-B：桩不转资金 + 存在性校验** |
-| **B7 非标 USDT** | | |
-| USDT-01 | transfer/transferFrom 不返回值的非标 USDT → SafeERC20 仍正确入账（不 revert） | **B7：SafeERC20 分支** |
-| USDT-02 | transferFrom 返回 false 的恶意 token → deposit/payBill revert（SafeERC20 捕获） | **B7：SafeERC20 分支** |
-| **压测** | | |
-| GAS-01 | issueMonthlyTrafficCards / monthlySettlement 批量 N 用户，量 gas，确定单批安全上限 N | **消歧：批量 gas 上限 → 写入 handoff** |
-| **回归（重写）** | | |
-| REG-01 | 锁仓续期不变量：未到期复存 → lockExpiry 原点+30d；到期复存 → now+30d | **消歧：续期不变量** |
-| REG-02 | 未注册用户 deposit → revert "Not registered"（旧测试用 `{value}` payable 调用，改 `deposit(amount)` 后失效，**重写为 approve+deposit(amount)**） | **消歧：回归重写** |
-| 回归 | 现有 FE/UR/SM/TC 26 it（金额改 USDT 精度后）不回归 | 不破坏 |
+- **结构扩展**：`Client` 增加 `bindings`（8 份 abigen 实例）、`transactor *bind.TransactOpts`（owner，可为 nil = 只读降级）、`usdtDecimals uint8`。
+- **读调用（替换 stub 返零值）**：
+  - `GetDepositAmount(addr)` → `bindings.Deposit.GetDepositAmount(callOpts, addr)`（返回 6 位最小单位 *big.Int）
+  - `GetLockExpiry(addr)` → `bindings.Deposit.GetLockExpiry(...)`
+  - `VerifyServiceActive(addr)` → `bindings.Oracle.VerifyServiceActive(...)`
+  - 新增 `GetFeeRate()` / `CalculateFee(amount)`（FeeManager，展示用）
+- **写调用（owner 签名，新增）**：
+  - `MonthlySettlement(users []common.Address, opIds []*big.Int, amounts []*big.Int) (txHash, error)`：`bindings.Oracle.MonthlySettlement(transactor, ...)`；调用前断言 `transactor != nil`（否则返回 ErrNoOwnerKey），断言三数组等长、`len ≤ 25`。
+  - `IssueMonthlyTrafficCards(users)`（可选单独发卡，≤50）。
+  - 写调用统一：估 gas → 发交易 → 返回 txHash（回执确认交由调用方/event_sync 异步）。
+- **nonce 管理**：单 owner 账户串行发交易（分批结算本就串行），用 `PendingNonceAt` 取 nonce；并发保护用 mutex（本轮单 worker，简单 mutex 足够）。
 
-> **已删除**：v1 的 `UPG-01（upgradeProxy storage 不丢）` —— 本轮一律 fresh deploy 不升级（消歧），无升级路径可测。
-> 现有测试金额从 `parseEther` 改 USDT 精度辅助：`const usdt=(n)=>BigInt(n)*10n**6n`。FeeManager 的 FE-02/04 用 ETH 计费率与币种无关，可保留或改 USDT 单位。测试需先 mint mock USDT 给 user 并 approve。**旧测试直接 `Factory.deploy()`+手动 initialize 且用 `{value}` 调 deposit/payBill 的用例，改 ERC20 后全部失效，需按 approve+deposit(amount)/payBill(id) 重写。**
+### 6.2 `blockchain/signatures.go` + owner key — 真实签名
+
+- **`SignData`（services/oracle.go）废弃 SHA256**：本轮 `submitUsage` 是合约预留接口、v2-A 不参与计价（Oracle.sol:89），后端**不需要为计价做链上用量签名**。`UsageData.Signature` 字段可保留为本地审计哈希（标注非链上签名），或直接置空。**结论：本轮不实现链上用量 ECDSA 签名**，避免无用复杂度。
+- **owner 交易签名**：在 `client.go` 用 `bind.NewKeyedTransactorWithChainID(privKey, big.NewInt(chainID))` 构造 transactor。私钥从 `os.Getenv("ORACLE_OWNER_PRIVATE_KEY")` 读（hex），`crypto.HexToECDSA` 解析。**禁止硬编码、禁止入库、禁止进日志**（日志只打 owner address 不打私钥）。缺失 → transactor=nil，链上写降级关闭，启动 log warn。
+- `signatures.go` 修正：`BillCreated` 改 4 参；新增 `TrafficCardApplied`/`UsageDataSubmitted`/`DepositWithdrawn` topic（与 §5.2 一致）。
+
+### 6.3 `sync/event_sync.go` — 真实订阅/轮询 + 6 位精度 + 多事件
+
+- **真实拉取**：替换 `time.Sleep(30s)` 空转为**轮询 `FilterLogs`**（区块范围分页，从 last-synced block 推进；持久化 last block 到 DB 或文件，断点续传）。Arbitrum Sepolia 出块快，优先 `FilterLogs` 轮询（比 `SubscribeFilterLogs` 对公共 RPC 更稳）。
+- **地址表来源**：`s.contracts`（修 config bug 后非空，§6.5）；按合约地址 + topic 过滤。
+- **多事件分发**：`UserRegistered`/`DepositMade`/`DepositWithdrawn`/`BillCreated`/`BillPaid`/`TrafficCardMinted`/`TrafficCardApplied`/`UsageDataSubmitted` 各自 process，用 abigen `*Filterer.Parse*` 解码（替代手写 topic 索引解析）。
+- **6 位精度落库**：所有金额事件解码出的 `*big.Int` 为 6 位最小单位，DB 存最小单位字符串；不做除法（展示层处理）。
+- **process 修正**：`processUserRegistered` 解析 email/tokenId/真实时间（不再 `Unix(0,0)`）；`processBillCreated` 回填 `OnChainBillID`+`TxHash`；`processBillPaid` 置 `IsPaid`/`PaidAt`；`processUsageDataSubmitted` 对账（后端计价金额 == 链上入账金额，不一致告警）。
+- **幂等**：按 (txHash, logIndex) 或 OnChainBillID 去重，避免重复落库（轮询重叠区块时）。
+
+### 6.4 services 计价 — 费率表 + amounts[] + 分批
+
+- 新增 `PricingService`（§4.2 费率表 + `Price()`）。
+- `OracleServiceV2.FetchAndCreateBills` 重写（§4.1 流程）：
+  - 用 `OperatorAPISimulator.GetUsage` 取 (dataMB, callMin)（保留模拟，单位明确 MB/min）。
+  - `PricingService.Price(operatorId, usage)` → amount6（确定可复算，**废弃 `GetBill` 随机金额**）。
+  - operatorId 映射（§4.5）：后端 opID → 链上 operatorId。
+  - 构造三等长数组，**分批切片每批 ≤25**（handoff §5.1），逐批调 `client.MonthlySettlement`，失败批记录 + 幂等续跑。
+- **handler 入口 `TriggerMonthlyBill`** 保持，但加鉴权（§6.6）+ 返回分批结果摘要（成功批数/失败批/txHashes）。
+
+### 6.5 `config.go` — 键名 bug 修复 + schema 扩展
+
+- **修 bug（二选一，建议对齐合约产物）**：struct tag `json:"proxies"` 保持，**deployments.json 键名从 `contracts` 改为 `proxies`**（与 `hardhat.json` 范式一致），消除双重不一致。
+- **Deployments struct 扩展**：新增 `Usdt common.Address json:"usdt"`、`UsdtDecimals uint8 json:"usdtDecimals"`、`AbiHash map[string]string json:"abiHash"`。
+- **abiHash 校验**：加载后比对 abigen 绑定的 ABI 指纹与 `deployments.json.abiHash`，不一致 → 启动 fail（提示重新生成绑定），防止 ABI 与链上实现脱节。
+- **RPC 来源统一**：`main.go` 当前用 `os.Getenv("RPC_URL")` 起 sync、地址走 json。统一为 **json.rpcUrl 为准，env `RPC_URL` 可覆盖**（明确优先级，避免连 A 链发 B 链）。
+
+### 6.6 handlers — 敏感端点鉴权中间件
+
+- **新增 Gin 中间件 `AdminAuth`**：校验请求头 `X-Admin-Key` == `os.Getenv("ADMIN_API_KEY")`（常量时间比较 `subtle.ConstantTimeCompare`），缺失/不匹配 → 401。
+- **加固端点**：`POST /api/oracle/monthly-bill`、`POST /api/usage/submit`、`POST /api/withdraw`（若仍保留写路径）、`POST /api/notification/send`。
+- **不加固**：用户读端点（user/bills/deposit 查询）、register、operators 等公开端点保持。
+- 中间件方案优先 API key（实现简单、本轮够用）；HMAC 签名校验留后续 Round 升级（标注）。
+- `ADMIN_API_KEY` 从 env 读，缺失 → 启动 fail（不允许敏感端点裸奔）。
+
+### 6.7 `configs/deployments.json` — 421614 schema + 本地 31337 机制
+
+- **本地联调（先行）**：新增/对齐读 `packages/contracts/deployments/hardhat.json`（chainId 31337）的 `proxies`+`usdt`+`usdtDecimals`+`abiHash`，作为 implement/test 阶段离线联调来源。
+- **Arbitrum Sepolia 421614**：`configs/deployments.json` schema 改为：
+  ```json
+  {
+    "chainId": 421614,
+    "rpcUrl": "<Arbitrum Sepolia RPC>",
+    "proxies": { "FeeManager": "0x…", "...7 个待上链填": "" },
+    "usdt": "0x… (MockUSDT，待上链填)",
+    "usdtDecimals": 6,
+    "abiHash": { "...7 合约指纹（取自 arbitrum_sepolia.json，待生成）": "" }
+  }
+  ```
+- **占位 + 读 arbitrum_sepolia.json 机制**：合约 1/3 真·上链前，`deployments/arbitrum_sepolia.json` 不存在（handoff §10）。本轮 421614 地址先占位（零地址或注释），**implement 提供「从 contracts/deployments/<net>.json 同步到 backend/configs/deployments.json」的脚本**，上链后一键回填。test 阶段优先用 31337 hardhat.json 跑通。
+- 同步修正 `.env.example`：`CHAIN_ID=421614`、`RPC_URL=<Arbitrum Sepolia>`，新增 `ORACLE_OWNER_PRIVATE_KEY=`（空，注释说明）、`ADMIN_API_KEY=`。
 
 ---
 
-## 九、落地计划（给 plan 阶段输入）
+## 7. 非功能性设计
 
-| 阶段 | 任务 | 顺序 | 风险点 |
-|------|------|------|--------|
-| P1 修编译 | ①Oracle 事件+类型+setPayment+**monthlySettlement 改 amounts[] 签名(v2-A)**；②state 类型；③Payment **createBill 改 onlyOracle(B2)** + **applyTrafficCardToBill 受限桩(v2-B)**；④TrafficCardNFT 删 DeductionCredit/onlyDeposit；⑤**interfaces/ 先补 issueMonthlyTrafficCards/applyTrafficCardToBill 声明(B5)** 再收敛 Oracle 内联接口 | **最先，串行** | compile 绿是 gate；**P1 gate 重定义：①–⑤ 全做完才绿（消歧），无中间绿态** |
-| **P1.5 兼容实测（前移）** | 在 421614 实测 Payment 部署 + 一笔 payBill，确认 TSTORE/ReentrancyGuardTransient 可用；厘清 `_reentrancyGuardInit` assembly 正确性 | **P1 后、P2 前（消歧前移）** | 🔴 不支持则先切 `ReentrancyGuardUpgradeable` 再继续，避免 P5 返工 |
-| P2 ERC20 迁移 | Deposit/Payment 引 SafeERC20 + **usdt 走 initialize 注入** + deposit(amount)/withdraw 改写 + MIN_DEPOSIT；**禁 fee-on-transfer(B7)** | P1.5 后 | 精度雷区；用 decimals 不硬编码 |
-| P3 分账 | Payment payBill CEI 直分 + ServiceManager setOperatorPaymentAddress + 零地址校验 + **createBill fail-fast** + **0-fee 跳过** | P2 后 | operator.paymentAddress 全 0 必须先补；两段 transferFrom 原子性；黑名单地址降级(B7) |
-| P4 自动发卡 | Deposit.issueMonthlyTrafficCards 走 **独立 `_mintFor`(B3)** + onlyOracle + **continue 跳过不整批回滚(B3)** + **dataAmount=trafficCardQuota(v2-C)**；**禁用 NFT.mintBatch** | P3 后 | 时序校验、批量 gas（GAS-01 压测定上限） |
-| P5 部署 | hardhat.config 421614 + MockUSDT + **deploy.ts 补 B2 授权拓扑(§7.0：payment.setOracle/oracle.setPayment/setOperatorPaymentAddress)** + 校验断言 + **handoff 交付物(§7.3.1)** | P4 后 | 授权拓扑漏一项则自动结算链 revert（§7.0.3 校验兜底） |
-| P6 补测 | §八 全清单（含 B6 MS/ATC、B7 USDT、GAS-01、回归重写 REG） | 贯穿（TDD 可前置到各阶段） | 现有 26 it 不回归、需重写 payable 调用 |
+### 7.1 安全（资损敏感，arch-review/security-review 重点）
 
-**implement 串行铁律**：P1→P6 严格串行（一个完成审查再下一个），尤其 P1 compile gate 不过不进 P1.5。**P1.5 Arbitrum 兼容实测**（消歧前移，原 P5）若失败，先回退到「Payment ReentrancyGuard 降级」分支（§6.4）再进 P2。
+- **owner key 管理**：`ORACLE_OWNER_PRIVATE_KEY` 仅 env 注入；不硬编码、不入库、不进日志（日志仅 owner address）；缺失则写功能降级。私钥泄露 = 可任意发起月度结算（高危资损面）。**部署侧建议最小权限账户 + 后续 KMS**（本轮标注遗留）。
+- **端点鉴权**：敏感端点 API key + 常量时间比较；`ADMIN_API_KEY` 缺失启动 fail。
+- **资损 = 计价错算**：费率表纯整数运算（无浮点）；amounts[] 与链上 `UsageDataSubmitted` 事件双向对账（不一致告警）；`amount > 0` 才出账（合约侧也 fail-fast）。`MIN_DEPOSIT`/最小出账金额校验。
+- **fee-on-transfer 禁用**（handoff §3）：后端记账信任 amount=实收，正式 USDT 无此问题；mock 阶段确认 MockUSDT 标准 ERC20。
+- **applyTrafficCardToBill 桩**（handoff §6）：后端不据此做资金抵扣，`TrafficCardDeduction` 恒 0。
+
+### 7.2 USDT 6 位精度一致性
+
+- 全链路 6 位最小单位（链/计价 *big.Int，DB string，展示除 10^decimals）。
+- `usdtDecimals` 从 `deployments.json` 读，**不硬编码 6**（正式 USDT 同 6 位，但读字段防漂移）。
+- seed `RequiredDeposit` + 费率表单价 + `MIN_DEPOSIT(10×10^6)` 全部 6 位语义统一。
+
+### 7.3 RPC 统一 Arbitrum
+
+- 三端（hardhat / 后端 / 前端）统一 Arbitrum Sepolia 421614；后端 RPC = json.rpcUrl 为准 + env 可覆盖，单一优先级。
+- 杜绝 0G 残留（旧 `evm-testnet.0g.ai` / `evmrpc-testnet.0g.ai` 全清）。
+
+### 7.4 联调依赖（前置项，明确标注）
+
+- ⏳ **端到端真机联调依赖合约 1/3 真·上链**（handoff §10：缺 DEPLOYER_PRIVATE_KEY/RPC，`arbitrum_sepolia.json` 未生成、Arbitrum MockUSDT 地址不存在）。
+- **不阻塞 implement/test**：implement 阶段全部用本地 hardhat(31337) + hardhat.json 联调；abigen 绑定/计价/分批/事件解码/鉴权均可本地 + mock RPC 单测验证。真机 421614 联调待上链后补跑（test 阶段标注）。
+- 上链后需复测：在 421614 校准分批上限 N（L2 calldata 计价差异，handoff §5.1）。
+
+### 7.5 异常与监控/对账
+
+- 分批失败：记录失败批 users + 错误，幂等续跑（合约逐用户 continue + issueMonthly 幂等）。
+- 交易回执确认：发交易后异步等回执；event_sync 为最终对账事实源。
+- 对账告警：`UsageDataSubmitted` 链上金额 ≠ 后端计价金额 → 告警日志（资损信号）。
+- event_sync last-block 持久化 + 断点续传 + 幂等去重（防漏/重复）。
 
 ---
 
-## 十、🔴 重跑 arch-review 重点复审清单（v2）
+## 8. 落地计划（给 plan 阶段输入）
 
-1. **计价归属（B1/v2-A）**：Oracle 无任何 usage 求和；createBill amount = 链下 USDT 金额；量纲正确无天文扣款。
-2. **两条权限链 deploy 可跑通（B2）**：§7.0.3 链 A/B 闭合；deploy 确含 `payment.setOracle` + `oracle.setPayment`；createBill 为 onlyOracle。
-3. **批量发卡幂等 + 不整批回滚（B3）**：走 `_mintFor` 不撞 onlyOwner；`continue` 跳过；混合批 ISS-04 通过。
-4. **发卡额度解耦（B4/v2-C）**：dataAmount=trafficCardQuota 固定；全仓无 `_deposits/100000`；口径全文统一。
-5. **接口 SSOT 收敛 + 连锁编译（B5）**：interfaces/ 已补两声明；签名变更→实现同步清单（§5.6）；selector 变更已进 handoff。
-6. **核心新函数测试覆盖（B6）**：MS-01~03 集成 + ATC-01/02 桩权限存在性。
-7. **非标代币边界（B7）**：禁 fee-on-transfer；黑名单降级；USDT-01/02 SafeERC20 分支。
-8. **applyTrafficCardToBill 受限桩（v2-B）**：onlyOracle、不转资金、仅存在性校验；真实抵扣语义已冻结。
-9. **ERC20 重入 + CEI**：payBill/withdraw 状态先改后转、nonReentrant 到位。
-10. **精度不硬编码**：全仓 grep 无字面 `* 10**18` / `* 10**6` / `1e18`；MIN_DEPOSIT 随 decimals。
-11. **Arbitrum transient 兼容（消歧前移）**：P1.5 实测 ReentrancyGuardTransient + 厘清 `_reentrancyGuardInit` assembly 正确性。
-12. **fresh deploy 口径**：无 16602 升级讨论残留；storage layout 冻结记入 deployments.json。
-13. **ServiceManager requiredDeposit 废弃**：本轮不读不校验，无误用。
+| 任务 | 内容 | 文件 | 依赖 | 风险 |
+|------|------|------|------|------|
+| **T1** abigen 绑定 | make 脚本 + 生成 8 份绑定 + abiHash 校验 | `internal/blockchain/bindings/*`, Makefile | 合约 artifacts 存在 | ABI 与链上不符 → revert |
+| **T2** config 修复 | 键名 bug + struct 扩展(Usdt/UsdtDecimals/AbiHash) + RPC 优先级 + .env.example | `config/config.go`, `configs/deployments.json`, `.env.example` | — | 键名不修 sync 静默失效 |
+| **T3** client 读/写 | 读调用真实化 + MonthlySettlement/IssueMonthly 写 + nonce mutex | `blockchain/client.go` | T1,T2 | selector/编码错 |
+| **T4** owner 签名 | env 私钥 + transactor + 降级关闭 + 日志脱敏 | `blockchain/client.go`, `cmd/main.go` | T3 | 私钥泄露/硬编码 |
+| **T5** event_sync | FilterLogs 轮询 + 8 事件 process + 6 位精度 + 幂等 + last-block 持久化 + signatures.go 修正 | `sync/event_sync.go`, `signatures.go`, `models.go`(加列) | T1,T2 | 漏/重复落库 |
+| **T6** 计价 | PricingService 费率表 + FetchAndCreateBills 重写 + operatorId 映射 + amounts[] + 分批≤25 | `services/oracle.go`(+pricing) | T3,T4 | 计价错算/映射错 |
+| **T7** 鉴权 | AdminAuth 中间件 + 敏感端点挂载 + ADMIN_API_KEY env | `handlers/handlers.go`(+middleware), `cmd/main.go` | — | 端点裸奔 |
+| **T8** 测试 | 计价复算/分批切片/6位精度/事件解码/鉴权中间件 单测 + mock RPC | `services/*_test.go`, `blockchain/*_test.go` | T1–T7 | 覆盖不足 |
+
+**顺序**：T1→T2→(T3→T4)→T5→T6→T7→T8。T5 与 T6 串行（都依赖 T1/T3）。T7 可与 T6 并行（不同文件）。**implement 阶段始终串行**（CLAUDE.md 规则）。
+
+**风险总览**：① operatorId 映射（§4.5，arch-review 必审）；② owner key 安全（§6.2/7.1）；③ 计价正确性（§4.2/7.1）；④ 联调依赖上链（§7.4）；⑤ 事件幂等/精度（§6.3/7.2）。
 
 ---
 
-## 十一、arch-review 阻塞闭合对照表（B1–B7 + 用户 3 决策）
+## 9. arch-review / security-review 重点清单
 
-| 阻塞 | 原问题 | v2 解法 | 落点章节 |
-|------|--------|---------|----------|
-| **B1**🔴 | Oracle L68 `dataUsage+callUsage` 当 USDT 金额 → 天文扣款/量纲错 | **v2-A**：删 L68 求和；`monthlySettlement(...,amounts[])` 传入链下算好的 USDT 金额；Oracle 只喂价/触发不计价 | 头部 v2-A、2.2、3.2、4.4、5.4、6.1、§八 MS-01 |
-| **B2** | createBill 是 onlyOwner，Oracle 非 owner 且 deploy 无授权 → monthlySettlement revert | createBill 改 **onlyOracle** + deploy 补 **`payment.setOracle(oracle)` / `oracle.setPayment`**；新增 **§7.0 ownership/授权拓扑图** + §7.2 授权步骤 | 2.2、4.2、4.4、5.2、6.2、**§7.0**、7.2、§八 MS-02 |
-| **B3** | issueMonthlyTrafficCards 复用 onlyOwner mintTrafficCard 会 revert；require 整批回滚 | 走独立 internal **`_mintFor`**（不经 onlyOwner）；批量循环 **`if(!ok) continue`** 跳过不 revert 整批 | 3.1、4.1、5.1、5.4、6.2、§7.0.3 链B、§八 ISS-04 |
-| **B4** | `_deposits/100000` 在 6 位精度下发废卡；口径矛盾 | **v2-C**：`dataAmount=固定 trafficCardQuota`，删除 `_deposits/100000`，全文统一 | 头部 v2-C、3.1、4.1、5.1、6.1、§八 ISS-05 |
-| **B5** | IDeposit 无 issueMonthlyTrafficCards、IPayment 无 applyTrafficCardToBill → 接口收敛后编译不过 | interfaces/ 先补两声明；**§5.6 连锁编译清单**（接口签名变更→实现/调用方同步） | 〇、4.1、4.2、4.4、**5.6** |
-| **B6** | monthlySettlement + applyTrafficCardToBill 零测试 | 补 **MS-01~03 集成测试** + **ATC-01/02 桩权限/存在性测试** | 1.3、§八（B6 集成测试块） |
-| **B7** | 未处理 fee-on-transfer（withdraw 资损）+ USDT 黑名单/暂停 payBill 失败 | 6.1 补：**仅标准 ERC20、禁 fee-on-transfer**；分账地址非黑名单 + **支付失败降级**；测 USDT-01/02 | 2.1、5.1、5.2、**6.1**、§八（B7 块） |
+**arch-review 必须确认**：
+1. **operatorId 映射**（§4.5）：后端 DB ID 与链上 operatorId 是否一致？映射建立方式（读 ServiceManager 比对 vs 固定表）是否可靠？传错 = createBill 关联错运营商/分账。
+2. **后端只代发 monthlySettlement**（§5.1）的判断是否正确？deposit/payBill 确属用户钱包侧、后端不代发？
+3. **DB 与链对账模型**（§4.3）：废弃「前端传 txHash 即标记已付」改事件驱动，是否影响现有 web 流程（需与 web 3/3 对齐）？
+4. **计价费率表结构**（§4.2）：纯整数 6 位最小单位运算是否覆盖所有计价场景？MinBillAmount/dust 处理？
+5. **submitUsage 不实现链上签名**（§6.2）的取舍是否合理（v2-A 不参与计价）？
 
-**§三消歧项闭合**（一并处理）：
+**security-review 必须审**：
+1. **owner key 全链路**（env→transactor→日志脱敏→降级）无泄露面；硬编码/入库/日志泄露 grep 核查。
+2. **AdminAuth 中间件**：常量时间比较、缺 key 启动 fail、覆盖全部敏感端点无遗漏。
+3. **资损路径**：计价错算、amounts[] 与链上事件对账、amount>0 校验、6 位精度一致性、fee-on-transfer 信任假设。
+4. **分批幂等**：失败续跑不重复结算（合约幂等 + 后端去重）。
+5. **RPC 统一**：无 0G 残留、env/json 优先级单一、不连错链。
 
-| 消歧项 | v2 处理 | 落点 |
-|--------|---------|------|
-| usdt 注入路径 | 锁定 **initialize 注入**（弃 setUSDT 后置） | 2.2、4.1、4.2、5.1、7.2 |
-| P1 compile gate 重定义 | **①–⑤ 全做完才绿**（无中间绿态） | 1.3、2.1、5.6、§九 |
-| 批量 mint 分批上限/压测 | 调用方分批 ≤N + **GAS-01 压测**定上限，写入 handoff | 5.4、§八 GAS-01、7.3.1 |
-| ServiceManager requiredDeposit | **本轮明确废弃，不读不校验** | §一红线、4.3、§十.13 |
-| 16602 一律 fresh deploy 不升级 | 删除所有 storage layout 升级讨论；fresh deploy 口径 | 2.2、§一红线、**6.3** |
-| ReentrancyGuardTransient 兼容实测前移 + assembly 正确性 | 实测**前移到 P1.5（P2 前）**；厘清 `_reentrancyGuardInit` sstore 正确性 | **6.4**、§九 P1.5 |
-| createBill fail-fast 校验 paymentAddress | createBill require operator.paymentAddress≠0 | 3.2、5.2、6.1 |
-| 0-fee 跳过 | 保留 `if(platformFee>0)` | 3.2、4.2、5.2 |
-| 禁用 NFT.mintBatch | L77 `this.mint()` 撞 onlyOwner，发卡链路禁用 | 〇、5.3 |
-| handoff 交付物（ABI+selector+精度语义）+ storage layout 冻结 | **§7.3.1 handoff 清单** + deployments.json 记 storageLayout/abiHash | 6.3、**7.3 / 7.3.1** |
-| 非标 USDT 测试 + 锁仓续期/未注册 deposit 回归重写 | USDT-01/02 + REG-01/02 重写 | §八（B7 块、回归块） |
+---
+
+## 10. 遗留 / 依赖
+
+- ⏳ 端到端真机 421614 联调 + 分批上限校准 → **依赖合约 1/3 真·上链**（handoff §10），不阻塞 implement/test（本地 31337）。
+- ⏳ KMS 私钥托管、HMAC 端点签名、真实运营商 usage API、NotificationService SMTP → 留后续 Round。
+- ⏳ 费率表真实费率值 → 产品/运营填，本轮占位 + 测试固定断言。
