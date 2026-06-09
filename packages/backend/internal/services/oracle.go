@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
@@ -110,9 +111,13 @@ func (g *VirtualNumberGenerator) generatePassword(length int) string {
 	return string(result)
 }
 
+// OperatorAPI 提供运营商用量（usage）。
+//
+// 注（design §3.2 / arch-review CEO 验收语言）：本轮 usage 仍为模拟（真实运营商 API 留后续）；
+// 计价金额已改为确定可复算（PricingService），但「计价引擎正确 ≠ 计费正确」。
+// 原 GetBill（返回 rand.Intn 随机金额 + 拍脑袋 2.5% fee）已废弃删除——金额唯一由 PricingService 计算（design §4.2）。
 type OperatorAPI interface {
 	GetUsage(userID, operatorID uint) (uint64, uint64, error)
-	GetBill(userID, operatorID uint, month time.Time) (string, string, error)
 }
 
 type OperatorAPISimulator struct{}
@@ -121,20 +126,17 @@ func NewOperatorAPISimulator() *OperatorAPISimulator {
 	return &OperatorAPISimulator{}
 }
 
+// GetUsage 模拟运营商用量（单位锁：dataUsage=MB、callUsage=minute，design §4.4）。
+// 本轮模拟值刻意限制在 usage 上界（MaxDataMB/MaxCallMin）内，避免触发 L1 上界拒绝。
 func (s *OperatorAPISimulator) GetUsage(userID, operatorID uint) (uint64, uint64, error) {
-	dataUsage := uint64(rand.Intn(10000) + 100)
-	callUsage := uint64(rand.Intn(500))
+	dataUsage := uint64(rand.Intn(10000) + 100) // MB，远低于 MaxDataMB
+	callUsage := uint64(rand.Intn(500))         // minute，远低于 MaxCallMin
 	return dataUsage, callUsage, nil
-}
-
-func (s *OperatorAPISimulator) GetBill(userID, operatorID uint, month time.Time) (string, string, error) {
-	baseAmount := uint64(rand.Intn(5000) + 500)
-	fee := baseAmount * 25 / 1000
-	return fmt.Sprintf("%d", baseAmount), fmt.Sprintf("%d", fee), nil
 }
 
 type OracleServiceV2 struct {
 	operatorAPI     OperatorAPI
+	pricing         *PricingService
 	userRepo        *repository.UserRepository
 	userServiceRepo *repository.UserServiceRepository
 	billRepo        *repository.BillRepository
@@ -143,6 +145,7 @@ type OracleServiceV2 struct {
 
 func NewOracleServiceV2(
 	operatorAPI OperatorAPI,
+	pricing *PricingService,
 	userRepo *repository.UserRepository,
 	userServiceRepo *repository.UserServiceRepository,
 	billRepo *repository.BillRepository,
@@ -150,6 +153,7 @@ func NewOracleServiceV2(
 ) *OracleServiceV2 {
 	return &OracleServiceV2{
 		operatorAPI:     operatorAPI,
+		pricing:         pricing,
 		userRepo:        userRepo,
 		userServiceRepo: userServiceRepo,
 		billRepo:        billRepo,
@@ -164,7 +168,6 @@ func (s *OracleServiceV2) FetchAndCreateBills() (int, error) {
 	}
 
 	now := time.Now()
-	month := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, now.Location())
 
 	billCount := 0
 	for _, user := range users {
@@ -173,18 +176,31 @@ func (s *OracleServiceV2) FetchAndCreateBills() (int, error) {
 			continue
 		}
 
-		amount, fee, err := s.operatorAPI.GetBill(user.ID, userService.OperatorID, month)
+		// 用量（模拟）→ 计价（确定可复算，替换原 rand.Intn 随机金额，design §4.2）。
+		// 单位锁：dataMB=MB、callMin=minute。
+		dataMB, callMin, err := s.operatorAPI.GetUsage(user.ID, userService.OperatorID)
 		if err != nil {
+			continue
+		}
+		// L1 计价 + usage 上界 + 单 bill 硬上限（design §7.0①）。超界/超额：拒绝该条 + 告警，不出账。
+		amount6, err := s.pricing.Price(dataMB, callMin, userService.OperatorID)
+		if err != nil {
+			log.Printf("WARN: 计价拒绝(L1)：user=%d op=%d dataMB=%d callMin=%d err=%v（跳过该 bill）", user.ID, userService.OperatorID, dataMB, callMin, err)
+			continue
+		}
+		// amount6 == 0（低于最小出账额）→ 跳过（合约侧 amount>0 才 createBill，design §4.1）。
+		if amount6.Sign() == 0 {
 			continue
 		}
 
 		bill := &models.Bill{
-			UserID:      user.ID,
-			OperatorID:  userService.OperatorID,
-			Amount:      amount,
-			PlatformFee: fee,
-			IsPaid:      false,
-			CreatedAt:   now,
+			UserID:               user.ID,
+			OperatorID:           userService.OperatorID,
+			Amount:               amount6.String(), // 6 位最小单位字符串（design §4.4）
+			PlatformFee:          "0",              // 平台费由合约 FeeManager 计算并 emit，后端不再拍脑袋 2.5%
+			TrafficCardDeduction: "0",              // 本轮恒 "0"（design §4.3，applyTrafficCardToBill 桩）
+			IsPaid:               false,
+			CreatedAt:            now,
 		}
 		s.billRepo.Create(bill)
 		billCount++
