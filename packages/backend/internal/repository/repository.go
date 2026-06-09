@@ -35,6 +35,20 @@ func (r *UserRepository) Exists(wallet string) bool {
 	return count > 0
 }
 
+// DB 暴露底层 *gorm.DB，供 event_sync(T4) 复用同一连接构造 Bill/Deposit/Sync 等 repo，
+// 不改 NewEventSync 既有签名（main.go 仅传 userRepo）。
+func (r *UserRepository) DB() *gorm.DB {
+	return r.db
+}
+
+// CreateIfNotExists 幂等创建用户（UserRegistered 事件可能重放）。已存在则不报错。
+func (r *UserRepository) CreateIfNotExists(user *models.User) error {
+	if r.Exists(user.WalletAddr) {
+		return nil
+	}
+	return r.db.Create(user).Error
+}
+
 type OperatorRepository struct {
 	db *gorm.DB
 }
@@ -151,11 +165,16 @@ func (r *DepositRepository) FindByUserID(userID uint) ([]models.Deposit, error) 
 	return deposits, err
 }
 
+// GetTotalByUserID 只统计 confirmed（含历史空 status）押金（design §4.3：pending 意向不计入余额）。
 func (r *DepositRepository) GetTotalByUserID(userID uint) (string, error) {
 	var result struct {
 		Total string
 	}
-	err := r.db.Model(&models.Deposit{}).Select("COALESCE(SUM(amount), '0') as total").Where("user_id = ? AND (type = ? OR type = ?)", userID, "deposit", "").Scan(&result).Error
+	err := r.db.Model(&models.Deposit{}).
+		Select("COALESCE(SUM(amount), '0') as total").
+		Where("user_id = ? AND (type = ? OR type = ?) AND (status = ? OR status = ? OR status IS NULL)",
+			userID, "deposit", "", models.DepositStatusConfirmed, "").
+		Scan(&result).Error
 	return result.Total, err
 }
 
@@ -181,4 +200,149 @@ func (r *UserRepository) FindAll() ([]models.User, error) {
 	var users []models.User
 	err := r.db.Where("is_active = ?", true).Find(&users).Error
 	return users, err
+}
+
+// --- event_sync(T4) 回填用的扩展方法 ---
+
+// SetOnChainID 回填链上账单 ID + TxHash（design §6.3 processBillCreated）。
+// 通过 user 关联尚未关联 OnChainBillID 的最新 DB bill（BillCreated 事件不含 operatorId）；
+// operatorID > 0 时叠加 operator 维度精确匹配。找不到不报错（链先于 DB 写的窗口）。
+func (r *BillRepository) SetOnChainID(onChainBillID uint64, txHash string, userID, operatorID uint) error {
+	q := r.db.Model(&models.Bill{}).
+		Where("user_id = ? AND on_chain_bill_id = 0", userID)
+	if operatorID > 0 {
+		q = q.Where("operator_id = ?", operatorID)
+	}
+	// gorm 的 Update 不直接支持 Order+Limit 的子查询定位，先选出目标 ID 再更新（确定性取最新一条）。
+	var target models.Bill
+	if err := q.Order("created_at desc, id desc").First(&target).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil
+		}
+		return err
+	}
+	return r.db.Model(&models.Bill{}).Where("id = ?", target.ID).
+		Updates(map[string]interface{}{
+			"on_chain_bill_id": onChainBillID,
+			"tx_hash":          txHash,
+		}).Error
+}
+
+// MarkPaidByOnChainID 唯一置 IsPaid 的路径（design §4.3/B2，仅 event_sync 确认后调用）。
+func (r *BillRepository) MarkPaidByOnChainID(onChainBillID uint64, txHash string) error {
+	now := time.Now()
+	return r.db.Model(&models.Bill{}).
+		Where("on_chain_bill_id = ?", onChainBillID).
+		Updates(map[string]interface{}{
+			"is_paid": true,
+			"paid_at": now,
+			"tx_hash": txHash,
+		}).Error
+}
+
+// CreateConfirmed 幂等记一笔已确认的资金记录（deposit/withdraw，design §4.3 单一对账路径）。
+// 由 (tx_hash, type, user_id) 去重，重复事件不重复落库。
+func (r *DepositRepository) CreateConfirmed(d *models.Deposit) error {
+	d.Status = models.DepositStatusConfirmed
+	var count int64
+	r.db.Model(&models.Deposit{}).
+		Where("tx_hash = ? AND type = ? AND user_id = ?", d.TxHash, d.Type, d.UserID).
+		Count(&count)
+	if count > 0 {
+		return nil
+	}
+	return r.db.Create(d).Error
+}
+
+// SyncStateRepository 维护 event_sync 断点续传游标（design §6.3）。
+type SyncStateRepository struct {
+	db *gorm.DB
+}
+
+func NewSyncStateRepository(db *gorm.DB) *SyncStateRepository {
+	return &SyncStateRepository{db: db}
+}
+
+// Get 返回指定链的游标；无记录返回 (nil, nil)。
+func (r *SyncStateRepository) Get(chainID uint64) (*models.SyncState, error) {
+	var s models.SyncState
+	err := r.db.Where("chain_id = ?", chainID).First(&s).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+// Save upsert 游标（last block + blockHash）。
+func (r *SyncStateRepository) Save(chainID, lastBlock uint64, blockHash string) error {
+	var s models.SyncState
+	err := r.db.Where("chain_id = ?", chainID).First(&s).Error
+	if err == gorm.ErrRecordNotFound {
+		return r.db.Create(&models.SyncState{ChainID: chainID, LastBlock: lastBlock, BlockHash: blockHash}).Error
+	}
+	if err != nil {
+		return err
+	}
+	s.LastBlock = lastBlock
+	s.BlockHash = blockHash
+	return r.db.Save(&s).Error
+}
+
+// ChainEventRepository 维护链上事件幂等去重 + 两阶段状态（design §6.3）。
+type ChainEventRepository struct {
+	db *gorm.DB
+}
+
+func NewChainEventRepository(db *gorm.DB) *ChainEventRepository {
+	return &ChainEventRepository{db: db}
+}
+
+// Seen 报告 (txHash, logIndex) 是否已落库（幂等去重）。
+func (r *ChainEventRepository) Seen(txHash string, logIndex uint) bool {
+	var count int64
+	r.db.Model(&models.ChainEvent{}).Where("tx_hash = ? AND log_index = ?", txHash, logIndex).Count(&count)
+	return count > 0
+}
+
+// Record 幂等落一条事件记录（已存在则不重复创建）。
+func (r *ChainEventRepository) Record(e *models.ChainEvent) error {
+	if r.Seen(e.TxHash, e.LogIndex) {
+		return nil
+	}
+	return r.db.Create(e).Error
+}
+
+// PromoteConfirmed 将块号 ≤ confirmedUpTo 的 seen 事件批量置 confirmed，并返回被提升的事件
+// （供调用方对每条做资金终态回填）。
+func (r *ChainEventRepository) FindSeenUpTo(confirmedUpTo uint64) ([]models.ChainEvent, error) {
+	var evs []models.ChainEvent
+	err := r.db.Where("status = ? AND block_number <= ?", models.ChainEventStatusSeen, confirmedUpTo).
+		Order("block_number asc, log_index asc").Find(&evs).Error
+	return evs, err
+}
+
+// MarkConfirmed 将单条事件置 confirmed。
+func (r *ChainEventRepository) MarkConfirmed(txHash string, logIndex uint) error {
+	return r.db.Model(&models.ChainEvent{}).
+		Where("tx_hash = ? AND log_index = ?", txHash, logIndex).
+		Update("status", models.ChainEventStatusConfirmed).Error
+}
+
+// DeleteUnconfirmedFrom 回退重扫：删除块号 ≥ fromBlock 的未确认（seen）事件记录
+// （design §6.3 reorg：已 confirmed 视为最终不回退）。返回被删事件供调用方回滚关联记账。
+func (r *ChainEventRepository) DeleteUnconfirmedFrom(fromBlock uint64) ([]models.ChainEvent, error) {
+	var evs []models.ChainEvent
+	if err := r.db.Where("status = ? AND block_number >= ?", models.ChainEventStatusSeen, fromBlock).
+		Find(&evs).Error; err != nil {
+		return nil, err
+	}
+	if len(evs) == 0 {
+		return nil, nil
+	}
+	err := r.db.Where("status = ? AND block_number >= ?", models.ChainEventStatusSeen, fromBlock).
+		Delete(&models.ChainEvent{}).Error
+	return evs, err
 }
