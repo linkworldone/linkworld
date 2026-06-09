@@ -1,195 +1,135 @@
-# test 阶段报告 — LinkWorld 合约子项目（1/3）
+# test 阶段报告 — LinkWorld 后端子项目（2/3）
 
-> 状态：DONE（全绿，可进 review） | 日期：2026-06-09 | 子项目：packages/contracts | Round：1
-> 角色：test runner（只跑验证 + 产出文档，不改任何合约 / deploy.ts / hardhat.config 业务内容）
-> 资损敏感合约，标准从严。
+> 状态：**DONE（全绿，可进 review）** | 日期：2026-06-09 | 子项目：packages/backend | Round：1
+> 角色：test runner（只跑验证 + 产出文档，**不改任何业务 .go / web / contracts / pipeline.json**）
+> 资损敏感后端（owner=平台 root 权限 + 月度结算代发），标准从严。
+> 注：合约子项目（1/3）的 test 报告见 git 历史（本文件前一版本），1/3 已全绿进 review。
 
 ---
 
 ## 〇、结论
 
-**本地 31337/hardhat 全绿，质量门全过，可进 review 阶段。**
+**packages/backend 静态门 + 单测全绿，资损红线逐条覆盖，质量门全过，可进 review 阶段。**
 
-- Phase 1 编译门：`hardhat compile` **0 error**，2 个非阻塞 warning（均为已知/无害）。
-- Phase 2 测试门：`hardhat test` **75 passing / 0 failing**。
-- Phase 3 覆盖率门：`solidity-coverage` 跑通，**全局 89.36% stmts / 88.84% lines / 51.18% branch / 75.34% funcs**，资损核心合约 Deposit/Payment **100% stmts**，远超 ≥60% 目标。
-- Phase 4 部署冒烟：`deploy.ts --network hardhat` 全 wiring 断言通过（B2/B3 链就绪）。
-- Phase 5 验收映射：requirement §五A/D + design §八补测清单逐条已被测试覆盖（见映射表）。
-- Phase 6 grep 自检：硬编码精度字面量 **0**、payable/msg.value 残留 **0**、SafeERC20 全覆盖资金转移点。
-
-**已知限制**：Arbitrum Sepolia 421614 真·上链 + TSTORE 链上实测因本环境无 `DEPLOYER_PRIVATE_KEY`/RPC 无法执行；本地 hardhat（cancun，含 transient storage）全绿、配置就绪（见 §六）。不阻塞本阶段。
+- `go build ./...` / `go vet ./...`：0 error / 0 warning
+- `go test ./...`：**75 用例全 PASS，0 FAIL**；`-race` 全包通过
+- 资损红线（三层金额闸不漂移 + 冷启动回退 / usage 上界 / reorg 两阶段 / 对账单一路径 IsPaid 唯一事件回填 / WalletAuth nonce 重放拒绝 / operatorId 固定映射 / 组批熔断）逐条有红线用例且绿
+- grep 自检 4 项全过（无硬编码私钥 / 无精度绕过 / 无 0G 残留 / CORS 无 *+credentials / IsPaid 无 HTTP 直置）
+- 唯一遗留：业务合约真机端到端（go-ethereum v1.13.5 simulated.Backend 跑不了 Cancun 字节码）——design §7.4 已声明不阻塞 implement/test
 
 ---
 
-## 一、Phase 1 — 编译门
+## 一、Phase 1 — 静态门
 
-命令：`npx hardhat clean && npx hardhat compile`（强制全量重编）
+| 命令 | 结果 |
+|---|---|
+| `go build ./...` | 0 error（BUILD_EXIT=0） |
+| `go vet ./...` | 0 warning（VET_EXIT=0） |
 
-结果：**0 error**，编译 56 个 Solidity 文件成功（evm target: cancun），生成 154 typings。
-
-Warning（2 个，均非阻塞）：
-1. `@openzeppelin/contracts/utils/TransientSlot.sol:108` — EIP-1153 transient storage 组合性提示。OZ 库代码，官方明确「用于在调用结束时清除的 reentrancy guard 是安全的」。本项目正是此用法（ReentrancyGuardTransient），无害。
-2. `contracts/Oracle.sol:99 submitUsage` — state mutability 可收紧为 `pure`。纯风格提示，不影响逻辑、非资损面。
-
----
-
-## 二、Phase 2 — 测试门
-
-命令：`npx hardhat test`
-
-结果：**75 passing / 0 failing（4s）**。8 个测试套件：
-
-| 套件 | 文件 | 用例数 | 覆盖点 |
-|------|------|--------|--------|
-| Deposit ERC20 (T2) | erc20.ts | 9 | DEC-01 精度、MIN-01/02 最小额、ERC-01/02/02b approve+transferFrom、ERC-03 锁仓提取、REG-02 注册校验 |
-| LinkWorld Contracts Tests | linkworld.ts | 39 | FeeManager FE-01~09、UserRegistry UR-01~04、ServiceManager SM-01~03、Deposit DP-01~03、Payment PM-01~02、Oracle OR-01~02、TrafficCardNFT TC-01~05、T4 自动发卡 ISS-01~05/DEC/DEC-2、计价 MS-01~04 |
-| Payment ERC20 分账 (T3) | payment.ts | 14 | createBill 权限+fail-fast、PAY-01/02/02b/04/05 分账、PAY-03 零地址、0-FEE 跳过、SM-PAY-01~03、ATC-01/02 受限桩 |
-| B7 非标 USDT SafeERC20 (T6) | t6-audit.ts | 4 | USDT-01/01b 无返回值入账/退回、USDT-02/02b 返回 false revert |
-| REG-01 锁仓续期不变量 (T6) | t6-audit.ts | 2 | REG-01a 未到期叠加 +30d、REG-01b 到期重置 now+30d |
-| ERC withdraw 边界 (T6) | t6-audit.ts | 1 | ERC-04 无存款 withdraw revert |
-| GAS-01 批量 gas 压测 (T6) | t6-audit.ts | 2 | GAS-01 发卡上限 N≤50、GAS-01b 全链路上限 N≤25 |
-| UserRegistry (旧) | UserRegistry.test.ts | （含于 linkworld 统计内的独立旧文件） | 注册基线 |
-
-GAS-01 实测（本次复跑）：
-- `issueMonthlyTrafficCards`：per-user ≈ 237k gas，15M 单批预算 → 安全上限 N≈63（建议 N≤50）。
-- `monthlySettlement` 全链路：per-user ≈ 432k gas → 安全上限 N≈34（建议 N≤25）。
-- 与 T6 checkpoint / handoff §5.1 结论一致。
+环境：go1.26.1 darwin/arm64；模块 `linkworld-backend`；`github.com/ethereum/go-ethereum v1.13.5`。
 
 ---
 
-## 三、Phase 3 — 覆盖率门
+## 二、Phase 2 — go test ./... -cover
 
-命令：`npx hardhat coverage`（solidity-coverage 0.8.17，随 hardhat-toolbox 提供，**无需新装依赖**）
+- `go test ./... -count=1 -v`：`--- PASS` **75** / `--- FAIL` **0**
+- `go test ./... -race -count=1`：blockchain / config / handlers / middleware / repository / services / sync 全 ok
 
-> viaIR + cancun 配置下 coverage 跑通，**未受工具限制**，得到真实数字覆盖率。
+各包覆盖率：
 
-| File | % Stmts | % Branch | % Funcs | % Lines |
-|------|---------|----------|---------|---------|
-| **contracts/ (合计)** | **89.33** | **51.23** | **72.58** | **88.36** |
-| Deposit.sol | 100 | 70 | 92.31 | 100 |
-| Payment.sol | 100 | 57.89 | 66.67 | 93.48 |
-| FeeManager.sol | 100 | 60 | 80 | 100 |
-| UserRegistry.sol | 100 | 50 | 80 | 100 |
-| Oracle.sol | 88 | 50 | 71.43 | 96 |
-| ServiceManager.sol | 90.38 | 38.46 | 66.67 | 87.67 |
-| TrafficCardNFT.sol | 56 | 27.27 | 54.55 | 54.84 |
-| contracts/interfaces/ (全部) | 100 | 100 | 100 | 100 |
-| contracts/mocks/MockUSDT.sol | 100 | 100 | 100 | 100 |
-| contracts/mocks/NonStandardUSDT.sol | 87.5 | 50 | 87.5 | 94.12 |
-| **All files** | **89.36** | **51.18** | **75.34** | **88.84** |
-
-**评估**：
-- 资损核心（Deposit/Payment 资金通道、FeeManager 费率、UserRegistry）statements/lines 全部 ≥93%，Deposit/FeeManager/UserRegistry 达 100%。**满足资损合约关键函数高覆盖要求。**
-- 全局 89.36% stmts / 88.84% lines **远超 ≥60% 目标**。
-- 偏低项说明（均非资损核心，可接受）：
-  - **TrafficCardNFT 56% stmts**：未覆盖部分为 owner-only admin（如 setBaseURI、burn/有效期 view 等非自动发卡主路径的薄壳）。核心 mint/CardMinted/getCardInfo 已测（TC-01~05 + 自动发卡 ISS）。
-  - **branch 51%**：多为 require/revert 守卫的「正分支已测、异常分支部分未触发」，以及 OZ 继承分支。关键 revert（最小额、注册、权限、零地址、SafeERC20 false）均有专门用例。
-- Istanbul 报告已写入 `packages/contracts/coverage/`（gitignore 范围，未纳入提交）。
+| 包 | 覆盖率 | 备注 |
+|---|---|---|
+| internal/blockchain | 72.9% | 含 client L3/nonce/降级/chainID + abigen 解码 |
+| internal/middleware | 73.7% | AdminAuth + WalletAuth nonce 台账 |
+| internal/sync | 65.6% | reorg/两阶段/去重/对账/占位跳过 |
+| internal/config | 48.0% | deployments 解析 + RPC 优先级 |
+| internal/services | 39.8% | 计价 L1/组批 L2 红线密；展示/装配未单测 |
+| internal/handlers | 18.3% | bills/pay/withdraw/usage 鉴权降级红线已覆盖；展示查询未单测 |
+| internal/repository | 6.2% | confirmed-only 余额 / SetPayIntent 红线已覆盖；CRUD 展示未单测 |
+| cmd / bindings / abis / models / genbindings | 无测试 | 装配 / 生成产物 / 纯模型 |
 
 ---
 
-## 四、Phase 4 — 部署冒烟
+## 三、Phase 3 — 覆盖率门（资损口径）
 
-命令：`npx hardhat run scripts/deploy.ts --network hardhat`
+**口径**：资损红线路径必须逐条有红线用例且绿；低数字覆盖区若全为非资损（展示/装配/SMTP stub/CRUD）则以红线清单覆盖为准判 PASS。
 
-关键输出：
-```
-MockUSDT: 0x5FbD...0aa3 (decimals=6)
-FeeManager / UserRegistry / ServiceManager / TrafficCardNFT / Payment / Deposit / Oracle  全部部署
-Contracts linked (incl. payment.setOracle / oracle.setPayment)
-OperatorPaymentAddress set for 11 built-in operators
-TrafficCardNFT ownership transferred to Deposit
-All wiring assertions passed (B2/B3 chains ready)
-Addresses written to deployments/hardhat.json
-```
+低覆盖区核对结论：services/handlers/repository 数值偏低主因为**非资损展示/查询/装配/SMTP stub** 未单测（本轮范围 out）。资损红线路径覆盖密集，逐条核对如下（用例名经 `go test -v` 实跑列出）：
 
-结论：7 个 UUPS proxy + MockUSDT(decimals=6) 全部部署成功；§7.0 授权拓扑（payment.setOracle / oracle.setPayment / setOperatorPaymentAddress×11 / NFT ownership→Deposit）全部 wiring 断言通过。`deployments/hardhat.json` 含 7 proxy + impl + usdt + usdtDecimals=6 + abiHash。
+| 资损红线 | 红线用例 | 状态 |
+|---|---|---|
+| 三层金额闸 L1/L2/L3 不漂移（单一常量源 blockchain.MaxBatchTotal） | GateInterlock_LINK01..04 / Pricing_PRICE03 / Settlement_BATCH02·CB01 / L3GateRejects* | ✅ |
+| **L2 冷启动熔断回退**（无样本不除零，回退绝对闸）【arch-review N2】 | Settlement_CB02_ColdStartFallback（源码核：settlement.go historicalAverage 无样本返回 nil，settleOneBatch avg==nil 跳月均闸保留绝对闸） | ✅ |
+| usage 上界（天文账单入口拦截 + Price 入口拒绝） | Pricing_PRICE02_UsageUpperBound / SubmitUsage_OverMax_400 / SubmitUsage_WithinMax_OK | ✅ |
+| 纯整数计价无浮点 | Pricing_PRICE04_PureIntegerNoFloat / PRICE01_FixedAmount / PRICE05_UnknownOperator | ✅ |
+| reorg 回退 + 两阶段确认（pending→seen→confirmed 等 K 块）+ 去重 | SyncOnce_Reorg_RollbackUnconfirmedSeen / DepositMade_TwoPhaseConfirmation / Dedup_NoDoubleLedger | ✅ |
+| **对账单一路径：IsPaid 唯一 BillPaid 事件回填**，HTTP 不置终态 | SyncOnce_BillPaid_OnlyEventSetsIsPaid / PayBill_WritesIntent_NotPaid / Reconcile_AmountMismatch_Alerts / Reconcile_UsageDataSubmitted_ImmediateConfirmed | ✅ |
+| **WalletAuth nonce 重放拒绝**（消费式台账，绑 chainId，非纯 timestamp）【arch-review N1】 | WalletAuth_ReplayNonce/UnknownNonce/WalletMismatch/WrongChainID_Rejected / WalletAuth_ValidSignature_Passes / E2E_WalletAuth_ReplayNonce_FullChain（源码核：repository.go Consume 原子条件 UPDATE + RowsAffected==1） | ✅ |
+| **operatorId 固定映射 + sanity check**（seed ID=链上 operatorId，不靠 name 比对） | OperatorID_OPID01_FixedMapping / OPID02_SanityCheck / OPID03_ZeroPaymentAddress / OperatorID_SeedShape（源码核：cmd/main.go seed ID 显式写 + 启动读链校验） | ✅ |
+| 组批熔断 + 分批 ≤25 + 幂等键 month+batchIndex + 失败续跑 | Settlement_BATCH01_Slicing / CB01_CircuitBreak / IDEM01_ConfirmedNotResent / FAIL01_FailedBatchRetriable | ✅ |
+| withdraw 降级 pending 不计入余额 | Withdraw_PendingIntent_NotCountedInBalance / Repo_GetTotalByUserID_ConfirmedDepositOnly / Repo_SetPayIntent_IntentOnly | ✅ |
+| 6 位精度 abigen Filterer 事件解码（BillCreated 含费 / Usage 仅 user indexed / Withdrawn 本金+利息） | ParseBillCreated_TotalAmountIncludesFee / ParseUsageDataSubmitted_OnlyUserIndexed / ParseDepositWithdrawn_PrincipalPlusInterest | ✅ |
+| 占位零地址不订阅事件 | SyncOnce_SkipsPlaceholderContracts / Deployments_PlaceholderContracts / TestIsPlaceholder | ✅ |
+| chainID 一致校验（transactor==链上） | ChainIDMismatchRejected / ValidateChainID | ✅ |
+| AdminAuth 常量时间 + 缺 key 启动 fail | AdminAuth_CorrectKey/WrongKey_401/NoHeader_401/MissingKey_StartupFail | ✅ |
+| abiHash 校验 + topic 一致 | ABIHashMatchesDeployments / VerifyABIHashDetectsMismatch / SignatureTopicsMatchBindings / MockUSDTHashStable | ✅ |
+| owner key 缺失降级关闭写 | OwnerKeyMissingDegradesWrites / MonthlySettlementSendsTxSuccessfully / NonceNoCollisionAcrossBatches | ✅ |
+
+**结论：资损红线全覆盖且绿，未发现资损路径无测的缺口 → 覆盖率门 PASS（资损口径）。**
+
+---
+
+## 四、Phase 4 — grep 自检
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 无硬编码私钥 | ✅ | ORACLE_OWNER 仅 `os.Getenv` 读 + 缺失 WARN；无 64-hex 私钥字面量（命中的 64-hex 全为 event topic hash / abigen 注释） |
+| 无硬编码精度绕过 | ✅ | 精度从 `deployments.usdtDecimals`(=6) 读；命中的 `1_000_000` 是 services.MaxDataMB usage 上界常量，非精度除数 |
+| deployments.json 无 0G 残留 | ✅ | chainId=421614、rpcUrl=`https://sepolia-rollup.arbitrum.io/rpc`；grep 0g.ai/16602/0g_testnet 无命中。合约地址为占位零（等合约 1/3 上链回填，_note 已标注 sync-deployments.sh 流程） |
+| CORS 无 *+credentials | ✅ | AllowOrigins 固定白名单 + AllowCredentials:true；代码无 `"*"` origin（唯一 `"*"` 在注释中说明禁用） |
+| IsPaid 无 HTTP 直置 | ✅ | MarkAsPaid 仅 services.go 内部（注释标注唯一由 event_sync 调用）；handlers.go 无 IsPaid/MarkAsPaid 写，pay 端点仅写 PayIntentTxHash |
 
 ---
 
 ## 五、Phase 5 — 验收映射
 
-### requirement §五A 合约
+### requirement §五 子系统②（后端）
+| # | 验收项 | 用例 / 证据 | 状态 |
+|---|---|---|---|
+| 5 | deployments.json chainId=421614 + Arbitrum RPC + schema（proxies/usdt/usdtDecimals/abiHash） | RealDeploymentsJSON / LoadDeployments_ParsesProxiesKey / ParsesExtendedFields；Phase 4 grep 核 | ✅（地址占位零待上链，schema/链配置已对齐） |
+| 6 | event_sync 能监听 ERC20 改写后真实事件、落库、占位零地址不报错跳过 | SyncOnce_*（DepositMade/BillPaid/Reorg/Dedup/SkipsPlaceholder）+ Parse*（6 位精度解码） | ✅（机制层；真机落库待上链） |
 
-| 验收 | 内容 | 测试用例 / 证据 | 状态 |
-|------|------|------------------|------|
-| A.1 | 无 payable/msg.value 残留 | Phase 6 grep = 0；全资金路径 safeTransferFrom/safeTransfer | ✅ |
-| A.2 | amount ≥ 10 USDT 强约束（<10 拒 / =10 通过） | MIN-01（9.999999 revert）、MIN-02（10.0 通过） | ✅ |
-| A.3 | 31337 + 421614 两处可部署，写入 deployments/ | Phase 4 hardhat 部署成功 + deployments/hardhat.json；421614 配置就绪（hardhat.config arbitrum_sepolia） | ✅ 本地 / ⏸ 421614 待 key |
-| A.4 | mock USDT 已部署，精度/符号与前端一致 | DEC-01（decimals()==6）、deploy 输出 decimals=6、deployments usdtDecimals=6 | ✅ |
+> §五⑰ 主流程端到端真机走查（31337/421614）属 web 3/3 端到端阶段 + 合约上链后联调，非后端单测范围（design §7.4 不阻塞）。
 
-### requirement §五D 端到端（合约相关项）
+### design §8 落地计划（T1–T8）
+| 任务 | 红线用例 | 状态 |
+|---|---|---|
+| T1 abigen 绑定 + abiHash | ABIHashMatchesDeployments / SignatureTopicsMatchBindings / MockUSDTHashStable | ✅ |
+| T2 config 修复 + schema | LoadDeployments_ParsesProxiesKey/ParsesExtendedFields / ResolveRPCURL | ✅ |
+| T3 client 读/写 + nonce + L3 闸 | ReadMethodsReturnOnChainValues / MonthlySettlement* / Nonce* / L3GateRejects* | ✅ |
+| T4 owner 签名 + chainID + 降级 | OwnerKeyMissingDegradesWrites / ChainIDMismatchRejected / ValidateChainID | ✅ |
+| T5 event_sync + reorg + 两阶段 | SyncOnce_* / Parse* / Reconcile_* | ✅ |
+| T6 计价 + 护栏 + operatorId + 分批 | Pricing_PRICE* / Settlement_* / OperatorID_* | ✅ |
+| T7 鉴权 + 对账降级路径 | AdminAuth_* / WalletAuth_* / E2E_WalletAuth_* / PayBill_WritesIntent / Withdraw_PendingIntent / SubmitUsage_* | ✅ |
+| T8 测试收口 + simulated.Backend | GateInterlock_* / Reconcile_* / Trigger* / Repo_* + 真实绑定（London 兼容桩） | ✅ |
 
-| 验收 | 内容 | 测试用例 / 证据 | 状态 |
-|------|------|------------------|------|
-| D.12 | 手续费 = FeeManager 链上实读 | PAY-04（链上 fee==calculateFee）、FE-01~09 | ✅ |
-| D.13 | approve 两段式（allowance 不足先 approve 再 deposit/pay） | ERC-01/02（deposit）、PAY-01/02（payBill）；两段 safeTransferFrom 原子性 PAY-05 | ✅（合约侧） |
-| D.14 | 锁仓未到禁提 + 到期可提（getLockExpiry） | ERC-03（未到 revert / 到期退本金）、REG-01a/b 续期不变量 | ✅（合约侧） |
-| D.15 | NFT 自动发放（移除 Admin 发卡，锁仓满自动） | ISS-01~05、DEC/DEC-2（quota 固定与存款解耦）、ATC-01/02 受限桩 | ✅（合约侧） |
-| D.17 | 主流程端到端在 31337 + 421614 跑通 | MS-03 端到端链路通（createBill+发卡+applyTrafficCardToBill）、Phase 4 部署；**421614 上链待 key** | ✅ 本地 / ⏸ 421614 |
-
-> D.7~11/16 为 web 视觉/前端项，归 web 子项目（3/3），本子项目 N-A。
-
-### design §八 补测清单逐项
-
-| 编号 | 用例 | 状态 |
-|------|------|------|
-| MIN-01/02 | 最小额拒绝/通过 | ✅ |
-| ERC-01/02/03 | approve 前置 / transferFrom / 锁仓 safeTransfer | ✅ |
-| PAY-01/02/03/04 | 支付授权 / 分账正确 / 零地址 / fee 一致 | ✅ |
-| ISS-01~05 | 自动发卡权限 / 时序 / 幂等 / B3 混合批 / v2-C 固定 quota | ✅ |
-| DEC-01 | mock decimals=6、MIN_DEPOSIT 随 decimals 派生 | ✅ |
-| MS-01/02/03 | v2-A amounts[] 不求和 / createBill onlyOracle / B6 集成主路径 | ✅ |
-| ATC-01/02 | v2-B 桩权限 + 不转资金 + 存在性校验 | ✅ |
-| USDT-01/02 | B7 SafeERC20 无返回值入账 / 返回 false revert | ✅ |
-| GAS-01 | 批量 gas 上限（已写入 handoff §5.1） | ✅ |
-| REG-01/02 | 续期不变量 / 注册重写 | ✅ |
-| 回归 26 it | 旧用例 USDT 精度重写后不回归 | ✅（75 全绿含全部旧用例重写） |
-| UPG-01 | upgradeProxy storage（v1 已删） | N-A（本轮 fresh deploy 不升级） |
-
-### arch-review §七 带入 implement 的 ⚠️ 加固项（test 阶段对照）
-
-| # | 加固项 | 测试对照 | 状态 |
-|---|--------|----------|------|
-| 1 | A1 发卡路径重入 / CEI | ISS 系列 + _userCardCount CEI；发卡走独立 _mintFor | ✅ 落地（编译+测试绿） |
-| 2 | A3 删无效 _reentrancyGuardInit | T1.5 已删（commit b55ef16），编译绿、guard 有效 | ✅ |
-| 3 | Arbitrum transient 实测 | 本地 cancun 编译+测试全绿；**421614 实测待 key** | ⏸ 待 key |
-| 4 | deploy.ts 参数同步 | Phase 4 部署成功（initializer 参数 + MockUSDT 步骤0） | ✅ |
-| 5 | monthlySettlement 旧喂价旁路 | MS-01 用 amounts[] 不求和；旁路去留交后端(2/3) | ✅（合约侧收敛） |
-
-> design v2 §十复审重点（MS-01~03 / ATC-01/02 / USDT-01/02 / ISS-04）**全部绿**。
+### arch-review §七 验收红线
+| 红线 | 状态 |
+|---|---|
+| N1 WalletAuth nonce 台账（服务端一次性消费 + 绑 chainId，禁纯 timestamp） | ✅ 源码 + 用例核 |
+| N2 L2 冷启动熔断回退（首月/无样本回退绝对闸不失效，不除零） | ✅ 源码 + 用例核 |
+| operatorId 固定映射 + sanity check（不靠 name 比对） | ✅ 源码 + 用例核 |
 
 ---
 
-## 六、Phase 6 — 编码规范 / 资损 grep 自检
+## 六、已知限制（如实记录，不算失败）
 
-在 `packages/contracts/contracts/` 下：
-
-| 自检项 | 命令 | 结果 |
-|--------|------|------|
-| 硬编码精度字面量（`10**18`/`1e18`/`10**6`/`/100000`/`parseEther`） | rg --glob '*.sol' | **0 命中**（T2/T4 已清除；MIN_DEPOSIT=`10 * 10 ** decimals()` 动态派生） |
-| payable / msg.value 残留 | rg --glob '*.sol' | **0 命中**（已全 ERC20 化） |
-| SafeERC20 覆盖资金转移点 | rg Deposit.sol/Payment.sol | **全覆盖**：Deposit `safeTransferFrom`(入)/`safeTransfer`(出)；Payment 两段 `safeTransferFrom`(operator+platform)；均 `using SafeERC20 for IERC20` |
-
-> 注：Deposit.sol `trafficCardQuota = 100*1024*1024`（100MB 流量额度）是数据量常量，**非代币精度字面量**，与精度解耦（v2-C 设计要求），不算违规。
+- **业务合约真机端到端**（monthlySettlement 金额数组语义 + 事件回填上链）未跑：go-ethereum v1.13.5 `simulated.Backend` 为 London 上限（ethash faker），跑不了项目 Cancun 字节码（transient storage / PUSH0）。
+- 本轮策略：① 链交互逻辑用接口 mock（SettlementClient / SettlementBatchStore）+ 手工构造 `types.Log`（abigen Filterer.Parse* 解码）覆盖；② client 机制层（L3 / nonce / 降级 / chainID）用 London 兼容桩字节码 + 真实绑定验证。
+- 真机端到端待**合约 1/3 真·上链**后用 hardhat 31337 或升级 geth v1.16+（PoS 后端支持 Cancun）。design §7.4 已声明此依赖不阻塞 implement/test。
 
 ---
 
-## 七、已知限制（如实记录，不算失败）
+## 七、可否进 review
 
-- **Arbitrum Sepolia 421614 真·上链 + TSTORE 链上实测**：本环境无 `DEPLOYER_PRIVATE_KEY` / RPC，无法执行。本地 31337/hardhat（cancun，含 EIP-1153 transient storage）编译+测试+部署全绿，`hardhat.config.ts` 已配 `arbitrum_sepolia`(421614) 网络且 key 缺失时优雅降级（空账户数组，不报错）。
-- 影响验收 §五D-17 / arch-review §七-3 的「421614 跑通 / TSTORE 链上实测」部分 → 记为 handoff §10 待办（配 key 后执行），**不阻塞本阶段**（本地全绿 + 配置就绪）。
-
----
-
-## 八、三个自检
-
-1. **承诺交付什么**：test 阶段全量验证（编译/测试/覆盖率/部署冒烟/验收映射/grep 自检）+ 两份产出文档（本报告 + checkpoint）。
-2. **交付物真实存在吗**：本报告 `docs/pipeline/stages/test.md` + checkpoint `docs/pipeline/checkpoints/stage-test-done.md` 真实写入；测试 75 passing、覆盖率表、部署输出均来自本次实跑（非引用旧 checkpoint）。
-3. **正确连接吗**：验收映射逐条指向真实用例名 / grep 结果 / 部署断言；覆盖率数字来自 solidity-coverage 实跑；deploy.ts wiring 断言全过证明合约间 wiring 正确连接。
-
----
-
-## 九、是否可进 review
-
-**可进 review。** 本地质量门全过，资损 grep 自检全清，覆盖率达标（核心合约 100% stmts）。唯一 ⏸ 项为 421614 上链（待 key），属 handoff 待办、不阻塞 review。
+**可进 review。** 静态门 + 75 单测全绿（含 -race）；资损红线（三层金额闸不漂移 / 冷启动回退 / usage 上界 / reorg 两阶段 / 对账单一路径 IsPaid 唯一事件回填 / WalletAuth nonce 重放拒绝 / operatorId 固定映射 / 组批熔断）逐条覆盖且绿；4 项 grep 自检全过；唯一遗留为环境依赖（业务合约真机端到端），design §7.4 已明确不阻塞。
