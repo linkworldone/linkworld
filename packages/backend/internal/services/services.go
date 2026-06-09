@@ -80,8 +80,21 @@ func (s *BillingService) GetBills(wallet string) ([]models.Bill, error) {
 	return s.billRepo.FindByUserID(user.ID)
 }
 
+// MarkAsPaid 唯一由 event_sync(T4) 内部调用（监听 BillPaid 确认后置 IsPaid）。
+// ⚠️ 绝不暴露给 HTTP handler（B2，design §4.3/§6.6）：HTTP 侧只走 RecordPayIntent 写 pending 意向。
 func (s *BillingService) MarkAsPaid(billID uint, txHash string) error {
 	return s.billRepo.MarkAsPaid(billID, txHash)
+}
+
+// RecordPayIntent 记录用户「我已发起支付」意向（B2 降级，design §4.3/§6.6）：
+// 只写 Bill.PayIntentTxHash，绝不置 IsPaid——IsPaid 终态唯一由 event_sync 监听 BillPaid 回填。
+// 校验 bill 属于该 wallet（防越权改他人账单意向）。
+func (s *BillingService) RecordPayIntent(wallet string, billID uint, txHash string) error {
+	user, err := s.userRepo.FindByWallet(wallet)
+	if err != nil {
+		return err
+	}
+	return s.billRepo.SetPayIntent(user.ID, billID, txHash)
 }
 
 func (s *BillingService) GetUnpaidBills(wallet string) ([]models.Bill, error) {
@@ -93,10 +106,10 @@ func (s *BillingService) GetUnpaidBills(wallet string) ([]models.Bill, error) {
 }
 
 type OracleService struct {
-	userServiceRepo  *repository.UserServiceRepository
-	billRepo         *repository.BillRepository
-	usageRepo        *repository.UsageDataRepository
-	userRepo         *repository.UserRepository
+	userServiceRepo *repository.UserServiceRepository
+	billRepo        *repository.BillRepository
+	usageRepo       *repository.UsageDataRepository
+	userRepo        *repository.UserRepository
 }
 
 func NewOracleService(userServiceRepo *repository.UserServiceRepository, billRepo *repository.BillRepository, usageRepo *repository.UsageDataRepository, userRepo *repository.UserRepository) *OracleService {
@@ -159,6 +172,9 @@ func NewDepositService(depositRepo *repository.DepositRepository, userRepo *repo
 	}
 }
 
+// Deposit 记录用户充值 pending 意向（design §4.3/§4.4 状态机，B3/B5）。
+// ⚠️ 写 Status=pending（不计入余额）——余额唯一由 event_sync 监听 DepositMade 等 K 块置 confirmed。
+// 旧实现写空 status（视为历史 confirmed）会把未上链意向直接计入余额，已收口为 pending。
 func (s *DepositService) Deposit(wallet, amount string) error {
 	user, err := s.userRepo.FindByWallet(wallet)
 	if err != nil {
@@ -168,6 +184,7 @@ func (s *DepositService) Deposit(wallet, amount string) error {
 		UserID: user.ID,
 		Amount: amount,
 		Type:   "deposit",
+		Status: models.DepositStatusPending,
 	}
 	return s.depositRepo.Create(deposit)
 }
@@ -180,23 +197,22 @@ func (s *DepositService) GetDepositAmount(wallet string) (string, error) {
 	return s.depositRepo.GetTotalByUserID(user.ID)
 }
 
-func (s *DepositService) RecordWithdraw(wallet, txHash string) error {
+// RecordPendingWithdraw 记录用户提现 pending 意向（B3 降级，design §4.3/§6.6）。
+// ⚠️ 不凭前端 txHash 写记账（旧 RecordWithdraw 凭 txHash 直接写 withdraw 记录已废弃，伪造记账面）：
+// 提现终态（实际扣减本金/利息）唯一由 event_sync 监听 DepositWithdrawn(user,principal,interest) 回填。
+// 这里只落一条 Status=pending 的意向记录（不计入余额，GetTotalByUserID 只认 confirmed）。
+// txHash 仅作意向追溯，不作记账依据；金额留空（真实金额以链上事件为准）。
+func (s *DepositService) RecordPendingWithdraw(wallet, txHash string) error {
 	user, err := s.userRepo.FindByWallet(wallet)
 	if err != nil {
 		return err
 	}
-	total, err := s.depositRepo.GetTotalByUserID(user.ID)
-	if err != nil {
-		return err
-	}
-	if total == "" {
-		total = "0"
-	}
 	deposit := &models.Deposit{
 		UserID: user.ID,
-		Amount: total,
+		Amount: "0", // 意向占位；真实提现金额唯一由 DepositWithdrawn 事件回填
 		Type:   "withdraw",
 		TxHash: txHash,
+		Status: models.DepositStatusPending,
 	}
 	return s.depositRepo.Create(deposit)
 }

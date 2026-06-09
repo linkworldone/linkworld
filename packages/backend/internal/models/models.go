@@ -128,6 +128,7 @@ const (
 //   - confirmed 批不重发（重复触发幂等）；
 //   - failed 批可重试（一批失败不影响其他批，失败批续跑）；
 //   - pending_review 批因 L2 熔断/绝对闸阻断，待人工放行后再发（不自动发）。
+//
 // TotalAmount 落该批 sum(amounts)（6 位最小单位字符串），供历史月均熔断计算。
 type SettlementBatch struct {
 	ID          uint   `gorm:"primarykey" json:"id"`
@@ -151,3 +152,18 @@ const (
 	BatchStatusFailed        = "failed"
 	BatchStatusPendingReview = "pending_review"
 )
+
+// WalletNonce 是 WalletAuth 的服务端一次性 nonce 台账（arch-review 🔴 N1 红线）：
+// 防签名重放——每个 nonce 由 GET /api/auth/nonce/:wallet 签发（Used=false 落库），
+// WalletAuth 校验通过后置 Used=true（消费式，签过即作废）。同 nonce 二次提交必拒（WALLET-02）。
+// 绑定 Wallet（小写归一化）避免跨钱包借用 nonce；ExpiresAt 兜底过期清理（窗口仅作 DoS 防护，
+// 不作为防重放唯一手段——防重放靠 Used 标记，禁纯 timestamp 时间窗）。
+type WalletNonce struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	Wallet    string    `gorm:"index;size:42" json:"wallet"`
+	Nonce     string    `gorm:"uniqueIndex;size:80" json:"nonce"`
+	Used      bool      `gorm:"default:false;index" json:"used"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

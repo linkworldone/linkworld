@@ -10,6 +10,7 @@ import (
 	"linkworld-backend/internal/blockchain/bindings"
 	"linkworld-backend/internal/config"
 	"linkworld-backend/internal/handlers"
+	"linkworld-backend/internal/middleware"
 	"linkworld-backend/internal/models"
 	"linkworld-backend/internal/repository"
 	"linkworld-backend/internal/services"
@@ -53,6 +54,11 @@ func main() {
 	userServiceRepo := repository.NewUserServiceRepository(db)
 	depositRepo := repository.NewDepositRepository(db)
 	usageRepo := repository.NewUsageDataRepository(db)
+	// WalletAuth 一次性 nonce 台账（arch-review 🔴 N1）：自建表（与 settlement/event_sync 同策略）。
+	nonceRepo := repository.NewWalletNonceRepository(db)
+	if err := nonceRepo.Migrate(); err != nil {
+		log.Fatalf("迁移 wallet_nonces 表失败：%v", err)
+	}
 
 	userService := services.NewUserService(userRepo)
 	operatorService := services.NewOperatorService(operatorRepo)
@@ -68,8 +74,13 @@ func main() {
 	oracleV2 := services.NewOracleServiceV2(operatorAPI, pricingService, userRepo, userServiceRepo, billRepo, usageRepo)
 	usageService := services.NewUsageService(oracleV2, usageRepo, userRepo, userServiceRepo)
 
+	// walletAuthChainID 绑定到 WalletAuth EIP-712 domain（防跨链重放，arch-review 🔴 N1）。
+	// 取 deployments.chainId（与 env CHAIN_ID 一致校验后），加载失败时回退 env CHAIN_ID。
+	var walletAuthChainID uint64
+
 	// Initialize blockchain sync (optional - runs in background)
 	if deployments, err := config.LoadDeployments("configs/deployments.json"); err == nil {
+		walletAuthChainID = deployments.ChainID
 		// RPC 单一优先级（design §6.5）：deployments.json.rpcUrl 为准，env RPC_URL 覆盖。
 		rpcURL := deployments.ResolveRPCURL(os.Getenv("RPC_URL"))
 		// chainID 一致校验（design §6.5 / arch-review）：deployments.chainId 必须与 env CHAIN_ID 一致。
@@ -95,6 +106,24 @@ func main() {
 				} else {
 					log.Println("WARN: 未设置 ORACLE_OWNER_PRIVATE_KEY，链上写降级关闭（只读仍可）")
 				}
+
+				// 结算编排器装配（T6，design §6.1）：仅 owner 写就绪（CanWrite）时挂载——
+				// NewSettlementBatchRepoStore（DB 持久幂等 + 历史月均）→ NewSettlementOrchestrator
+				// → oracleV2.SetSettlementOrchestrator。未就绪 → 不装配，SettleMonthlyOnChain 返回降级 error。
+				if bcClient.CanWrite() {
+					batchRepo := repository.NewSettlementBatchRepository(db)
+					if merr := batchRepo.Migrate(); merr != nil {
+						log.Printf("WARN: 迁移 settlement_batches 表失败，结算编排器未装配：%v", merr)
+					} else if store, serr := services.NewSettlementBatchRepoStore(batchRepo); serr != nil {
+						log.Printf("WARN: 构造结算 store 失败，结算编排器未装配：%v", serr)
+					} else {
+						oracleV2.SetSettlementOrchestrator(services.NewSettlementOrchestrator(bcClient, store))
+						log.Println("结算编排器已装配（owner 写就绪，月度上链结算可用）")
+					}
+				} else {
+					log.Println("WARN: owner 写未就绪，结算编排器未装配（月度上链结算降级，仅落 DB bill）")
+				}
+
 				if ethClient := bcClient.EthClient(); ethClient != nil {
 					// operatorId 固定映射 sanity check（design §4.5 / arch-review）：读链 ServiceManager
 					// 校验 seed 的 operatorId 在链上存在、countryCode 一致、分账地址非零，不靠 name 比对。
@@ -124,35 +153,66 @@ func main() {
 		}
 	}
 
-	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService, virtualGen, oracleV2, usageService)
+	// WalletAuth chainID 兜底（deployments 加载失败时回退 env CHAIN_ID）。
+	if walletAuthChainID == 0 {
+		walletAuthChainID = parseUint64(os.Getenv("CHAIN_ID"))
+	}
+	if walletAuthChainID == 0 {
+		// WalletAuth EIP-712 必须绑定确定 chainId（防跨链重放，🔴 N1）；无 chainId 无法安全鉴权 → fail。
+		log.Fatal("无法确定 chainId（deployments.json 与 env CHAIN_ID 均缺失）：WalletAuth 不可用，拒绝启动")
+	}
+
+	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService, virtualGen, oracleV2, usageService, nonceRepo)
+
+	// AdminAuth 中间件（design §6.6）：缺 ADMIN_API_KEY → 启动 fail（管理端点不允许裸奔）。
+	adminAuth, aerr := middleware.NewAdminAuth(os.Getenv("ADMIN_API_KEY"))
+	if aerr != nil {
+		log.Fatalf("AdminAuth 初始化失败：%v", aerr)
+	}
+	// WalletAuth 中间件（design §6.6 / arch-review 🔴 N1）：EIP-712 + ecrecover 绑 wallet + 一次性 nonce 台账。
+	walletAuth := middleware.NewWalletAuth(nonceRepo, walletAuthChainID)
 
 	r := gin.Default()
 
+	// CORS 收口（arch-review/design §7.1）：固定 origin 白名单，禁 "*" + credentials；
+	// AllowHeaders 放行 WalletAuth/AdminAuth 自定义鉴权头。
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type", "Authorization"},
+		AllowOrigins: []string{"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{
+			"Content-Type", "Authorization",
+			middleware.HeaderAdminKey,
+			middleware.HeaderWalletAddr, middleware.HeaderWalletNonce,
+			middleware.HeaderWalletAction, middleware.HeaderWalletSig,
+		},
 		AllowCredentials: true,
 	}))
 
+	// --- 公开读端点（无需鉴权，design §6.6）---
 	r.POST("/api/register", handler.Register)
 	r.GET("/api/user/:wallet", handler.GetUser)
 	r.GET("/api/operators", handler.GetOperators)
-	r.POST("/api/service/activate", handler.ActivateService)
-	r.POST("/api/service/deactivate", handler.DeactivateService)
 	r.GET("/api/service/:wallet", handler.GetUserService)
 	r.GET("/api/bills/:wallet", handler.GetBills)
-	r.POST("/api/bills/pay", handler.PayBill)
-	r.POST("/api/deposit", handler.Deposit)
 	r.GET("/api/deposit/:wallet", handler.GetDeposit)
 	r.GET("/api/deposit/:wallet/history", handler.GetDepositHistory)
-	r.POST("/api/withdraw", handler.Withdraw)
 	r.POST("/api/virtual-number/generate", handler.GenerateVirtualNumber)
 	r.GET("/api/countries", handler.GetCountryList)
 	r.GET("/api/usage/:wallet", handler.GetUsage)
-	r.POST("/api/oracle/monthly-bill", handler.TriggerMonthlyBill)
-	r.POST("/api/usage/submit", handler.SubmitUsage)
-	r.POST("/api/notification/send", handler.SendNotification)
+	// WalletAuth nonce 签发（公开：前端取 nonce 再签名）。
+	r.GET("/api/auth/nonce/:wallet", handler.GetWalletNonce)
+
+	// --- 用户写端点（WalletAuth：钱包签名 ecrecover 绑 wallet，design §6.6）---
+	r.POST("/api/service/activate", walletAuth, handler.ActivateService)
+	r.POST("/api/service/deactivate", walletAuth, handler.DeactivateService)
+	r.POST("/api/bills/pay", walletAuth, handler.PayBill) // B2：仅写 pending 意向不置 IsPaid
+	r.POST("/api/deposit", walletAuth, handler.Deposit)   // 意向记录
+	r.POST("/api/withdraw", walletAuth, handler.Withdraw) // B3：不凭 txHash 记账，仅 pending
+
+	// --- 管理/平台触发端点（AdminAuth：X-Admin-Key 常量时间比较，design §6.6）---
+	r.POST("/api/oracle/monthly-bill", adminAuth, handler.TriggerMonthlyBill)
+	r.POST("/api/usage/submit", adminAuth, handler.SubmitUsage) // + binding max= 范围校验（B4）
+	r.POST("/api/notification/send", adminAuth, handler.SendNotification)
 
 	r.Run(":8080")
 }

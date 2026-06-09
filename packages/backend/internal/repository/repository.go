@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"strings"
 	"time"
 
 	"linkworld-backend/internal/models"
@@ -107,6 +110,21 @@ func (r *BillRepository) MarkAsPaid(id uint, txHash string) error {
 		"paid_at": now,
 		"tx_hash": txHash,
 	}).Error
+}
+
+// SetPayIntent 写用户支付意向（B2，design §4.3/§6.6）：只更新 PayIntentTxHash，绝不动 IsPaid。
+// 限定 user_id 匹配（防越权改他人账单）。找不到匹配账单返回 gorm.ErrRecordNotFound。
+func (r *BillRepository) SetPayIntent(userID, billID uint, txHash string) error {
+	res := r.db.Model(&models.Bill{}).
+		Where("id = ? AND user_id = ?", billID, userID).
+		Update("pay_intent_tx_hash", txHash)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 type UserServiceRepository struct {
@@ -334,7 +352,7 @@ func (r *SettlementBatchRepository) Save(b *models.SettlementBatch) error {
 }
 
 // HistoricalConfirmedTotals 返回 beforeMonth 之前（严格小于）已 confirmed 批次的总额清单
-//（6 位最小单位字符串），供 L2 历史月均熔断计算。无样本返回空切片（冷启动回退由调用方处理）。
+// （6 位最小单位字符串），供 L2 历史月均熔断计算。无样本返回空切片（冷启动回退由调用方处理）。
 func (r *SettlementBatchRepository) HistoricalConfirmedTotals(beforeMonth string) ([]string, error) {
 	var rows []models.SettlementBatch
 	err := r.db.
@@ -348,6 +366,57 @@ func (r *SettlementBatchRepository) HistoricalConfirmedTotals(beforeMonth string
 		out = append(out, b.TotalAmount)
 	}
 	return out, nil
+}
+
+// WalletNonceRepository 维护 WalletAuth 一次性 nonce 台账（arch-review 🔴 N1 红线，消费式防重放）。
+type WalletNonceRepository struct {
+	db *gorm.DB
+}
+
+func NewWalletNonceRepository(db *gorm.DB) *WalletNonceRepository {
+	return &WalletNonceRepository{db: db}
+}
+
+// Migrate 自建 wallet_nonces 表（自包含，不依赖 main.go AutoMigrate 清单——与 settlement/event_sync 同策略）。
+func (r *WalletNonceRepository) Migrate() error {
+	return r.db.AutoMigrate(&models.WalletNonce{})
+}
+
+// nonceTTL 是 nonce 兜底过期窗口（仅 DoS 防护，防重放靠 Used 标记，非纯时间窗）。
+const nonceTTL = 10 * time.Minute
+
+// Issue 为 wallet 签发一个新的一次性 nonce（crypto/rand 32 字节十六进制），落库 Used=false。
+// 返回 nonce 字符串供前端签名。wallet 统一小写归一化。
+func (r *WalletNonceRepository) Issue(wallet string) (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	nonce := hex.EncodeToString(buf)
+	rec := &models.WalletNonce{
+		Wallet:    strings.ToLower(wallet),
+		Nonce:     nonce,
+		Used:      false,
+		ExpiresAt: time.Now().Add(nonceTTL),
+	}
+	if err := r.db.Create(rec).Error; err != nil {
+		return "", err
+	}
+	return nonce, nil
+}
+
+// Consume 原子消费 nonce（一次性台账核心）：仅当 (nonce, wallet, used=false, 未过期) 全部满足时，
+// 把 Used 置 true 并返回 true（鉴权放行）；否则返回 false（拒绝——未签发/已用/钱包不符/过期）。
+// 用条件 UPDATE 的 RowsAffected 判定，保证并发下同 nonce 只被消费一次（防 WALLET-02 重放）。
+func (r *WalletNonceRepository) Consume(wallet, nonce string) bool {
+	res := r.db.Model(&models.WalletNonce{}).
+		Where("nonce = ? AND wallet = ? AND used = ? AND expires_at > ?",
+			nonce, strings.ToLower(wallet), false, time.Now()).
+		Update("used", true)
+	if res.Error != nil {
+		return false
+	}
+	return res.RowsAffected == 1
 }
 
 // ChainEventRepository 维护链上事件幂等去重 + 两阶段状态（design §6.3）。
