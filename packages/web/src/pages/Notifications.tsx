@@ -2,6 +2,7 @@ import { useAccount } from "wagmi";
 import { useNotifications, useMarkAsRead, useMarkAllAsRead } from "@/hooks/useNotification";
 import { timeAgo } from "@/utils/format";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { Bell } from "lucide-react";
 import type { Notification } from "@/types";
 
 const borderColors: Record<Notification["type"], string> = {
@@ -42,7 +43,7 @@ export default function Notifications() {
       </div>
 
       {!notifications?.length ? (
-        <EmptyState icon="🔔" message="No notifications yet." />
+        <EmptyState icon={Bell} message="No notifications yet." />
       ) : (
         <>
           {unread.length > 0 && (

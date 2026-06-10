@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useRegions, useMyNumbers } from "@/hooks/useOperator";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { Smartphone } from "lucide-react";
 
 type Tab = "regions" | "numbers";
 
@@ -80,7 +81,7 @@ export default function Services() {
       {tab === "numbers" && (
         <div className="space-y-2">
           {!numbers?.length ? (
-            <EmptyState icon="📱" message="No virtual numbers yet. Browse regions to apply." />
+            <EmptyState icon={Smartphone} message="No virtual numbers yet. Browse regions to apply." />
           ) : (
             numbers.map((num) => (
               <div key={num.id} className="p-4 bg-surface-card rounded-xl">
