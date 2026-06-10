@@ -26,12 +26,15 @@ function toBill(api: ApiBill): Bill {
     status = "overdue";
   }
 
+  // 金额字段均为 USDT 6 位最小单位字符串：全程 BigInt 加减，绝不用 parseFloat
+  //（最小单位当元做浮点会单位语义错 + 大额超 MAX_SAFE_INTEGER 丢精度，资损红线）。
+  // totalAmount 保持 6 位最小单位字符串，不落 number；展示侧经 formatAmount(total, usdtDecimals)。
   const operatorFee = api.amount;
   const platformFee = api.platform_fee;
   const trafficCardDeduction = api.traffic_card_deduction || "0";
   const total = (
-    parseFloat(operatorFee) + parseFloat(platformFee) - parseFloat(trafficCardDeduction)
-  ).toFixed(2);
+    BigInt(operatorFee) + BigInt(platformFee) - BigInt(trafficCardDeduction)
+  ).toString();
 
   return {
     id: String(api.id),
