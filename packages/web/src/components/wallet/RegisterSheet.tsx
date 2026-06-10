@@ -19,7 +19,7 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
 
   const sendCode = useSendVerificationCode();
   const verifyEmail = useVerifyEmail();
-  const { register, backendSync, isContractPending, isSuccess } = useRegister();
+  const { register, backendSync, isContractPending } = useRegister();
 
   // 合约注册成功 → useRegister 内部 useEffect 自动调 backendSync
   // 这里只处理页面跳转
