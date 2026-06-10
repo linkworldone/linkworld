@@ -71,6 +71,17 @@ export const DepositABI = [
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "value",
         "type": "uint256"
@@ -188,49 +199,17 @@ export const DepositABI = [
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount",
+        "name": "tokenId",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "month",
+        "name": "dataAmount",
         "type": "uint256"
       }
     ],
-    "name": "TrafficCardIssued",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newQuota",
-        "type": "uint256"
-      }
-    ],
-    "name": "TrafficCardQuotaUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "TrafficCardUsed",
+    "name": "TrafficCardMinted",
     "type": "event"
   },
   {
@@ -260,20 +239,32 @@ export const DepositABI = [
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
     "name": "deposit",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "getCurrentMonth",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "generateTokenURI",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "string",
         "name": "",
-        "type": "uint256"
+        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -301,79 +292,17 @@ export const DepositABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "operatorId",
-        "type": "uint256"
-      }
-    ],
-    "name": "getRequiredDeposit",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "user",
         "type": "address"
       }
     ],
-    "name": "getTrafficCardBalance",
+    "name": "getLockExpiry",
     "outputs": [
       {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      }
-    ],
-    "name": "getUserCardCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "month",
-        "type": "uint256"
-      }
-    ],
-    "name": "hasWithdrawnThisMonth",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -384,6 +313,11 @@ export const DepositABI = [
       {
         "internalType": "address",
         "name": "_userRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_usdt",
         "type": "address"
       }
     ],
@@ -402,6 +336,25 @@ export const DepositABI = [
     ],
     "name": "issueMonthlyTrafficCards",
     "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "mintTrafficCard",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -433,19 +386,6 @@ export const DepositABI = [
   },
   {
     "inputs": [],
-    "name": "payment",
-    "outputs": [
-      {
-        "internalType": "contract IPayment",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "proxiableUUID",
     "outputs": [
       {
@@ -465,19 +405,6 @@ export const DepositABI = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "serviceManager",
-    "outputs": [
-      {
-        "internalType": "contract IServiceManager",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -494,68 +421,11 @@ export const DepositABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "_payment",
-        "type": "address"
-      }
-    ],
-    "name": "setPayment",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "operatorId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "setRequiredDeposit",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_serviceManager",
-        "type": "address"
-      }
-    ],
-    "name": "setServiceManager",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "_trafficCardNFT",
         "type": "address"
       }
     ],
     "name": "setTrafficCardNFT",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "quota",
-        "type": "uint256"
-      }
-    ],
-    "name": "setTrafficCardQuota",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -618,21 +488,16 @@ export const DepositABI = [
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "usdt",
+    "outputs": [
       {
-        "internalType": "address",
-        "name": "user",
+        "internalType": "contract IERC20",
+        "name": "",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
       }
     ],
-    "name": "useTrafficCard",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {

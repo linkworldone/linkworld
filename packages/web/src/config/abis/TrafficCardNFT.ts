@@ -269,7 +269,7 @@ export const TrafficCardNFTABI = [
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "creditAmount",
+        "name": "dataAmount",
         "type": "uint256"
       }
     ],
@@ -299,44 +299,6 @@ export const TrafficCardNFTABI = [
       }
     ],
     "name": "CardMinted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "CreditExpired",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "CreditUsed",
     "type": "event"
   },
   {
@@ -382,6 +344,25 @@ export const TrafficCardNFTABI = [
       }
     ],
     "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "expiresAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "ServiceActivated",
     "type": "event"
   },
   {
@@ -499,14 +480,8 @@ export const TrafficCardNFTABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "tokenId",
-        "type": "uint256"
-      }
-    ],
-    "name": "getApproved",
+    "inputs": [],
+    "name": "depositContract",
     "outputs": [
       {
         "internalType": "address",
@@ -520,17 +495,17 @@ export const TrafficCardNFTABI = [
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
       }
     ],
-    "name": "getAvailableCredit",
+    "name": "getApproved",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "address",
         "name": "",
-        "type": "uint256"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -562,35 +537,11 @@ export const TrafficCardNFTABI = [
             "internalType": "bool",
             "name": "isDestroyed",
             "type": "bool"
-          },
-          {
-            "internalType": "uint256",
-            "name": "destroyedAt",
-            "type": "uint256"
           }
         ],
-        "internalType": "struct TrafficCardNFT.CardInfo",
+        "internalType": "struct ITrafficCardNFT.CardInfo",
         "name": "",
         "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      }
-    ],
-    "name": "getCreditExpiry",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -660,12 +611,18 @@ export const TrafficCardNFTABI = [
       },
       {
         "internalType": "string",
-        "name": "_tokenURI",
+        "name": "tokenURI_",
         "type": "string"
       }
     ],
     "name": "mint",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -683,12 +640,18 @@ export const TrafficCardNFTABI = [
       },
       {
         "internalType": "string[]",
-        "name": "tokenURIs",
+        "name": "tokenURIs_",
         "type": "string[]"
       }
     ],
     "name": "mintBatch",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "",
+        "type": "uint256[]"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -829,6 +792,19 @@ export const TrafficCardNFTABI = [
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_deposit",
+        "type": "address"
+      }
+    ],
+    "name": "setDepositContract",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes4",
         "name": "interfaceId",
         "type": "bytes4"
@@ -929,24 +905,6 @@ export const TrafficCardNFTABI = [
     "name": "upgradeToAndCall",
     "outputs": [],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "useCredit",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;

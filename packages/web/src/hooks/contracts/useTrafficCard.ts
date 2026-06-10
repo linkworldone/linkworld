@@ -22,19 +22,22 @@ export function useTrafficCardCredit(address: `0x${string}` | undefined) {
     ? getContractAddress(chainId, "TrafficCardNFT")
     : undefined;
 
+  // T4/Cards-rework: 新 TrafficCardNFT 不再暴露 getAvailableCredit/getCreditExpiry（旧聚合额度
+  // 模型），改为 getCardInfo/getUserCardCount 逐卡模型。本轮仅 as never 保编译，credit 读链路
+  // 重写 + Cards 双 Tab 改造归后续 T。
   const balanceQ = useReadContract({
     address: contractAddress,
     abi: TrafficCardNFTABI,
-    functionName: "getAvailableCredit",
-    args: address ? [address] : undefined,
+    functionName: "getAvailableCredit" as never,
+    args: (address ? [address] : undefined) as never,
     query: { enabled, staleTime: 15_000 },
   });
 
   const expiryQ = useReadContract({
     address: contractAddress,
     abi: TrafficCardNFTABI,
-    functionName: "getCreditExpiry",
-    args: address ? [address] : undefined,
+    functionName: "getCreditExpiry" as never,
+    args: (address ? [address] : undefined) as never,
     query: { enabled, staleTime: 15_000 },
   });
 

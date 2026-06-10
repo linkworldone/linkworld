@@ -340,20 +340,7 @@ export const UserRegistryABI = [
       {
         "indexed": true,
         "internalType": "address",
-        "name": "wallet",
-        "type": "address"
-      }
-    ],
-    "name": "UserDeactivated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "wallet",
+        "name": "user",
         "type": "address"
       },
       {

@@ -1,7 +1,7 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from "wagmi";
-import { parseEther } from "viem";
+import { parseUnits } from "viem";
 import { DepositABI } from "../../config/abis";
-import { getContractAddress } from "../../config/contracts";
+import { getContractAddress, getUsdtDecimals } from "../../config/contracts";
 
 export function useDepositBalance(address: `0x${string}` | undefined) {
   const chainId = useChainId();
@@ -20,12 +20,15 @@ export function useContractDeposit() {
   const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   const isConfirming = !!hash && rawConfirming;
 
-  const deposit = (amountEth: string) => {
+  // T1: deposit 改 ERC20 deposit(uint256)（去 payable）。此处仅做保编译最小适配——
+  // 按 usdtDecimals(6) 解析金额、去 value。前置 approve 两步态 / allowance 检测留 T3，
+  // 完整精度/币种文案统一留 T2。
+  const deposit = (amountUsdt: string) => {
     writeContract({
       address: getContractAddress(chainId, "Deposit"),
       abi: DepositABI,
       functionName: "deposit",
-      value: parseEther(amountEth),
+      args: [parseUnits(amountUsdt, getUsdtDecimals(chainId))],
     });
   };
 

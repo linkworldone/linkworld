@@ -1,30 +1,18 @@
 import { defineChain } from "viem";
 
-export const zgMainnet = defineChain({
-  id: 16600,
-  name: "0G Newton Mainnet",
-  nativeCurrency: { name: "A0GI", symbol: "A0GI", decimals: 18 },
+// Arbitrum Sepolia 测试网（本轮主网络，替代旧 0G testnet）
+// 真·上链待合约部署后，地址回填 deployments/arbitrum_sepolia.json
+export const arbitrumSepolia = defineChain({
+  id: 421614,
+  name: "Arbitrum Sepolia",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
-    default: { http: ["https://evmrpc.0g.ai"] },
+    default: { http: ["https://sepolia-rollup.arbitrum.io/rpc"] },
   },
   blockExplorers: {
-    default: { name: "0G ChainScan", url: "https://chainscan.0g.ai" },
+    default: { name: "Arbiscan", url: "https://sepolia.arbiscan.io" },
   },
-});
-
-export const zgTestnet = defineChain({
-  id: 16601,
-  name: "0G Galileo Testnet",
-  nativeCurrency: { name: "A0GI", symbol: "A0GI", decimals: 18 },
-  rpcUrls: {
-    default: { http: ["https://evmrpc-testnet.0g.ai"] },
-  },
-  blockExplorers: {
-    default: {
-      name: "0G ChainScan Galileo",
-      url: "https://chainscan-galileo.0g.ai",
-    },
-  },
+  testnet: true,
 });
 
 export const hardhatLocal = defineChain({

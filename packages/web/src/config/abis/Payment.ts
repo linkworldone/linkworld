@@ -69,6 +69,17 @@ export const PaymentABI = [
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "UUPSUnauthorizedCallContext",
     "type": "error"
@@ -102,7 +113,7 @@ export const PaymentABI = [
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount",
+        "name": "totalAmount",
         "type": "uint256"
       },
       {
@@ -134,6 +145,12 @@ export const PaymentABI = [
         "indexed": false,
         "internalType": "uint256",
         "name": "totalAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "operatorAmount",
         "type": "uint256"
       }
     ],
@@ -179,18 +196,6 @@ export const PaymentABI = [
         "indexed": true,
         "internalType": "uint256",
         "name": "billId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "deduction",
         "type": "uint256"
       }
     ],
@@ -239,29 +244,6 @@ export const PaymentABI = [
   {
     "inputs": [
       {
-        "internalType": "address[]",
-        "name": "users",
-        "type": "address[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "operatorIds",
-        "type": "uint256[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "amounts",
-        "type": "uint256[]"
-      }
-    ],
-    "name": "autoSettle",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "user",
         "type": "address"
@@ -280,19 +262,6 @@ export const PaymentABI = [
     "name": "createBill",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "deposit",
-    "outputs": [
-      {
-        "internalType": "contract IDeposit",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -343,11 +312,6 @@ export const PaymentABI = [
           {
             "internalType": "uint256",
             "name": "platformFee",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "trafficCardDeduction",
             "type": "uint256"
           },
           {
@@ -408,11 +372,6 @@ export const PaymentABI = [
           },
           {
             "internalType": "uint256",
-            "name": "trafficCardDeduction",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
             "name": "createdAt",
             "type": "uint256"
           },
@@ -440,6 +399,16 @@ export const PaymentABI = [
       {
         "internalType": "address",
         "name": "_platformWallet",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_usdt",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_serviceManager",
         "type": "address"
       }
     ],
@@ -484,7 +453,7 @@ export const PaymentABI = [
     ],
     "name": "payBill",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -521,14 +490,27 @@ export const PaymentABI = [
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "serviceManager",
+    "outputs": [
       {
-        "internalType": "address",
-        "name": "_deposit",
+        "internalType": "contract IServiceManager",
+        "name": "",
         "type": "address"
       }
     ],
-    "name": "setDeposit",
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_feeManager",
+        "type": "address"
+      }
+    ],
+    "name": "setFeeManager",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -563,6 +545,19 @@ export const PaymentABI = [
     "inputs": [
       {
         "internalType": "address",
+        "name": "_serviceManager",
+        "type": "address"
+      }
+    ],
+    "name": "setServiceManager",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "newOwner",
         "type": "address"
       }
@@ -588,6 +583,19 @@ export const PaymentABI = [
     "name": "upgradeToAndCall",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "usdt",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ] as const;
