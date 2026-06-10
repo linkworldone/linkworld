@@ -8,6 +8,7 @@ export {
 } from "./useServiceManager";
 export { useContractPayBill } from "./usePaymentContract";
 export { useAllowance, useApprove } from "./useUsdtContract";
+export { useFeeRate, useCalculateFee, type FeeRateResult } from "./useFeeManager";
 export {
   useTrafficCardCredit,
   useTrafficCards,

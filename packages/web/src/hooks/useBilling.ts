@@ -5,6 +5,7 @@ import { usageApi } from "../services/api/usageApi";
 import { useContractPayBill } from "./contracts";
 import { useTxState } from "./useTransactionFlow";
 import { savePendingSync, clearPendingSync, retryWithBackoff } from "../utils/pendingSync";
+import { WalletAuthRejectedError } from "../services/api/signedPost";
 import type { Bill } from "../types";
 
 // 账单列表：从后端读。is_paid 由后端 BillPaid 事件回填（design §9）。
@@ -60,6 +61,18 @@ export function usePayBill() {
     // is_paid 唯一由后端 BillPaid 事件回填——**不据 200 置已付**。轮询 useBills 看 status 转 paid。
     recordIntent: async (billId: string) => {
       if (!address) return;
+      // WalletAuth 拒签（T5）≠ 网络瞬时失败：先现签一次探测，拒签直接上抛由页面提示「身份签名被取消」，
+      // 不进 pending、不落 pendingSync（对齐 useDeposit，T7 遗留对齐）。
+      try {
+        await billingApi.payIntent(address, billId);
+        clearPendingSync(`pay_${billId}`);
+        queryClient.invalidateQueries({ queryKey: ["bills"] });
+        queryClient.invalidateQueries({ queryKey: ["billDetail"] });
+        return;
+      } catch (err) {
+        if (err instanceof WalletAuthRejectedError) throw err;
+      }
+      // 非拒签（网络/后端瞬时失败）→ 退避重试，仍失败落 pendingSync 后台补传。
       const ok = await retryWithBackoff(() => billingApi.payIntent(address, billId));
       if (ok) {
         clearPendingSync(`pay_${billId}`);
