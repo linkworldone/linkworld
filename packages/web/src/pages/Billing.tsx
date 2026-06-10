@@ -75,13 +75,13 @@ export default function Billing() {
 
   return (
     <div className="px-4 space-y-3">
-      <div className="flex bg-surface-card rounded-xl p-0.5">
+      <div className="flex bg-surface-card border border-surface-card-line rounded-xl p-0.5">
         {(["unpaid", "paid"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
-              filter === f ? "bg-brand-blue text-white" : "text-text-muted"
+            className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors min-h-[44px] ${
+              filter === f ? "bg-brand-gold text-brand-navy" : "text-text-on-light-secondary"
             }`}
           >
             {f === "unpaid" ? "待支付" : "历史"}
@@ -108,7 +108,7 @@ export default function Billing() {
                 <div className="flex justify-between items-center mb-3">
                   <button
                     onClick={() => navigate(`/billing/${bill.id}`)}
-                    className="text-sm font-bold text-text-on-light-primary hover:text-brand-blue"
+                    className="text-sm font-bold text-text-on-light-primary hover:text-brand-royal"
                   >
                     {new Date(bill.month + "-01").toLocaleDateString("zh-CN", {
                       year: "numeric",
@@ -119,21 +119,21 @@ export default function Billing() {
                 </div>
                 <div className="space-y-1.5 mb-3">
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">运营商费用</span>
-                    <span className="font-data tabular-nums">
+                    <span className="text-text-on-light-secondary">运营商费用</span>
+                    <span className="font-data tabular-nums text-text-on-light-primary">
                       {formatAmount(BigInt(bill.operatorFee))} USDT
                     </span>
                   </div>
                   <FeeBreakdown amount={billTotal} />
                   {bill.trafficCardDeduction && BigInt(bill.trafficCardDeduction) > 0n && (
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">流量卡抵扣</span>
+                      <span className="text-text-on-light-secondary">流量卡抵扣</span>
                       <span className="text-status-success font-data tabular-nums">
                         -{formatAmount(BigInt(bill.trafficCardDeduction))} USDT
                       </span>
                     </div>
                   )}
-                  <div className="h-px bg-surface-secondary my-1" />
+                  <div className="h-px bg-surface-card-line my-1" />
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-text-on-light-primary">合计</span>
                     <AmountDisplay amount={billTotal} currency="USDT" size="sm" />
@@ -157,7 +157,7 @@ export default function Billing() {
         open={payingBillId !== null}
         onOpenChange={(o) => !o && setPayingBillId(null)}
       >
-        <h2 className="text-lg font-bold mb-4 text-text-primary">确认支付</h2>
+        <h2 className="text-lg font-bold mb-4 text-text-on-light-primary">确认支付</h2>
         {payingBill && (
           <>
             {rejectMsg && (
@@ -169,18 +169,18 @@ export default function Billing() {
                 {rejectMsg}
               </div>
             )}
-            <div className="p-3 bg-surface-secondary rounded-xl space-y-2 mb-4">
+            <div className="p-3 bg-surface-input rounded-xl space-y-2 mb-4">
               <div className="flex justify-between text-xs">
-                <span className="text-text-muted">账单金额</span>
-                <span className="font-bold font-data tabular-nums">
+                <span className="text-text-on-light-secondary">账单金额</span>
+                <span className="font-bold font-data tabular-nums text-text-on-light-primary">
                   {formatAmount(totalMinUnit)} USDT
                 </span>
               </div>
               <FeeBreakdown amount={totalMinUnit} />
-              <div className="h-px bg-surface-secondary" />
+              <div className="h-px bg-surface-card-line" />
               <div className="flex justify-between text-xs">
-                <span className="text-text-muted">需授权总额</span>
-                <span className="font-bold font-data tabular-nums" data-slot="approve-total">
+                <span className="text-text-on-light-secondary">需授权总额</span>
+                <span className="font-bold font-data tabular-nums text-text-on-light-primary" data-slot="approve-total">
                   {feeQ.fee !== undefined ? `${formatAmount(approveAmount)} USDT` : "--"}
                 </span>
               </div>

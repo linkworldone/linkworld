@@ -22,7 +22,7 @@ export interface FeeBreakdownProps {
 function SkeletonBar({ w }: { w: string }) {
   return (
     <span
-      className={`inline-block h-3 rounded bg-surface-secondary animate-pulse align-middle ${w}`}
+      className={`inline-block h-3 rounded bg-surface-input animate-pulse align-middle ${w}`}
       data-slot="fee-skeleton"
       aria-hidden
     />
@@ -58,8 +58,8 @@ export function FeeBreakdown({ amount, className, size = "xs" }: FeeBreakdownPro
       className={`flex justify-between ${textSize} ${className ?? ""}`}
       data-slot="fee-breakdown"
     >
-      <span className="text-text-secondary">平台手续费 ({rateLabel})</span>
-      <span className="font-data tabular-nums">{feeText}</span>
+      <span className="text-text-on-light-secondary">平台手续费 ({rateLabel})</span>
+      <span className="font-data tabular-nums text-text-on-light-primary">{feeText}</span>
     </div>
   );
 }

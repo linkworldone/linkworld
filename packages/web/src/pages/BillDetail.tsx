@@ -81,22 +81,22 @@ export default function BillDetail() {
       <Card>
         <CardContent className="py-4 space-y-2.5">
           <div className="flex justify-between text-sm">
-            <span className="text-text-secondary">运营商费用</span>
-            <span className="font-data tabular-nums">{formatAmount(BigInt(bill.operatorFee))} USDT</span>
+            <span className="text-text-on-light-secondary">运营商费用</span>
+            <span className="font-data tabular-nums text-text-on-light-primary">{formatAmount(BigInt(bill.operatorFee))} USDT</span>
           </div>
           {/* 平台手续费：读链费率 + calculateFee（不写死 2.5%）。 */}
           <FeeBreakdown amount={totalMinUnit} size="sm" />
           {bill.trafficCardDeduction && BigInt(bill.trafficCardDeduction) > 0n && (
             <div className="flex justify-between text-sm">
-              <span className="text-text-secondary">流量卡抵扣</span>
+              <span className="text-text-on-light-secondary">流量卡抵扣</span>
               <span className="text-status-success font-data tabular-nums">
                 -{formatAmount(BigInt(bill.trafficCardDeduction))} USDT
               </span>
             </div>
           )}
-          <div className="h-px bg-surface-secondary" />
+          <div className="h-px bg-surface-card-line" />
           <div className="flex justify-between items-center">
-            <span className="text-base font-bold text-text-primary">合计</span>
+            <span className="text-base font-bold text-text-on-light-primary">合计</span>
             <AmountDisplay amount={totalMinUnit} currency="USDT" size="md" />
           </div>
         </CardContent>
@@ -104,20 +104,20 @@ export default function BillDetail() {
 
       <Card>
         <CardContent className="py-4">
-          <h3 className="text-[13px] font-semibold mb-3 text-text-primary">用量详情</h3>
+          <h3 className="text-[13px] font-semibold mb-3 text-text-on-light-primary">用量详情</h3>
           <div className="flex justify-around">
             <div className="text-center">
-              <div className="text-[22px] font-extrabold text-brand-blue font-data tabular-nums">
+              <div className="text-[22px] font-extrabold text-text-on-light-primary font-data tabular-nums">
                 {bill.usage.dataGB}
               </div>
-              <div className="text-[10px] text-text-muted">GB 流量</div>
+              <div className="text-[10px] text-text-on-light-muted">GB 流量</div>
             </div>
-            <div className="w-px bg-surface-secondary" />
+            <div className="w-px bg-surface-card-line" />
             <div className="text-center">
-              <div className="text-[22px] font-extrabold text-brand-purple font-data tabular-nums">
+              <div className="text-[22px] font-extrabold text-text-on-light-primary font-data tabular-nums">
                 {bill.usage.callMinutes}
               </div>
-              <div className="text-[10px] text-text-muted">分钟通话</div>
+              <div className="text-[10px] text-text-on-light-muted">分钟通话</div>
             </div>
           </div>
         </CardContent>
@@ -148,7 +148,7 @@ export default function BillDetail() {
       )}
 
       <BottomSheet open={showPay} onOpenChange={setShowPay}>
-        <h2 className="text-lg font-bold mb-4 text-text-primary">确认支付</h2>
+        <h2 className="text-lg font-bold mb-4 text-text-on-light-primary">确认支付</h2>
 
         {rejectMsg && (
           <div
@@ -160,18 +160,18 @@ export default function BillDetail() {
           </div>
         )}
 
-        <div className="p-3 bg-surface-secondary rounded-xl space-y-2 mb-4">
+        <div className="p-3 bg-surface-input rounded-xl space-y-2 mb-4">
           <div className="flex justify-between text-xs">
-            <span className="text-text-muted">账单金额</span>
-            <span className="font-bold font-data tabular-nums">
+            <span className="text-text-on-light-secondary">账单金额</span>
+            <span className="font-bold font-data tabular-nums text-text-on-light-primary">
               {formatAmount(totalMinUnit)} USDT
             </span>
           </div>
           <FeeBreakdown amount={totalMinUnit} />
-          <div className="h-px bg-surface-secondary" />
+          <div className="h-px bg-surface-card-line" />
           <div className="flex justify-between text-xs">
-            <span className="text-text-muted">需授权总额</span>
-            <span className="font-bold font-data tabular-nums" data-slot="approve-total">
+            <span className="text-text-on-light-secondary">需授权总额</span>
+            <span className="font-bold font-data tabular-nums text-text-on-light-primary" data-slot="approve-total">
               {feeQ.fee !== undefined ? `${formatAmount(approveAmount)} USDT` : "--"}
             </span>
           </div>

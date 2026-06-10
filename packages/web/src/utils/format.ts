@@ -25,11 +25,6 @@ export function formatAmount(
   return `${whole}.${fractionStr}`;
 }
 
-export function formatUSD(amount: string): string {
-  const num = parseFloat(amount);
-  return `$${num.toFixed(2)}`;
-}
-
 export function formatDate(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString("en-US", {
     month: "short",

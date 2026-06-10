@@ -162,12 +162,12 @@ export function TwoStepAction({
               "flex h-6 w-6 items-center justify-center rounded-full border text-xs font-semibold " +
               (approveDone
                 ? "border-status-success text-status-success"
-                : "border-border text-text-secondary")
+                : "border-surface-card-line text-text-on-light-secondary")
             }
           >
             {approveDone ? <Check className="size-3.5" /> : "1"}
           </span>
-          <span className={approveDone ? "text-status-success" : "text-text-primary"}>
+          <span className={approveDone ? "text-status-success" : "text-text-on-light-primary"}>
             {approveDone ? "已授权" : "授权 USDT"}
           </span>
         </li>
@@ -184,13 +184,13 @@ export function TwoStepAction({
               (phase === "done"
                 ? "border-status-success text-status-success"
                 : atAction
-                  ? "border-brand-blue text-brand-blue"
-                  : "border-border text-text-secondary")
+                  ? "border-brand-royal text-brand-royal"
+                  : "border-surface-card-line text-text-on-light-secondary")
             }
           >
             {phase === "done" ? <Check className="size-3.5" /> : "2"}
           </span>
-          <span className="text-text-primary">{actionLabel}</span>
+          <span className="text-text-on-light-primary">{actionLabel}</span>
         </li>
       </ol>
 
@@ -223,7 +223,7 @@ export function TwoStepAction({
 
       {/* 中间态文案 */}
       {busy && (
-        <p className="mt-2 text-xs text-text-secondary" data-slot="step-status">
+        <p className="mt-2 text-xs text-text-on-light-secondary" data-slot="step-status">
           {stepLabel(phase)}
         </p>
       )}

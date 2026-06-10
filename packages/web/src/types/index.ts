@@ -10,7 +10,7 @@ export interface User {
 
 export interface DepositInfo {
   balance: bigint;
-  currency: "USDT" | "ETH";
+  currency: "USDT";
 }
 
 export interface DepositRecord {

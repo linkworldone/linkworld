@@ -46,9 +46,9 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/60 z-50" />
         <Drawer.Content className="fixed bottom-0 left-0 right-0 max-w-mobile mx-auto bg-surface-card rounded-t-2xl z-50 p-6">
-          <div className="w-12 h-1 bg-surface-secondary rounded-full mx-auto mb-6" />
-          <h2 className="text-lg font-bold mb-1">Create Account</h2>
-          <p className="text-sm text-text-secondary mb-6">
+          <div className="w-12 h-1 bg-surface-input rounded-full mx-auto mb-6" />
+          <h2 className="text-lg font-bold mb-1 text-text-on-light-primary">Create Account</h2>
+          <p className="text-sm text-text-on-light-secondary mb-6">
             {step === "email" ? "Enter your email to get started." : "Enter the verification code sent to your email."}
           </p>
 
@@ -59,7 +59,7 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="w-full px-4 py-3 bg-surface-secondary rounded-xl text-text-primary text-sm outline-none border border-border focus:border-brand-blue mb-4"
+                className="w-full px-4 py-3 bg-surface-input rounded-xl text-text-on-light-primary text-sm outline-none border border-surface-card-line focus:border-brand-royal mb-4"
               />
               {email && !isValidEmail && (
                 <p className="text-xs text-status-danger mb-2">请输入有效的邮箱地址</p>
@@ -76,7 +76,7 @@ export function RegisterSheet({ address, open, onClose, onSuccess }: RegisterShe
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="Enter 6-digit code"
                 maxLength={6}
-                className="w-full px-4 py-3 bg-surface-secondary rounded-xl text-text-primary text-sm outline-none border border-border focus:border-brand-blue mb-4 text-center tracking-widest text-lg"
+                className="w-full px-4 py-3 bg-surface-input rounded-xl text-text-on-light-primary text-sm outline-none border border-surface-card-line focus:border-brand-royal mb-4 text-center tracking-widest text-lg"
               />
               <Button onClick={handleVerify} disabled={code.length < 6 || verifyEmail.isPending || isContractPending} className="w-full py-3">
                 {verifyEmail.isPending || isContractPending ? "Verifying..." : "Verify & Register"}

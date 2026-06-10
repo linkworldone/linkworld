@@ -82,8 +82,5 @@ export function usePayBill() {
         savePendingSync(`pay_${billId}`, { wallet: address, billId });
       }
     },
-    isContractPending: contractPay.isPending,
-    isConfirming: contractPay.isConfirming,
-    isSuccess: contractPay.isSuccess,
   };
 }
