@@ -1,6 +1,16 @@
-import { parseEther } from "viem";
+import { parseUnits } from "viem";
 import { apiClient } from "./client";
 import type { DepositRecord } from "../../types";
+
+// 对账重构（design §3.3 / handoff §1.2/1.3）：
+// - 充值/提现端点**仅写 pending 意向**，不据 200 / tx_hash 置终态。
+// - 终态唯一由后端 event_sync 监听链上事件（DepositMade / DepositWithdrawn）回填。
+// - 余额以链上 getDepositAmount 为准（source of truth, design §9）；历史/终态轮询后端 status。
+// - 精度：USDT 6 位最小单位（旧 parseEther 18 位差 10^12 倍，资损红线）。
+//
+// usdtDecimals 全链路恒 6（MockUSDT / Arbitrum USDT）。api 层无 chainId 上下文，
+// 这里以 6 解析金额；与 contracts.getUsdtDecimals 一致（deployments.usdtDecimals=6）。
+const USDT_DECIMALS = 6;
 
 export const depositApi = {
   async getHistory(wallet: string): Promise<DepositRecord[]> {
@@ -18,21 +28,23 @@ export const depositApi = {
           return 0n;
         }
       })(),
-      currency: "ETH",
+      currency: "USDT",
+      // 后端 status：pending / confirmed（event_sync 回填）；缺省按 pending（不暗示已到账）。
+      status: r.status === "confirmed" ? "confirmed" : "pending",
       timestamp: r.created_at,
       txHash: r.tx_hash ?? "",
     }));
   },
-  async recordDeposit(
-    wallet: string,
-    amount: string,
-    txHash?: string,
-  ): Promise<void> {
-    const amountWei = parseEther(amount).toString();
+
+  /**
+   * 充值 pending 意向（design §3.3）。仅上报「我已发起充值」，**不据 200 置终态**。
+   * 余额以链上 getDepositAmount 确认；不带 tx_hash 作为记账依据。
+   */
+  async postDepositIntent(wallet: string, amount: string): Promise<void> {
+    const amountMinUnit = parseUnits(amount, USDT_DECIMALS).toString();
     await apiClient.post("/api/deposit", {
       wallet,
-      amount: amountWei,
-      tx_hash: txHash,
+      amount: amountMinUnit,
     });
   },
 
@@ -43,10 +55,11 @@ export const depositApi = {
     return data.amount;
   },
 
-  async recordWithdraw(
-    wallet: string,
-    txHash?: string,
-  ): Promise<void> {
-    await apiClient.post("/api/withdraw", { wallet, tx_hash: txHash });
+  /**
+   * 提现 pending 意向（design §3.3 / handoff §1.2）。
+   * **废弃凭 tx_hash 记账**：仅上报 wallet；记账唯一由后端监听 DepositWithdrawn 事件回填。
+   */
+  async postWithdrawIntent(wallet: string): Promise<void> {
+    await apiClient.post("/api/withdraw", { wallet });
   },
 };

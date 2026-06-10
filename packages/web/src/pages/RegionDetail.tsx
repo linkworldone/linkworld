@@ -20,16 +20,10 @@ export default function RegionDetail() {
 
   const isApplying = txState.status === "pending-signature" || txState.status === "pending-confirmation";
 
-  // 合约成功后同步后端并刷新号码列表
+  // T4：虚拟号码激活已迁后端（useApplyNumber 内部发 /api/service/activate，不再链上 activateService）。
+  // success 后仅收尾刷新；后端激活请求由 applyNumber 一次性发出（不再在此重复 POST）。
   useEffect(() => {
-    if (txState.status === "success" && address && pendingServiceRef.current) {
-      const { operatorId, virtualNumber, password } = pendingServiceRef.current;
-      apiClient.post("/api/service/activate", {
-        wallet: address,
-        operator_id: Number(operatorId),
-        virtual_number: virtualNumber,
-        password: password,
-      }).catch((err: any) => console.error("Backend sync failed:", err));
+    if (txState.status === "success") {
       pendingServiceRef.current = null;
       invalidate();
       setSelectedOp(null);
@@ -43,9 +37,8 @@ export default function RegionDetail() {
       const result = await apiClient.post("/api/virtual-number/generate", { country_code: regionCode }) as any;
       const virtualNumber = result.virtual_number;
       const password = result.password;
-      // 存下来供合约成功后同步后端
       pendingServiceRef.current = { operatorId: selectedOp, virtualNumber, password };
-      // 调合约激活
+      // 后端激活意向（T4：去链上 activateService）
       applyNumber(BigInt(selectedOp), virtualNumber, password);
     } catch (err) {
       console.error("Failed to generate virtual number:", err);

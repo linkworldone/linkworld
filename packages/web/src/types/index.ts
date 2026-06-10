@@ -18,6 +18,8 @@ export interface DepositRecord {
   type: "deposit" | "withdraw" | "deduction";
   amount: bigint;
   currency: string;
+  // 对账三态（design §3.1）：pending（仅意向，不计入余额）/ confirmed（event_sync 回填终态）。
+  status: "pending" | "confirmed";
   timestamp: string;
   txHash: string;
 }
@@ -57,7 +59,8 @@ export interface VirtualNumber {
 export interface Bill {
   id: string;
   month: string;
-  status: "unpaid" | "paid" | "overdue";
+  // 对账三态扩展（design §3.3）：paying = 已发起支付意向、等后端 BillPaid 事件回填（不据 200 置 paid）。
+  status: "unpaid" | "paying" | "paid" | "overdue";
   operatorFee: string;
   platformFee: string;
   trafficCardDeduction?: string;

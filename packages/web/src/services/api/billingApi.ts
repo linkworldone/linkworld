@@ -9,6 +9,9 @@ interface ApiBill {
   platform_fee: string;
   traffic_card_deduction?: string;
   is_paid: boolean;
+  // 后端 pending 支付意向标记（handoff §1.1 PayIntentTxHash）：
+  // is_paid=false 但已发起支付 → status=paying（等 BillPaid 事件回填 is_paid）。
+  pay_intent_tx_hash?: string;
   created_at: string;
   paid_at?: string;
   tx_hash?: string;
@@ -19,9 +22,13 @@ function toBill(api: ApiBill): Bill {
   const dueDate = new Date(createdAt);
   dueDate.setDate(dueDate.getDate() + 14);
 
+  // 对账三态（design §3.3）：is_paid 唯一由后端 BillPaid 事件回填——**不据 HTTP 200 置 paid**。
+  // 已发起支付意向（pay_intent_tx_hash）但事件未回填 → paying（确认中，UI info 蓝 + Loader2，禁绿）。
   let status: Bill["status"] = "unpaid";
   if (api.is_paid) {
     status = "paid";
+  } else if (api.pay_intent_tx_hash) {
+    status = "paying";
   } else if (new Date() > dueDate) {
     status = "overdue";
   }
@@ -65,15 +72,15 @@ export const billingApi = {
     return bills;
   },
 
-  async recordPayment(
-    wallet: string,
-    billId: string,
-    txHash?: string,
-  ): Promise<void> {
+  /**
+   * 付账 pending 意向（design §3.3 / handoff §1.1）。
+   * 仅上报「我已发起支付」，**不据 200 置 is_paid**；is_paid 唯一由后端 BillPaid 事件回填。
+   * 不带 tx_hash 作为终态依据（后端 event_sync 监听链上事件）。
+   */
+  async payIntent(wallet: string, billId: string): Promise<void> {
     await apiClient.post("/api/bills/pay", {
       wallet,
       bill_id: Number(billId),
-      tx_hash: txHash,
     });
   },
 };

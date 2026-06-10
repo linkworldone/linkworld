@@ -15,7 +15,7 @@ export const depositService = {
     await delay(1200);
     const current = getMockDeposit();
     setMockDeposit({ ...current, balance: current.balance + amount });
-    const record: DepositRecord = { id: `dr-${Date.now()}`, type: "deposit", amount, currency, timestamp: new Date().toISOString(), txHash: `0x${Math.random().toString(16).slice(2, 14)}` };
+    const record: DepositRecord = { id: `dr-${Date.now()}`, type: "deposit", amount, currency, status: "pending", timestamp: new Date().toISOString(), txHash: `0x${Math.random().toString(16).slice(2, 14)}` };
     addMockDepositRecord(record);
     return record;
   },
@@ -24,7 +24,7 @@ export const depositService = {
     const current = getMockDeposit();
     const newBalance = current.balance - amount;
     setMockDeposit({ ...current, balance: newBalance > 0n ? newBalance : 0n });
-    const record: DepositRecord = { id: `dr-${Date.now()}`, type: "withdraw", amount, currency: current.currency, timestamp: new Date().toISOString(), txHash: `0x${Math.random().toString(16).slice(2, 14)}` };
+    const record: DepositRecord = { id: `dr-${Date.now()}`, type: "withdraw", amount, currency: current.currency, status: "pending", timestamp: new Date().toISOString(), txHash: `0x${Math.random().toString(16).slice(2, 14)}` };
     addMockDepositRecord(record);
     return record;
   },

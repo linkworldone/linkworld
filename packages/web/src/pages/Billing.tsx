@@ -14,16 +14,16 @@ export default function Billing() {
   const { address } = useAccount();
   const [filter, setFilter] = useState<Filter>("unpaid");
   const { data: bills } = useBills(address, filter);
-  const { payBill, isContractPending, isSuccess, recordToBackend } = usePayBill();
+  const { payBill, isContractPending, isSuccess, recordIntent } = usePayBill();
   const [payingBillId, setPayingBillId] = useState<string | null>(null);
 
   const unpaidBills = bills?.filter((b) => b.status !== "paid") || [];
   const payingBill = bills?.find((b) => b.id === payingBillId);
 
-  // 合约支付成功后同步后端
+  // 合约支付成功后仅上报 pending 意向（不据成功置已付，design §3.3）；is_paid 等后端 BillPaid 事件回填。
   useEffect(() => {
     if (isSuccess && payingBillId) {
-      recordToBackend(payingBillId);
+      recordIntent(payingBillId);
       setPayingBillId(null);
     }
   }, [isSuccess]);

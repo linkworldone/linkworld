@@ -20,12 +20,13 @@ export default function Deposit() {
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<"USDT" | "ETH">("USDT");
 
-  // 合约成功后同步后端 + 刷新余额 + 提示
+  // 合约成功后仅上报 pending 意向（不据成功置终态，design §3.3）+ 刷新读链余额。
+  // 文案为「处理中」而非「confirmed」：真实到账以链上 getDepositAmount + 后端事件回填为准。
   useEffect(() => {
     if (depositMutation.isSuccess && amount) {
-      depositMutation.recordToBackend(amount);
+      depositMutation.recordIntent(amount);
       refetchBalance();
-      toast.success("Deposit confirmed");
+      toast("充值处理中 · 约 1-2 分钟到账");
       setSheetMode(null);
       setAmount("");
     }
@@ -33,9 +34,9 @@ export default function Deposit() {
 
   useEffect(() => {
     if (withdrawMutation.isSuccess) {
-      withdrawMutation.recordToBackend();
+      withdrawMutation.recordIntent();
       refetchBalance();
-      toast.success("Withdraw confirmed");
+      toast("提现处理中 · 约 1-2 分钟到账");
       setSheetMode(null);
       setAmount("");
     }

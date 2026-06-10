@@ -9,13 +9,13 @@ import { formatUSD, formatDate, parseUnits } from "@/utils/format";
 export default function BillDetail() {
   const { billId } = useParams<{ billId: string }>();
   const { data: bill } = useBillDetail(billId);
-  const { payBill, isContractPending, isSuccess, recordToBackend } = usePayBill();
+  const { payBill, isContractPending, isSuccess, recordIntent } = usePayBill();
   const [showPay, setShowPay] = useState(false);
 
-  // 合约支付成功后同步后端
+  // 合约支付成功后仅上报 pending 意向（不据成功置已付，design §3.3）；is_paid 等后端 BillPaid 事件回填。
   useEffect(() => {
     if (isSuccess && bill) {
-      recordToBackend(bill.id);
+      recordIntent(bill.id);
       setShowPay(false);
     }
   }, [isSuccess]);
