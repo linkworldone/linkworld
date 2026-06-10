@@ -1,5 +1,6 @@
 import { parseUnits } from "viem";
 import { apiClient } from "./client";
+import { signedPost } from "./signedPost";
 import type { DepositRecord } from "../../types";
 
 // 对账重构（design §3.3 / handoff §1.2/1.3）：
@@ -39,13 +40,15 @@ export const depositApi = {
   /**
    * 充值 pending 意向（design §3.3）。仅上报「我已发起充值」，**不据 200 置终态**。
    * 余额以链上 getDepositAmount 确认；不带 tx_hash 作为记账依据。
+   * T5：写端点经 signedPost 带 WalletAuth 身份签名（action="deposit"）；拒签抛 WalletAuthRejectedError。
    */
   async postDepositIntent(wallet: string, amount: string): Promise<void> {
     const amountMinUnit = parseUnits(amount, USDT_DECIMALS).toString();
-    await apiClient.post("/api/deposit", {
-      wallet,
-      amount: amountMinUnit,
-    });
+    await signedPost(
+      "/api/deposit",
+      { wallet, amount: amountMinUnit },
+      { wallet, action: "deposit" },
+    );
   },
 
   async getDepositAmount(wallet: string): Promise<string> {
@@ -58,8 +61,9 @@ export const depositApi = {
   /**
    * 提现 pending 意向（design §3.3 / handoff §1.2）。
    * **废弃凭 tx_hash 记账**：仅上报 wallet；记账唯一由后端监听 DepositWithdrawn 事件回填。
+   * T5：经 signedPost 带 WalletAuth 身份签名（action="withdraw"）。
    */
   async postWithdrawIntent(wallet: string): Promise<void> {
-    await apiClient.post("/api/withdraw", { wallet });
+    await signedPost("/api/withdraw", { wallet }, { wallet, action: "withdraw" });
   },
 };

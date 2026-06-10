@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { signedPost } from "./signedPost";
 import type { Bill } from "../../types";
 
 interface ApiBill {
@@ -76,11 +77,13 @@ export const billingApi = {
    * 付账 pending 意向（design §3.3 / handoff §1.1）。
    * 仅上报「我已发起支付」，**不据 200 置 is_paid**；is_paid 唯一由后端 BillPaid 事件回填。
    * 不带 tx_hash 作为终态依据（后端 event_sync 监听链上事件）。
+   * T5：经 signedPost 带 WalletAuth 身份签名（action="bills/pay"）。
    */
   async payIntent(wallet: string, billId: string): Promise<void> {
-    await apiClient.post("/api/bills/pay", {
-      wallet,
-      bill_id: Number(billId),
-    });
+    await signedPost(
+      "/api/bills/pay",
+      { wallet, bill_id: Number(billId) },
+      { wallet, action: "bills/pay" },
+    );
   },
 };

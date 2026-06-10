@@ -9,8 +9,11 @@ vi.mock("./contracts", () => ({
     isLoading: false,
   })),
 }));
+// useDeposit → depositApi → signedPost → config/wagmi 在模块加载期调 getDefaultConfig(http())，
+// 故 wagmi mock 需补 http（仅本测试关心 useAccount）。
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: "0xabc" }),
+  http: () => ({}),
 }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(() => ({ data: undefined })),

@@ -5,6 +5,7 @@ import { operatorApi } from "../services/api/operatorApi";
 import { parseContractError, type TxState } from "./useTransactionFlow";
 import type { VirtualNumber } from "../types";
 import { apiClient } from "../services/api/client";
+import { signedPost, WalletAuthRejectedError } from "../services/api/signedPost";
 
 // 地区列表：从后端 API 聚合
 export function useRegions() {
@@ -83,16 +84,26 @@ export function useApplyNumber() {
     if (!address) return;
     setTxState({ status: "pending-confirmation" });
     try {
-      await apiClient.post("/api/service/activate", {
-        wallet: address,
-        operator_id: Number(operatorId),
-        virtual_number: virtualNumber,
-        password,
-      });
+      // T5：service 写端点经 signedPost 带 WalletAuth 身份签名（action="service/activate"）。
+      await signedPost(
+        "/api/service/activate",
+        {
+          wallet: address,
+          operator_id: Number(operatorId),
+          virtual_number: virtualNumber,
+          password,
+        },
+        { wallet: address, action: "service/activate" },
+      );
       setTxState({ status: "success" });
       queryClient.invalidateQueries({ queryKey: ["myNumbers"] });
     } catch (err) {
-      setTxState({ status: "error", error: parseContractError(err) });
+      // 拒签：身份签名被取消（与交易签名/合约 revert 文案区分，design §3.7）。
+      const error =
+        err instanceof WalletAuthRejectedError
+          ? err.message
+          : parseContractError(err);
+      setTxState({ status: "error", error });
     }
   };
 
