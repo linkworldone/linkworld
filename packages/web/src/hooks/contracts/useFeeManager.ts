@@ -60,14 +60,14 @@ export function useFeeRate(): FeeRateResult {
  * 读链精确费额 calculateFee(amount)（直读合约，**不自算**，design §3.6 / B 红线）。
  * amount<=0 或未部署链 → 不读。
  */
-export function useCalculateFee(amount: bigint): {
+export function useCalculateFee(amount?: bigint): {
   fee?: bigint;
   isLoading: boolean;
   isError: boolean;
 } {
   const chainId = useChainId();
   const address = safeFeeManager(chainId);
-  const enabled = !!address && amount > 0n;
+  const enabled = !!address && amount !== undefined && amount > 0n;
   const q = useReadContract({
     address,
     abi: FeeManagerABI,

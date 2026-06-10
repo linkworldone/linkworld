@@ -13,11 +13,12 @@ function makeBill(over: Partial<Bill> = {}): Bill {
     id: "1",
     month: "2026-05",
     status: "unpaid",
-    // 6 位最小单位字符串（T2）：5 USDT = 5_000_000；不应再 ×10^6。
-    operatorFee: "4925000",
+    // 6 位最小单位字符串（T2）：amount=5_000_000(运营商) + platformFee=75_000(链上 calculateFee)
+    // → totalAmount=5_075_000（= 链上两段转账实收）。不应再 ×10^6。
+    operatorFee: "5000000",
     platformFee: "75000",
     trafficCardDeduction: "0",
-    totalAmount: "5000000",
+    totalAmount: "5075000",
     dueDate: "2026-06-15T00:00:00.000Z",
     usage: { dataGB: 0, callMinutes: 0 },
     ...over,
@@ -79,14 +80,14 @@ beforeEach(() => {
 });
 
 describe("Billing 页（T9）", () => {
-  it("BILL-02: totalAmount 5_000_000(6 位最小单位) → 展示 5.00 USDT，不二次缩放 ×10^6", () => {
+  it("BILL-02: totalAmount 5_075_000(6 位最小单位) → 展示 5.07 USDT，不二次缩放 ×10^6", () => {
     bills = [makeBill()];
     const { container } = renderPage();
-    // 正确：5.00（formatAmount 6 位）；AmountDisplay 把数值与 USDT 拆成相邻 span，按值节点断言。
-    expect(screen.getAllByText("5.00").length).toBeGreaterThanOrEqual(1);
-    // 反向：绝不出现二次缩放后的 5000000(×10^6) 文本。
-    expect(container.textContent).not.toContain("5000000");
-    expect(container.textContent).not.toContain("5,000,000");
+    // 正确：5.07（formatAmount 6 位）；AmountDisplay 把数值与 USDT 拆成相邻 span，按值节点断言。
+    expect(screen.getAllByText("5.07").length).toBeGreaterThanOrEqual(1);
+    // 反向：绝不出现二次缩放后的 5075000(×10^6) 文本。
+    expect(container.textContent).not.toContain("5075000");
+    expect(container.textContent).not.toContain("5,075,000");
   });
 
   it("BILL-03: paying 态用 TxStatusBadge「处理中」(不染绿)，不据成功置「已支付」", () => {
@@ -103,12 +104,14 @@ describe("Billing 页（T9）", () => {
     expect(screen.queryByText("立即支付")).toBeNull();
   });
 
-  it("付账授权额 = 本金 + calculateFee（读链 75_000n），注入 TwoStepAction amount", () => {
+  it("付账授权额 === totalAmount（exact = 链上实收 amount+platformFee），不再叠 calculateFee（防过额授权）", () => {
     bills = [makeBill()];
     renderPage();
     fireEvent.click(screen.getByText("立即支付"));
     const twoStep = screen.getByTestId("two-step");
-    // 5_000_000 + 75_000 = 5_075_000（不自算，calculateFee 读链值相加）。
+    // totalAmount=5_075_000（= amount 5_000_000 + platformFee 75_000，链上两段转账实收）。
+    // 授权额 = totalAmount，**不再 + calculateFee(totalAmount)**（否则 5_075_000+75_000=5_150_000 过额授权）。
+    expect(twoStep.getAttribute("data-amount")).toBe(makeBill().totalAmount);
     expect(twoStep.getAttribute("data-amount")).toBe("5075000");
   });
 

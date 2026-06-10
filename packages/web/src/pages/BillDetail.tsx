@@ -11,7 +11,6 @@ import { TxStatusBadge } from "@/components/shared/TxStatusBadge";
 import { AmountDisplay } from "@/components/shared/AmountDisplay";
 import { FeeBreakdown } from "@/components/shared/FeeBreakdown";
 import { useBillDetail, usePayBill } from "@/hooks/useBilling";
-import { useCalculateFee } from "@/hooks/contracts";
 import { getContractAddress } from "@/config/contracts";
 import { WalletAuthRejectedError } from "@/services/api/signedPost";
 import { formatAmount, formatDate } from "@/utils/format";
@@ -25,12 +24,12 @@ export default function BillDetail() {
   const [pending, setPending] = useState(false);
   const [rejectMsg, setRejectMsg] = useState<string | null>(null);
 
-  // totalAmount 已是 USDT 6 位最小单位字符串（T2）；直接转 bigint，**不再 parseUnits**（双重缩放资损红线）。
+  // totalAmount 已是 USDT 6 位最小单位字符串（T2）= amount + platformFee（链上实收 = 两段转账之和）；
+  // 直接转 bigint，**不再 parseUnits**（双重缩放资损红线）。
   const totalMinUnit = bill ? BigInt(bill.totalAmount) : 0n;
 
-  // 付账授权额 = 本金 + calculateFee（直读合约，不自算，design §3.6）。读链未回则按本金（approve 不足时第二步 revert，安全）。
-  const feeQ = useCalculateFee(totalMinUnit);
-  const approveAmount = totalMinUnit + (feeQ.fee ?? 0n);
+  // 授权额 = totalAmount（exact = 链上实收）；**不再在已含费的合计上叠 calculateFee**（过额授权资损红线）。
+  const approveAmount = totalMinUnit;
 
   // 第二步动作（注入 TwoStepAction）：write=payBill(billId)；state 走 hook 统一 TxState。
   const payAction: ActionTx = useMemo(
@@ -84,8 +83,8 @@ export default function BillDetail() {
             <span className="text-text-on-light-secondary">运营商费用</span>
             <span className="font-data tabular-nums text-text-on-light-primary">{formatAmount(BigInt(bill.operatorFee))} USDT</span>
           </div>
-          {/* 平台手续费：读链费率 + calculateFee（不写死 2.5%）。 */}
-          <FeeBreakdown amount={totalMinUnit} size="sm" />
+          {/* 平台手续费：费率读链 + 费额用后端 Bill.platformFee（= 链上 calculateFee(amount)），不在合计上二次算费。 */}
+          <FeeBreakdown fee={BigInt(bill.platformFee)} size="sm" />
           {bill.trafficCardDeduction && BigInt(bill.trafficCardDeduction) > 0n && (
             <div className="flex justify-between text-sm">
               <span className="text-text-on-light-secondary">流量卡抵扣</span>
@@ -167,12 +166,12 @@ export default function BillDetail() {
               {formatAmount(totalMinUnit)} USDT
             </span>
           </div>
-          <FeeBreakdown amount={totalMinUnit} />
+          <FeeBreakdown fee={BigInt(bill.platformFee)} />
           <div className="h-px bg-surface-card-line" />
           <div className="flex justify-between text-xs">
             <span className="text-text-on-light-secondary">需授权总额</span>
             <span className="font-bold font-data tabular-nums text-text-on-light-primary" data-slot="approve-total">
-              {feeQ.fee !== undefined ? `${formatAmount(approveAmount)} USDT` : "--"}
+              {`${formatAmount(approveAmount)} USDT`}
             </span>
           </div>
         </div>

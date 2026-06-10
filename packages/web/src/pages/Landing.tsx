@@ -54,7 +54,7 @@ export default function Landing() {
           <div className="text-[11px] text-text-muted mt-0.5">Countries</div>
         </div>
         <div className="text-center">
-          <div className="text-xl font-extrabold text-status-success">2.5%</div>
+          <div className="text-xl font-extrabold text-status-success">1.5%</div>
           <div className="text-[11px] text-text-muted mt-0.5">Platform Fee</div>
         </div>
         <div className="text-center">
