@@ -1,5 +1,5 @@
 export { useIsRegistered, useContractRegister } from "./useUserRegistry";
-export { useDepositBalance, useContractDeposit, useContractWithdraw } from "./useDepositContract";
+export { useDepositBalance, useLockExpiry, useUsdtBalance, useContractDeposit, useContractWithdraw } from "./useDepositContract";
 export {
   useContractOperator,
   useContractActiveOperators,

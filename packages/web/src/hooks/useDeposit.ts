@@ -4,6 +4,7 @@ import { useDepositBalance, useContractDeposit, useContractWithdraw } from "./co
 import { depositApi } from "../services/api/depositApi";
 import { useTxState } from "./useTransactionFlow";
 import { savePendingSync, clearPendingSync, retryWithBackoff } from "../utils/pendingSync";
+import { WalletAuthRejectedError } from "../services/api/signedPost";
 import type { DepositInfo, DepositRecord } from "../types";
 
 // 查余额：从链上读 getDepositAmount（source of truth, design §9）。
@@ -51,6 +52,16 @@ export function useDepositMutation() {
     // 真实到账以链上 getDepositAmount + 后端 event_sync 回填为准。
     recordIntent: async (amount: string) => {
       if (!address) return;
+      // WalletAuth 拒签（T5）≠ 网络瞬时失败：先现签一次探测，拒签直接上抛由页面提示，不入 pendingSync。
+      try {
+        await depositApi.postDepositIntent(address, amount);
+        clearPendingSync(`deposit_${address}`);
+        queryClient.invalidateQueries({ queryKey: ["depositHistory"] });
+        return;
+      } catch (err) {
+        if (err instanceof WalletAuthRejectedError) throw err;
+      }
+      // 非拒签（网络/后端瞬时失败）→ 退避重试，仍失败落 pendingSync 后台补传。
       const ok = await retryWithBackoff(() => depositApi.postDepositIntent(address, amount));
       if (ok) {
         clearPendingSync(`deposit_${address}`);
@@ -78,6 +89,14 @@ export function useWithdrawMutation() {
     // 仅上报 pending 意向（POST /api/withdraw，无 tx_hash）；记账由后端 DepositWithdrawn 事件回填。
     recordIntent: async () => {
       if (!address) return;
+      // 拒签（T5）上抛由页面提示「身份签名被取消」不进 pending；网络瞬时失败退避重试。
+      try {
+        await depositApi.postWithdrawIntent(address);
+        queryClient.invalidateQueries({ queryKey: ["depositHistory"] });
+        return;
+      } catch (err) {
+        if (err instanceof WalletAuthRejectedError) throw err;
+      }
       await retryWithBackoff(() => depositApi.postWithdrawIntent(address));
       queryClient.invalidateQueries({ queryKey: ["depositHistory"] });
     },
