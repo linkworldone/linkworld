@@ -1,126 +1,197 @@
 {
-  "subproject": "backend (2/3)",
+  "subproject": "web (3/3)",
   "stage": "plan",
-  "date": "2026-06-09",
-  "branch": "backend/align-arbitrum-usdt",
+  "date": "2026-06-10",
+  "branch": "web/deep-blue-gold-refactor",
   "serial": true,
-  "prerequisite": "合约 PR#1 merge（ABI 冻结）",
-  "order": ["T1-abigen", "T2-config", "T3-client", "T4-event-sync", "T5-pricing", "T6-batch-circuit", "T7-auth", "T8-test"],
+  "doneBoundary": "本地 31337 全链路绿；Arbitrum D17 + 对账三态真链行为后置强制验收，阻塞于合约上链，不计入 web DONE",
+  "order": ["T0-baseline", "T1-chain-abi", "T2-precision-constants", "T3-approve-twostep", "T4-reconcile", "T5-walletauth", "T6-theme-base", "T7-deposit", "T8-cards", "T9-billing", "T10-region-detail", "T11-reskin-rest", "T12-test-build"],
   "pages": {
-    "T1-abigen": {
-      "task": "make 脚本 + 生成 8 份 abigen 绑定（7 业务 + MockUSDT）+ abiHash 校验工具",
-      "phase": "T1",
+    "T0-baseline": {
+      "task": "清 tsc + 搭 vitest 设施",
+      "scope": "infra",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "8 合约 abigen 绑定", "use": "internal/blockchain/bindings/", "grade": "new", "action": "abigen 从 contracts artifacts 生成 + 入库"},
-        {"need": "make abigen target", "use": "Makefile", "grade": "new", "action": "脚本读 artifacts .abi → 生成绑定"},
-        {"need": "abiHash 比对", "use": "internal/blockchain/abihash.go", "grade": "new", "action": "绑定 ABI 指纹与 deployments.json.abiHash 比对，不一致 fail"}
+        {"need": "测试设施", "use": "vitest + @testing-library/react + @testing-library/jest-dom (jsdom)", "grade": "new", "action": "装 devDeps + vitest 配置 + setup"},
+        {"need": "清 TS6133", "use": "components/wallet/RegisterSheet.tsx:22", "grade": "modify", "action": "移除未用 isSuccess 解构，全量 tsc -b 绿"}
       ],
-      "depends": ["合约 PR#1 merge"],
-      "gate": "go build 绿 + abiHash 比对单测过",
-      "acceptance": ["8 绑定可编译", "abiHash 与 deployments.json 一致"]
+      "depends": [],
+      "gate": "tsc -b && vite build 绿；vitest run 可跑",
+      "acceptance": ["tsc -b && vite build 绿", "npx vitest run 通过(0用例亦可)"]
     },
-    "T2-config": {
-      "task": "config 键名 bug 修 + struct 扩展 + deployments.json 421614 schema + RPC/chainID 统一 + .env.example + 同步脚本",
-      "phase": "T2",
+    "T1-chain-abi": {
+      "task": "链配置 + ABI 重生成（chains 421614 / contracts deployments 单一出口 / abis 补 OracleABI）",
+      "scope": "接链",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "键名 bug 修复", "use": "internal/config/config.go", "grade": "modify", "action": "JSON 键 contracts→proxies + 扩展 Usdt/UsdtDecimals/AbiHash + abiHash 校验 + RPC 优先级 + chainID 一致校验"},
-        {"need": "421614 schema", "use": "configs/deployments.json", "grade": "modify", "action": "chainId 421614 + 7 占位地址 + usdt 占位 + usdtDecimals:6 + abiHash 占位；占位零地址不订阅事件"},
-        {"need": "env 模板同步", "use": ".env.example", "grade": "modify", "action": "CHAIN_ID/RPC_URL 改 421614 + 新增 ORACLE_OWNER_PRIVATE_KEY/ADMIN_API_KEY 留空"},
-        {"need": "部署同步脚本", "use": "scripts/sync-deployments.sh", "grade": "new", "action": "从 contracts/deployments/<net>.json 回填 backend/configs/deployments.json"}
+        {"need": "Arbitrum Sepolia 链", "use": "config/chains.ts", "grade": "modify", "action": "新增 arbitrumSepolia(421614) + sepolia.arbiscan.io；保留 hardhatLocal"},
+        {"need": "地址单一出口", "use": "config/contracts.ts", "grade": "modify", "action": "31337 用 deployments/hardhat.json.proxies 覆盖（已漂移）+ 删 16601 换 421614 全0占位 + type 增 USDT；建议 deployments json→contracts.ts 脚本"},
+        {"need": "链选择", "use": "config/wagmi.ts", "grade": "modify", "action": "zgTestnet→arbitrumSepolia；getDefaultConfig chains/transports 同步"},
+        {"need": "ABI 重生成", "use": "config/abis/*", "grade": "modify", "action": "从 artifacts 重生成据 abiHash 比对（deposit/payBill 去 payable）"},
+        {"need": "补 OracleABI 导出", "use": "config/abis/index.ts", "grade": "modify", "action": "export { OracleABI }（现缺，D11）"}
       ],
-      "depends": ["T1-abigen"],
-      "gate": "go build 绿 + config 加载单测 + 零地址跳过断言",
-      "acceptance": ["Proxies 非空 map", "占位零地址不进 event 过滤", "RPC/chainID 单一优先级"]
+      "depends": ["T0-baseline"],
+      "gate": "tsc 绿；31337 地址=deployments；421614 占位；OracleABI 导出",
+      "acceptance": ["contracts.ts 31337 与 deployments.proxies 一致", "abis/index.ts 导出 OracleABI", "421614 全0占位 getContractAddress 抛错保护"]
     },
-    "T3-client": {
-      "task": "client 读/写真实化 + nonce 计数器 + WaitMined + 金额闸 L3 + owner key 内存注入 + transactor + chainID 校验 + 降级",
-      "phase": "T3",
+    "T2-precision-constants": {
+      "task": "精度 + 常量（format 6 位 / MIN_DEPOSIT_USDT / SUPPORTED_CURRENCIES USDT / billingApi bigint）",
+      "scope": "接链",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "读调用真实化", "use": "internal/blockchain/client.go", "grade": "modify", "action": "GetDepositAmount/GetLockExpiry/VerifyServiceActive/GetFeeRate 走 abigen Caller"},
-        {"need": "写调用 owner 签名", "use": "internal/blockchain/client.go", "grade": "modify", "action": "MonthlySettlement/IssueMonthlyTrafficCards 走 Transactor + 本地 nonce 计数器(mutex) + WaitMined + L3 断言(amount∈(0,MAX_BILL_PER_USER]、sum≤MAX_BATCH_TOTAL)"},
-        {"need": "owner key 装配", "use": "cmd/main.go", "grade": "modify", "action": "从 env 注入内存私钥(不长存明文) + NewKeyedTransactorWithChainID + chainID 一致校验 + 缺 key 降级关闭 + 日志脱敏"}
+        {"need": "6 位精度", "use": "utils/format.ts", "grade": "modify", "action": "parseUnits/formatAmount 走 usdtDecimals(6)，禁默认 18"},
+        {"need": "常量对齐", "use": "config/constants.ts", "grade": "modify", "action": "删 PLATFORM_FEE_RATE；MIN_DEPOSIT_USDT=10n*10n**6n（精度修+值100→10）；SUPPORTED_CURRENCIES=[USDT]"},
+        {"need": "depositApi 精度", "use": "services/api/depositApi.ts", "grade": "modify", "action": "parseEther→parseUnits(amount,6)；currency ETH→USDT"},
+        {"need": "billingApi bigint", "use": "services/api/billingApi.ts", "grade": "modify", "action": "toBill total 用 BigInt 加减(禁 parseFloat)，展示经 formatAmount(total,6)"}
       ],
-      "depends": ["T1-abigen", "T2-config"],
-      "gate": "go build 绿 + simulated.Backend 写交易 + L3 拒发单测",
-      "acceptance": ["nonce 连发不复用", "WaitMined 判成败", "L3 越界拒发", "缺 key 只读降级"]
+      "depends": ["T1-chain-abi"],
+      "gate": "单元测过（format 6位 / MIN_DEPOSIT / toBill bigint）",
+      "acceptance": ["parseUnits('1.5',6)===1500000n", "formatAmount(1500000n,6,2)==='1.50'", "MIN_DEPOSIT_USDT===10n*10n**6n", "toBill total 无浮点误差 + 大额不溢出"]
     },
-    "T4-event-sync": {
-      "task": "FilterLogs 轮询 + 8 事件 Filterer 解码 + 6 位精度 + 去重 + reorg + 两阶段确认 + signatures.go 修正 + models 加列",
-      "phase": "T4",
+    "T3-approve-twostep": {
+      "task": "USDT approve hooks + TwoStepAction",
+      "scope": "接链",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "真实事件同步", "use": "internal/sync/event_sync.go", "grade": "modify", "action": "替换 sleep 空转为 FilterLogs 轮询(分页+last-block(blockHash)持久化) + 8 事件 abigen Filterer 解码 + 6 位精度(SetString 校验 ok fail-fast) + (txHash,logIndex)去重 + reorg 检测(父哈希断回退重扫) + pending→seen→confirmed 两阶段(资金事件等 K 块) + process 修正"},
-        {"need": "topic 修正", "use": "internal/blockchain/signatures.go", "grade": "modify", "action": "BillCreated 改 4 参 + 新增 TrafficCardApplied/UsageDataSubmitted/DepositWithdrawn；仅日志/轻量过滤用"},
-        {"need": "对账字段", "use": "internal/models/models.go", "grade": "modify", "action": "Bill 加 OnChainBillID/PayIntentTxHash；Deposit 加 Status/BlockHash"}
+        {"need": "ERC20 ABI", "use": "config/abis（新 ERC20/MockUSDT）", "grade": "new", "action": "approve/allowance/balanceOf/decimals"},
+        {"need": "授权 hooks", "use": "hooks/contracts/useApprove + useAllowance", "grade": "new", "action": "exact-amount approve（禁 infinite）+ allowance 检测"},
+        {"need": "去 value 加 amount", "use": "hooks/contracts/{useDepositContract,usePaymentContract}.ts", "grade": "modify", "action": "deposit 去 value 加 args:[amount]；payBill 去 value"},
+        {"need": "两步态状态机", "use": "components/TwoStepAction", "grade": "new", "action": "编排两个 useTxState；allowance 跳步；★approved-idle 回退不 re-approve；充值/付账复用"}
       ],
-      "depends": ["T1-abigen", "T2-config"],
-      "gate": "go build 绿 + simulated.Backend 解码 + reorg 回退 + 两阶段确认单测",
-      "acceptance": ["8 事件类型安全解码", "UsageDataSubmitted 只 user indexed", "BillCreated 第三参含费总额", "reorg 回退未确认记录", "资金事件等 K 块才置终态"]
+      "depends": ["T2-precision-constants"],
+      "gate": "TwoStepAction 组件测全分支过（mock wagmi）",
+      "acceptance": ["allowance≥需求额跳步直达 ②", "approve 拒签回 idle", "approve 成功+action 失败→approved-idle(不 re-approve)", "成功进 pending"]
     },
-    "T5-pricing": {
-      "task": "PricingService 费率表 + usage 上界 L1 + 单 bill 上限 + 单位锁 MB/min + operatorId 固定映射 + 启动 sanity check",
-      "phase": "T5",
+    "T4-reconcile": {
+      "task": "对账重构（去双写 / pending / TxStatusBadge / confirmed 轮询 / getLogs 修）",
+      "scope": "接链",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "计价引擎", "use": "internal/services/pricing.go", "grade": "new", "action": "OperatorRate 费率表(big.Int 6 位 PLACEHOLDER+启动 warn) + Price(operatorId,dataMB,callMin)→amount6 纯整数；usage 上界 L1(MAX_DATA_MB/MAX_CALL_MIN 拒绝) + amount6 单 bill 上限(MAX_BILL_PER_USER) + 单位锁 MB/min"},
-        {"need": "operatorId 映射", "use": "internal/services/oracle.go", "grade": "modify", "action": "废弃 GetBill 随机金额；operatorId 直接用 Operator.ID(=链上 1..11) 不靠 name 比对 + 启动读链 sanity check 不一致 fail/warn"},
-        {"need": "seed 固定 ID", "use": "cmd/main.go", "grade": "modify", "action": "11 运营商 seed 显式 ID=1..11 + RequiredDeposit 改 6 位整数 + 存量迁移"}
+        {"need": "去充值/提现双写", "use": "hooks/useDeposit.ts + services/api/depositApi.ts", "grade": "modify", "action": "仅 POST pending 意向；余额读链 getDepositAmount；提现废弃 txHash 记账；currency USDT"},
+        {"need": "去付账双写 + paying 态", "use": "hooks/useBilling.ts + services/api/billingApi.ts", "grade": "modify", "action": "不据 200 置已付；Bill status 扩 unpaid/paying/paid/overdue；is_paid 轮询后端(refetch≈5s)"},
+        {"need": "getLogs 限流修", "use": "hooks/contracts/useTrafficCard.ts", "grade": "modify", "action": "二选一：后端列表端点(首选)/限 fromBlock 窗口；必补 error 态禁静默置空"},
+        {"need": "交易三态徽章", "use": "components/TxStatusBadge", "grade": "new", "action": "pending/confirmed/failed；reorg vs revert 文案区分"}
       ],
-      "depends": ["T3-client"],
-      "gate": "go build 绿 + 计价复算/上界/精度/operatorId 映射断言单测",
-      "acceptance": ["纯整数 6 位可复算", "usage 超界拒绝+告警", "operatorId 固定映射", "sanity check 不一致 fail/warn"]
+      "depends": ["T3-approve-twostep"],
+      "gate": "去双写；pending 态；getLogs error 态；徽章三态测过",
+      "acceptance": ["不据 200/txHash 置终态", "paying 态 info 蓝禁绿", "getLogs 失败渲染重试不静默置空", "TxStatusBadge 三态渲染含 reorg/revert 区分"]
     },
-    "T6-batch-circuit": {
-      "task": "FetchAndCreateBills 重写：组批 ≤25 + 金额闸 L2 + 熔断(含冷启动回退) + 结算批次幂等键",
-      "phase": "T6",
+    "T5-walletauth": {
+      "task": "WalletAuth（signedPost + EIP-712 + 会话 nonce）",
+      "scope": "接链",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "组批 + 熔断", "use": "internal/services/oracle.go", "grade": "modify", "action": "组批切片每批 users≤25 + L2(单批 sum≤MAX_BATCH_TOTAL + 超月均×N 熔断 + 冷启动/均值=0 回退绝对闸) + 逐批调 client.MonthlySettlement + 失败批幂等续跑"},
-        {"need": "批次幂等键", "use": "internal/models/models.go", "grade": "modify", "action": "结算批次表(month+batchIndex 唯一键，已确认批不重发)"},
-        {"need": "分批摘要返回", "use": "internal/handlers/handlers.go", "grade": "modify", "action": "TriggerMonthlyBill 返回成功批数/失败批/txHashes 摘要"}
+        {"need": "签名 helper", "use": "services/api/client.ts + signedPost", "grade": "new", "action": "signedPost(path,body) 内部 await signTypedData 取/签缓存 → 带头调 axios；不在全局拦截器调 hook"},
+        {"need": "会话签名 hook", "use": "hooks/useWalletAuth", "grade": "new", "action": "EIP-712 会话级签名一次(nonce+时间窗) 内存缓存复用；过期/换钱包重签；禁每次写操作签"}
       ],
-      "depends": ["T5-pricing"],
-      "gate": "go build 绿 + 分批切片/熔断(含冷启动回退)/幂等不重发单测",
-      "acceptance": ["每批≤25", "L2 熔断暂停", "冷启动回退 MAX_BATCH_TOTAL 绝对闸", "month+batchIndex 不重发"]
+      "depends": ["T4-reconcile"],
+      "gate": "signedPost 不在 axios 拦截器调 hook；会话级一次",
+      "acceptance": ["写端点带签名头读端点不加", "会话内只签一次复用", "nonce/字段跨端待与后端 signatures.go 对齐(标记)"]
     },
-    "T7-auth": {
-      "task": "AdminAuth + WalletAuth 双中间件 + 端点按 §6.6 挂载 + bills/pay 降级 pending + MarkAsPaid 收口 + CORS 收口",
-      "phase": "T7",
+    "T6-theme-base": {
+      "task": "深蓝金基建（index.css CSS 变量单一出口 / tailwind token→var / 字体 / ui-card·ui-input）",
+      "scope": "换肤",
       "figmaPages": [],
-      "colors": [],
+      "colors": ["navy #0C2340", "navy-deep #0A1B33", "royal #1E40AF", "gold #D4AF37", "gold-hover #E0BE4E", "champagne #F0C75E", "cream surface.card #F7F3EA", "card-elevated #FBF8F1", "surface.input #EFE9DB", "warning #F08C2E"],
       "components": [
-        {"need": "双鉴权中间件", "use": "internal/handlers/middleware.go", "grade": "new", "action": "AdminAuth(subtle.ConstantTimeCompare,缺 key 启动 fail) + WalletAuth(EIP-712 ecrecover 绑 wallet + 服务端一次性 nonce 台账,禁纯 timestamp)"},
-        {"need": "端点挂载 + 降级", "use": "internal/handlers/handlers.go", "grade": "modify", "action": "按 §6.6 挂鉴权(oracle/monthly-bill+notification/send+usage/submit=AdminAuth；bills/pay+withdraw+deposit+service/activate=WalletAuth；读端点公开)；bills/pay 写 PayIntentTxHash 不置 IsPaid；withdraw 不收 txHash 记账；usage/submit gin max= 校验"},
-        {"need": "对账路径收口", "use": "internal/services/services.go", "grade": "modify", "action": "MarkAsPaid 不导出给 HTTP(仅 event_sync 内部调) + RecordWithdraw(凭前端 txHash)废弃 + 余额只算 confirmed"},
-        {"need": "CORS + 中间件挂载", "use": "cmd/main.go", "grade": "modify", "action": "挂中间件 + CORS 禁 *+credentials(allowlist) + password 改 crypto/rand"}
+        {"need": "CSS 变量真源", "use": "index.css :root", "grade": "modify", "action": "shadcn 变量映射新 oklch；删 body 'Inter'；加 Space Grotesk"},
+        {"need": "token 引 var", "use": "tailwind.config.ts", "grade": "modify", "action": "token 全改 var(--...)；删 orbitron/cyan/purple；warning 橙"},
+        {"need": "暖米白卡原子", "use": "components/ui/card.tsx", "grade": "new", "action": "bg-surface-card + 1px 金线渐变(停靠点0/50/100%) + radius-lg + 轻阴影"},
+        {"need": "输入原子", "use": "components/ui/input.tsx", "grade": "new", "action": "bg-surface-input + navy 文字 + royal focus ring"}
       ],
-      "depends": ["T4-event-sync"],
-      "gate": "go build 绿 + AdminAuth/WalletAuth/nonce 防重放/降级 pending 单测",
-      "acceptance": ["AdminAuth 常量时间+缺 key fail", "WalletAuth nonce 台账防重放(禁纯 timestamp)", "bills/pay 不置 IsPaid", "withdraw 不收 txHash", "CORS 禁 *+credentials"]
+      "depends": ["T1-chain-abi"],
+      "gate": "CSS 变量单一出口；ui/card·ui/input 落地；grep 无裸 HEX 定义残留",
+      "acceptance": ["index.css :root 唯一真源", "tailwind token 全 var() 引用", "ui/card 金线渐变停靠点 0/50/100%"]
     },
-    "T8-test": {
-      "task": "simulated.Backend 部署真实绑定测分批结算/事件解码/operatorId + 计价/上界/精度 + 鉴权/nonce 防重放 + reorg/幂等单测；go test 覆盖",
-      "phase": "T8",
+    "T7-deposit": {
+      "task": "Deposit 页（两步态 + 锁仓倒计时 + pending）",
+      "scope": "接链+换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "royal #1E40AF", "info #2563EB"],
+      "components": [
+        {"need": "两步充值", "use": "TwoStepAction", "grade": "use", "action": "approve→deposit 复用 T3 状态机"},
+        {"need": "锁仓倒计时", "use": "components/LockCountdown + hooks/useLockExpiry", "grade": "new", "action": "读 getLockExpiry 倒计时；解锁判定 now>=expiry(>= 边界)"},
+        {"need": "页改造", "use": "pages/Deposit.tsx", "grade": "modify", "action": "两步态+倒计时+pending；明示再次充值顺延30天；余额卡换暖米白；金额 navy"}
+      ],
+      "depends": ["T3-approve-twostep", "T6-theme-base"],
+      "gate": "31337 充值两步态→pending；锁仓顺延提示",
+      "acceptance": ["approve 两步态", "锁仓倒计时累加顺延提示", "充值后 pending 不染绿余额读链", "now>=expiry 即可提"]
+    },
+    "T8-cards": {
+      "task": "Cards 页（双 Tab 去 Admin + NFT 读链 + SIM 领取）",
+      "scope": "接链+换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "royal #1E40AF"],
+      "components": [
+        {"need": "双 Tab", "use": "ui/tabs (variant=line)", "grade": "use", "action": "Tab1 流量卡 NFT / Tab2 SIM 领取"},
+        {"need": "去 Admin 发卡", "use": "pages/Cards.tsx", "grade": "modify", "action": "移除 useIssueMonthlyCards 按钮→自动发放说明卡(Sparkles/Info)；NFT 读链+不可转卖/销毁30天；空态 EmptyState(CreditCard)"},
+        {"need": "SIM 领取", "use": "BottomSheet + ui/input", "grade": "use", "action": "选国家+收件表单→toast+写 pendingSync+全球通即将推出(Nfc/MailPlus)"}
+      ],
+      "depends": ["T4-reconcile", "T6-theme-base"],
+      "gate": "Tab1 NFT 读链+error 态；Tab2 SIM→pendingSync；无 Admin 按钮",
+      "acceptance": ["无 Issue Monthly Card Admin 按钮", "NFT 列表读链真实+加载失败重试", "SIM 提交写 pendingSync"]
+    },
+    "T9-billing": {
+      "task": "Billing/BillDetail（paying 态 + FeeBreakdown 读链）",
+      "scope": "接链+换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "info #2563EB", "danger #EF4444"],
+      "components": [
+        {"need": "费用明细", "use": "components/FeeBreakdown + hooks/useFeeRate", "grade": "new", "action": "读链 getFeeRate(150/10000=1.5%)/calculateFee；total bigint；loading skeleton 不写死"},
+        {"need": "paying 态", "use": "pages/Billing.tsx + pages/BillDetail.tsx", "grade": "modify", "action": "paying=info 蓝+Loader2 禁绿；金额 navy；逾期 AlertTriangle"}
+      ],
+      "depends": ["T4-reconcile", "T6-theme-base"],
+      "gate": "paying 态 info 蓝禁绿；手续费读链；明细 bigint",
+      "acceptance": ["手续费=链上 getFeeRate 实读", "paying 态禁显示绿已付", "FeeBreakdown total bigint"]
+    },
+    "T10-region-detail": {
+      "task": "RegionDetail（申请号码弹层手续费）",
+      "scope": "接链+换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "royal #1E40AF"],
+      "components": [
+        {"need": "申请弹层手续费", "use": "FeeBreakdown", "grade": "use", "action": "申请号码弹层展示 calculateFee 读链值"},
+        {"need": "页换肤", "use": "pages/RegionDetail.tsx", "grade": "modify", "action": "运营商列表+申请弹层换肤；金额 navy；复用 BottomSheet"}
+      ],
+      "depends": ["T9-billing"],
+      "gate": "申请弹层展示 calculateFee 读链值",
+      "acceptance": ["申请号码弹层手续费=链上实读", "弹层换肤深蓝金"]
+    },
+    "T11-reskin-rest": {
+      "task": "其余页换肤 + emoji→lucide（Landing/Dashboard/Services/Notifications/layout/TabBar）",
+      "scope": "换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "royal #1E40AF", "text.on-dark.primary #F7F3EA", "text.on-dark.gold #D4AF37", "status.success #22C55E", "status.danger #EF4444"],
+      "components": [
+        {"need": "金额分流", "use": "components/shared/AmountDisplay.tsx", "grade": "modify", "action": "默认 colorClass→按底色分流(卡内 navy/深底金)；增 tone prop；币种 USDT"},
+        {"need": "icon 类型改 LucideIcon", "use": "components/shared/{EmptyState,GuardCard}.tsx", "grade": "modify", "action": "icon prop string→LucideIcon(D5)"},
+        {"need": "emoji→lucide + 换肤", "use": "pages/{Landing,Dashboard,Services,Notifications}.tsx + layout/{AppLayout,Header,TabBar}.tsx", "grade": "modify", "action": "TabBar 5 图标 + AppLayout GuardCard + Globe/Search/SmartphoneNfc/BellOff/AlertTriangle/Bell；brand-blue→royal/gold；删 brand-purple"},
+        {"need": "钱包组件换肤", "use": "components/wallet/{ConnectButton,RegisterSheet}.tsx", "grade": "modify", "action": "brand-blue→token；ConnectButton 改用 Button；RegisterSheet 用 ui/input"},
+        {"need": "RainbowKit 金色", "use": "main.tsx", "grade": "modify", "action": "darkTheme accentColor #D4AF37 / accentColorForeground #0C2340"}
+      ],
+      "depends": ["T6-theme-base", "T7-deposit", "T8-cards", "T9-billing", "T10-region-detail"],
+      "gate": "grep 无旧色值(C8)/无 emoji 图标(C9)；9 页 100% 深蓝金(C7)",
+      "acceptance": ["grep 无 #3b82f6/#0a0a14/#0f0f1a/brand-blue/brand-purple/#8b5cf6/#06b6d4", "grep 无 emoji 当图标", "9 页+layout/shared/wallet 100% 深蓝金", "AmountDisplay 卡内 navy"]
+    },
+    "T12-test-build": {
+      "task": "测试 + 构建绿 + 31337 冒烟",
+      "scope": "infra",
       "figmaPages": [],
       "colors": [],
       "components": [
-        {"need": "链集成测试", "use": "internal/blockchain/client_test.go", "grade": "new", "action": "simulated.Backend 部署真实绑定测分批结算 + L3 拒发 + nonce 不复用 + WaitMined"},
-        {"need": "事件同步测试", "use": "internal/sync/event_sync_test.go", "grade": "new", "action": "simulated.Backend 8 事件解码 + reorg 回退 + 两阶段确认 + 去重"},
-        {"need": "计价测试", "use": "internal/services/oracle_test.go", "grade": "new", "action": "计价复算/上界拒绝/精度/operatorId 映射断言 + 组批切片/熔断(冷启动回退)/幂等不重发"},
-        {"need": "鉴权测试", "use": "internal/handlers/middleware_test.go", "grade": "new", "action": "AdminAuth/WalletAuth/nonce 防重放(同签名二次提交被拒)/降级 pending 中间件测"}
+        {"need": "单元/组件测", "use": "vitest", "grade": "use", "action": "format 精度/constants/billingApi bigint/approve 额/LockCountdown 边界/parseContractError + TwoStepAction/TxStatusBadge"},
+        {"need": "31337 冒烟", "use": "本地链全链路", "grade": "use", "action": "充值两步态→pending→读链 confirmed；付账；提现；锁仓边界"},
+        {"need": "grep 清零核对", "use": "C8/C9 grep", "grade": "use", "action": "旧色值/emoji 清零"}
       ],
-      "depends": ["T1-abigen", "T2-config", "T3-client", "T4-event-sync", "T5-pricing", "T6-batch-circuit", "T7-auth"],
-      "gate": "go test ./... 全绿",
-      "acceptance": ["simulated.Backend 端到端断言过", "覆盖计价/事件/鉴权/reorg/幂等/nonce"]
+      "depends": ["T0-baseline", "T1-chain-abi", "T2-precision-constants", "T3-approve-twostep", "T4-reconcile", "T5-walletauth", "T6-theme-base", "T7-deposit", "T8-cards", "T9-billing", "T10-region-detail", "T11-reskin-rest"],
+      "gate": "vitest run 绿 + tsc -b && vite build 绿 + 31337 全链路冒烟",
+      "acceptance": ["npx vitest run 全绿", "tsc -b && vite build 绿", "31337 充值/提现/付账三态+锁仓+手续费读链+WalletAuth 冒烟通过"]
     }
   }
 }

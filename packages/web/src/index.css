@@ -1,55 +1,119 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/space-grotesk";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * 色值单一出口（DESIGN.md「色值出口统一方案」）：
+ * :root 是唯一真源；tailwind.config.ts 的 colors 全部 var(--...) 引用。
+ * 同一变量同时喂业务语义类（surface/brand/text）与 shadcn 原子类（primary/card/...），
+ * 换主题只改本文件。深蓝金主题：navy #0C2340 / 沉稳金 #D4AF37 / 暖米白 #F7F3EA。
+ */
 @layer base {
   .theme {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Geist Variable', system-ui, sans-serif;
+    --font-display: 'Space Grotesk Variable', var(--font-sans);
+    --font-data: var(--font-sans);
+    --font-heading: var(--font-display);
   }
   :root {
-    --background: oklch(0.07 0.02 270);
-    --foreground: oklch(0.88 0 0);
-    --card: oklch(0.10 0.02 270);
-    --card-foreground: oklch(0.88 0 0);
-    --popover: oklch(0.10 0.02 270);
-    --popover-foreground: oklch(0.88 0 0);
-    --primary: oklch(0.62 0.21 255);
-    --primary-foreground: oklch(1 0 0);
-    --secondary: oklch(0.15 0.02 270);
-    --secondary-foreground: oklch(0.88 0 0);
-    --muted: oklch(0.15 0.02 270);
-    --muted-foreground: oklch(0.53 0 0);
-    --accent: oklch(0.15 0.02 270);
-    --accent-foreground: oklch(0.88 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.18 0.02 270);
-    --input: oklch(0.18 0.02 270);
-    --ring: oklch(0.62 0.21 255);
-    --chart-1: oklch(0.62 0.21 255);
-    --chart-2: oklch(0.65 0.18 290);
-    --chart-3: oklch(0.70 0.15 195);
-    --chart-4: oklch(0.75 0.18 145);
-    --chart-5: oklch(0.70 0.18 55);
+    /* ── 字体 ── */
+    --font-sans: 'Geist Variable', system-ui, sans-serif;
+    --font-display: 'Space Grotesk Variable', var(--font-sans);
+    --font-data: var(--font-sans);
+
+    /* ── 品牌色（DESIGN.md Color §品牌色） ── */
+    --brand-navy: #0C2340;        /* 深海军蓝：画布基底 / 卡内主文字 / 结构主色 */
+    --brand-navy-deep: #0A1B33;   /* 渐变最深点 */
+    --brand-royal: #1E40AF;       /* 皇家蓝：链接 / 次级 / focus ring / info */
+    --brand-royal-bright: #2952D8;/* royal hover */
+    --brand-gold: #D4AF37;        /* 沉稳金：金额 / 主 CTA / 激活态 / 品牌 / 金线 */
+    --brand-gold-hover: #E0BE4E;
+    --brand-gold-press: #B8942C;
+    --brand-champagne: #F0C75E;   /* 香槟金：仅金线渐变高光端，不作独立文字/填充色 */
+
+    /* ── 卡面（暖米白，浮在深蓝上） ── */
+    --surface-canvas: #0C2340;        /* 画布基色（渐变由 body 背景实现） */
+    --surface-card: #F7F3EA;          /* 暖米白卡片主面 */
+    --surface-card-elevated: #FBF8F1; /* 更亮的浮起卡/弹层 */
+    --surface-input: #EFE9DB;         /* 输入框 / 凹陷区 */
+    --surface-card-line: rgba(212, 175, 55, 0.45); /* 卡片 1px 金线描边（低调） */
+
+    /* ── 文字色阶 ── */
+    /* 浅底（米白卡内）三级深色 */
+    --text-on-light-primary: #0C2340;   /* navy，≈12:1 */
+    --text-on-light-secondary: #5A6478; /* slate，≈5:1 */
+    --text-on-light-muted: #7A8294;     /* ≈3.5:1，仅大字/装饰 */
+    /* 深底（navy 画布上，卡外） */
+    --text-on-dark-primary: #F7F3EA;
+    --text-on-dark-secondary: #B8C2D9;
+    --text-on-dark-muted: #6B7A99;
+    --text-on-dark-gold: #D4AF37;       /* navy 上 ≈6.5:1 达标 */
+    /* 业务默认文字别名：body 在深底 → 暖白主文字 */
+    --text-primary: var(--text-on-dark-primary);
+    --text-secondary: var(--text-on-dark-secondary);
+    --text-muted: var(--text-on-dark-muted);
+
+    /* ── 语义状态色（与金色严格区分） ── */
+    --status-success: #22C55E;
+    --status-warning: #F08C2E; /* 橙，让位金色 */
+    --status-danger: #EF4444;
+    --status-info: #2563EB;
+
+    /* ── 渐变（DESIGN.md §渐变） ── */
+    --gradient-hero: linear-gradient(135deg, #0C2340 0%, #1E40AF 100%);
+    --bg-canvas: linear-gradient(180deg, #0A1B33 0%, #0C2340 100%);
+    /* 卡片金线渐变高光（停靠点锁死 0/50/100%，中点香槟金） */
+    --gradient-gold-line: linear-gradient(135deg, #D4AF37 0%, #F0C75E 50%, #D4AF37 100%);
+
+    /* ── shadcn 语义变量（指向同一真源，原子组件 bg-primary 等即生效） ── */
+    --background: var(--surface-canvas);
+    --foreground: var(--text-on-dark-primary);
+    --card: var(--surface-card);
+    --card-foreground: var(--text-on-light-primary);
+    --popover: var(--surface-card-elevated);
+    --popover-foreground: var(--text-on-light-primary);
+    --primary: var(--brand-royal);
+    --primary-foreground: #FFFFFF;
+    --secondary: var(--surface-input);
+    --secondary-foreground: var(--text-on-light-primary);
+    --muted: var(--surface-input);
+    --muted-foreground: var(--text-on-light-secondary);
+    --accent: var(--brand-gold);
+    --accent-foreground: var(--brand-navy);
+    --destructive: var(--status-danger);
+    --border: var(--surface-card-line);
+    --input: var(--surface-input);
+    --ring: var(--brand-royal);
     --radius: 0.75rem;
-    --sidebar: oklch(0.10 0.02 270);
-    --sidebar-foreground: oklch(0.88 0 0);
-    --sidebar-primary: oklch(0.62 0.21 255);
-    --sidebar-primary-foreground: oklch(1 0 0);
-    --sidebar-accent: oklch(0.15 0.02 270);
-    --sidebar-accent-foreground: oklch(0.88 0 0);
-    --sidebar-border: oklch(0.18 0.02 270);
-    --sidebar-ring: oklch(0.62 0.21 255);
+
+    /* charts / sidebar 沿用品牌系（移动端布局未用 sidebar） */
+    --chart-1: var(--brand-royal);
+    --chart-2: var(--brand-gold);
+    --chart-3: var(--status-info);
+    --chart-4: var(--status-success);
+    --chart-5: var(--status-warning);
+    --sidebar: var(--surface-card);
+    --sidebar-foreground: var(--text-on-light-primary);
+    --sidebar-primary: var(--brand-royal);
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: var(--brand-gold);
+    --sidebar-accent-foreground: var(--brand-navy);
+    --sidebar-border: var(--surface-card-line);
+    --sidebar-ring: var(--brand-royal);
   }
   * {
     @apply border-border outline-none;
   }
   body {
-    @apply bg-surface text-text-primary;
-    font-family: "Inter", system-ui, sans-serif;
+    @apply text-text-primary;
+    background-color: var(--surface-canvas);
+    background-image: var(--bg-canvas);
+    background-attachment: fixed;
+    font-family: var(--font-sans);
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
   }

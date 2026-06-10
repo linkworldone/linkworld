@@ -8,9 +8,9 @@ let mockDeposit: DepositInfo = {
 };
 
 const mockDepositHistory: DepositRecord[] = [
-  { id: "dr-1", type: "deposit", amount: 50000000000000000000n, currency: "USDT", timestamp: "2026-04-10T10:00:00Z", txHash: "0xabc123def456" },
-  { id: "dr-2", type: "deposit", amount: 100000000000000000000n, currency: "USDT", timestamp: "2026-04-01T08:00:00Z", txHash: "0x789abcdef123" },
-  { id: "dr-3", type: "deduction", amount: 15300000000000000000n, currency: "USDT", timestamp: "2026-03-31T12:00:00Z", txHash: "0xdef789abc123" },
+  { id: "dr-1", type: "deposit", amount: 50000000000000000000n, currency: "USDT", status: "confirmed", timestamp: "2026-04-10T10:00:00Z", txHash: "0xabc123def456" },
+  { id: "dr-2", type: "deposit", amount: 100000000000000000000n, currency: "USDT", status: "confirmed", timestamp: "2026-04-01T08:00:00Z", txHash: "0x789abcdef123" },
+  { id: "dr-3", type: "deduction", amount: 15300000000000000000n, currency: "USDT", status: "confirmed", timestamp: "2026-03-31T12:00:00Z", txHash: "0xdef789abc123" },
 ];
 
 const mockRegions: Region[] = [

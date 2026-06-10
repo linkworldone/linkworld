@@ -1,46 +1,45 @@
-# Task 06 — T6 组批结算 + L2 熔断 + 幂等键（后端 2/3）
+# Task 06 — T5 WalletAuth signedPost + EIP-712（web 3/3）
 
-> 子项目 backend(2/3) | 状态 DONE | 2026-06-09
+> 子项目 web(3/3) | 状态 DONE | 2026-06-10
 
 ### 产出文件
-- packages/backend/internal/services/settlement.go（新：SettlementOrchestrator.SettleMonth 组批→L2闸→发交易→据 receipt 落幂等状态；SettlementClient/SettlementBatchStore 接口 mock 友好；NewSettlementBatchRepoStore 含 string→big.Int fail-fast）
-- packages/backend/internal/services/settlement_test.go（新：6 用例 + fake client/store）
-- packages/backend/internal/services/oracle.go（抽 collectSettlementItems 复用 L1 计价；新增 SettleMonthlyOnChain + SetSettlementOrchestrator）
-- packages/backend/internal/models/models.go（新增 SettlementBatch + 唯一键 idx_month_batch + 4 状态常量）
-- packages/backend/internal/repository/repository.go（新增 SettlementBatchRepository：Get/Save upsert 按幂等键 + HistoricalConfirmedTotals 供月均 + Migrate）
+- packages/web/src/services/api/signedPost.ts（新建：signedPost(path,body,{wallet,action}) helper + WalletAuthRejectedError + clearWalletAuthSession；GET nonce→signTypedData(EIP-712)→带签名头 POST，不在拦截器调 hook）
+- packages/web/src/services/api/signedPost.test.ts（新建 AUTH 用例）
+- packages/web/src/services/api/{depositApi,billingApi}.ts（postDepositIntent/postWithdrawIntent/payIntent 改走 signedPost）
+- packages/web/src/hooks/useOperator.ts（useApplyNumber /api/service/activate 改走 signedPost）
+- 测试同步（depositApi/billingApi/useDeposit.balance）
 
 ### git commit
-5720277 feat: 后端 T6 组批结算(≤25)+L2熔断(冷启动回退)+month/batchIndex 幂等键
+38b9930 feat: web T5 WalletAuth signedPost + EIP-712(对齐后端 middleware) + 会话级签名
 
 ### TDD
-先红后绿：先写 settlement_test.go(6 用例) → 红(SettlementItem/NewSettlementOrchestrator/MaxSettlementBatch undefined build failed) → 补 model+repo+settlement.go → 绿(6 PASS，ALERT/WARN 日志可见熔断与失败批续跑路径被走到)。
+先红后绿：AUTH 测试先写（signedPost 不存在/EIP-712 字段断言）→ 实现后绿。
 
 ### 测试结果
-go build ./... 0 error。go vet 0 warning。go test ./... 全绿不回归。T6 用例：BATCH01_Slicing/BATCH02_OverMaxBatchTotal/CB01_CircuitBreak/CB02_ColdStartFallback/IDEM01_ConfirmedNotResent/FAIL01_FailedBatchRetriable。主 Agent 已独立复跑确认 build exit 0 + services test ok。
+npx tsc --noEmit 0 error。npm run build ✓。npx vitest run：12 files / 49 passed（44 前序+5 新，无回归）。用例 AUTH-01(取 nonce→signTypedData→带头 POST)/AUTH-02(action 绑定对齐后端)/AUTH-03(拒签→不发 POST 抛 WalletAuthRejectedError)/AUTH-04(读端点不带签名头)/一次性 nonce 每次取新。主 Agent 已独立复跑确认 tsc 0+build ✓+49 测。
 
 ### code-simplifier
-collectSettlementItems 抽取复用 L1 计价；MaxBatchTotal 复用 blockchain 常量（L2/L3 同源不漂移）；接口 mock 隔离链交互。
+signedPost 单一封装；helper 模块级注入 signer 不在拦截器调 hook；读端点不动。
 
 ### spec review
-按 design v2 §7.0/§6.1 + arch-review B1-L2/冷启动回退红线/幂等键 执行。组批≤25、L2 绝对闸+均值熔断、冷启动回退仅查绝对闸（绝不除零）、month+batchIndex 幂等、失败批续跑。未越界（handler/鉴权留 T7，main.go 装配留 T7，T8 端到端留 T8）。
+按 design v2 §3.7 + handoff-web + 后端 middleware.go 执行。**EIP-712 逐项对齐后端**：domain(name LinkWorld/version 1/chainId，无 verifyingContract)、primaryType WalletAuth、字段 wallet(address)/nonce(string)/action(string) 同序同类型、header X-Wallet-Address/Nonce/Action/Signature、nonce 路径 /api/auth/nonce/:wallet 一次性消费、action 取值(deposit/withdraw/bills/pay/service/activate·deactivate)。会话级在后端一次性 nonce 下退化为每次取新 nonce 签（按后端实现，注释说明）。未越界（换肤/页面 UI 留 T6+）。
 
 ### 设计还原
-后端无 UI。design §7.0 金额闸 L2 + 组批 + 幂等逐项落地：30 user→2 批(25+5)、超绝对闸阻断、超月均×N 熔断、冷启动跳过均值闸、confirmed 批不重发、failed 批续跑。
+WalletAuth 签名 UX（拒签态文案「身份签名被取消，操作未提交」就位、与交易签名区分）对齐 design §3.7；视觉/toast 接入待页面改版。
 
 ### 复用检查
-复用 blockchain.MaxBatchTotal（L2/L3 同源）+ T5 PricingService(L1 计价)+ChainOperatorID + T3 client.MonthlySettlement+receipt + 现有 repository 扩展；编译期断言 *blockchain.Client 满足 SettlementClient。
+复用 wagmi signTypedData/getChainId、现有 apiClient；signedPost 供所有写端点复用。
 
 ### 设计稿对照
-数值对照：MaxSettlementBatch=25 vs handoff §5.1 N≤25 ✅；30 user→2 批(25+5)(BATCH-01) ✅；单批超 MaxBatchTotal 阻断(BATCH-02) vs L2 ✅；冷启动无均值仅查绝对闸不除零(CB-02 红线) ✅；幂等键 month+batchIndex confirmed 不重发(IDEM-01) ✅；6 测全绿 ✅；go build 0 ✅。
+数值对照：EIP-712 domain/字段/header/nonce/action 与后端 middleware.go 8 项逐项一致 ✅；一次性 nonce 每次新签（AUTH 测）✅；读端点不带头(AUTH-04)✅；49 测 ✅；tsc 0/build ✓ ✅。
 
 ### 新增组件
-新增 SettlementOrchestrator/SettlementClient/SettlementBatchStore/SettlementBatch 模型/SettlementBatchRepository/SettleMonthlyOnChain；无新增业务合约。
+新增 signedPost helper + WalletAuthRejectedError + clearWalletAuthSession。
 
 ### 新增色值
-无（后端任务）。
+无（T5 鉴权层，换肤留 T6）。
 
-### ⚠️ 遗留（带入 T7/T8）
-- T7：SettleMonthlyOnChain(ctx,month)→SettlementSummary 已就绪，TriggerMonthlyBill handler 直接调用返回分批摘要 + 加 AdminAuth；main.go 装配 NewSettlementBatchRepoStore→NewSettlementOrchestrator→oracle.SetSettlementOrchestrator（未装配时返明确 error 降级安全）。
-- T8：补 simulated.Backend 端到端真实绑定分批结算（本轮用接口 mock 隔离）。
-- 熔断倍数 N=3 占位待产品/运营/安全拍真值。
-- 绝对闸超限批归 BlockedBatches 计数但 DB 状态用 pending_review（靠 Note 区分原因），如需单列 blocked 终态可 T7/T8 调整。
+### ⚠️ 遗留（带入 T7-T10）
+- **项目当前无 toast 库**：WalletAuthRejectedError.message 就位，但拒签 UX 需 T7-T10 页面改版时接入实际提示组件（+ShieldCheck/PenLine 图标 + 「请在钱包签名验证身份（不消耗 gas）」前提示，与交易签名视觉区分）；useDeposit/useBilling recordIntent 经 retryWithBackoff 吞错，拒签态需页面侧捕获区分（避免被当网络失败重试存 pendingSync）。
+- service/deactivate action 已预留，待 UI 调用点。
+- chainId 一致性：signedPost 用 getChainId(wagmiConfig)，端到端真链(D17)需钱包链==后端 walletAuthChainID 否则 ecrecover 失败。

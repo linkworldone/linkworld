@@ -1,75 +1,132 @@
-# Stage test — checkpoint（后端子项目 2/3）
+# stage-test-done.md — Link World web(3/3) T12 测试扫尾 + 构建 + guardRule 终检
 
-> 状态 **DONE（全绿，可进 review）** | 日期 2026-06-09 | 分支 backend/align-arbitrum-usdt
-> 角色：test runner（只跑测试/验证 + 产文档，未改任何业务 .go）
+> 子项目 web(3/3) | 阶段 implement T12（最后一棒） | 状态 **DONE** | 2026-06-10
+> 范围：只补测试/验证/产文档，**未改任何业务逻辑**（接链 T1-T10 / 换肤 T6-T11 代码原样）。
 
-## Phase 1 — 静态门（packages/backend）
-- `go build ./...` → **0 error**（BUILD_EXIT=0）
-- `go vet ./...` → **0 warning**（VET_EXIT=0）
-- go 工具链：go1.26.1 darwin/arm64；模块 `linkworld-backend`；`github.com/ethereum/go-ethereum v1.13.5`
+---
 
-## Phase 2 — go test ./... -cover
-- **75 个用例全 PASS，0 FAIL**（`-count=1 -v` 统计：`--- PASS` 75 / `--- FAIL` 0）
-- `-race -count=1` 全包通过（blockchain/config/handlers/middleware/repository/services/sync 均 ok）
+## 1. Phase 结果（最终全量验证）
 
-各包覆盖率：
+| 验证 | 命令 | 结果 |
+|------|------|------|
+| 类型 | `npx tsc --noEmit` | **0 error** ✅ |
+| 构建 | `npm run build`（`tsc -b && vite build`） | **exit 0，built ✓** ✅（仅 chunk>500kB 提示，非错误） |
+| 测试 | `npx vitest run` | **23 files / 105 passed**（前序 101 + T12 新增 4，无回归）✅ |
+| 构建（指向 31337） | `VITE_CHAIN_ID=31337 npm run build` | **exit 0** ✅（验证 31337 config 加载/链切换无编译·导入错误） |
+| coverage | `@vitest/coverage-v8` | **未安装 → 按 spec 跳过**（不擅自加依赖） |
 
-| 包 | 覆盖率 |
-|---|---|
-| internal/blockchain | 72.9% |
-| internal/middleware | 73.7% |
-| internal/sync | 65.6% |
-| internal/config | 48.0% |
-| internal/services | 39.8% |
-| internal/handlers | 18.3% |
-| internal/repository | 6.2% |
-| cmd / bindings / abis / models / genbindings | 无测试（装配/生成产物/纯模型） |
+T12 新增测试：`src/config/contracts.test.ts`（CFG-01..04，+4），固化 31337 配置单一出口 +
+USDT 6 位精度根来源 + 零地址/未知链兜底（替代被阻塞的 live 31337 冒烟的 web 侧可解析部分）。
 
-## Phase 3 — 覆盖率门（资损口径）
-资损红线路径逐条核对，均有红线用例且绿：
+---
 
-| 资损红线 | 红线用例 | 绿 |
-|---|---|---|
-| 三层金额闸 L1/L2/L3 不漂移（单一常量源） | GateInterlock_LINK01..04、Pricing_PRICE03（L1）、Settlement_BATCH02/CB01（L2）、L3GateRejects*（L3） | ✅ |
-| L2 冷启动回退（无样本不除零，回退绝对闸）【arch-review N2】 | Settlement_CB02_ColdStartFallback（已核源码 settlement.go:172/216 avg==nil 跳月均闸） | ✅ |
-| usage 上界（天文账单入口拦截） | Pricing_PRICE02_UsageUpperBound、SubmitUsage_OverMax_400 | ✅ |
-| 纯整数计价无浮点 | Pricing_PRICE04_PureIntegerNoFloat、PRICE01_FixedAmount | ✅ |
-| reorg 回退 + 两阶段确认 + 去重 | SyncOnce_Reorg_RollbackUnconfirmedSeen、DepositMade_TwoPhaseConfirmation、Dedup_NoDoubleLedger | ✅ |
-| 对账单一路径：IsPaid 唯一事件回填 | SyncOnce_BillPaid_OnlyEventSetsIsPaid、PayBill_WritesIntent_NotPaid、Reconcile_AmountMismatch_Alerts | ✅ |
-| WalletAuth nonce 重放拒绝（消费式台账，非纯 timestamp）【arch-review N1】 | WalletAuth_ReplayNonce_Rejected/UnknownNonce/WalletMismatch/WrongChainID、E2E_WalletAuth_ReplayNonce_FullChain（已核源码 repository.go:411 Consume 原子条件 UPDATE） | ✅ |
-| operatorId 固定映射 + sanity check（不靠 name 比对） | OperatorID_OPID01_FixedMapping/OPID02_SanityCheck/OPID03_ZeroPaymentAddress（已核 cmd/main.go:38/128 seed ID=链上 operatorId） | ✅ |
-| 组批熔断 + 分批≤25 + 幂等键 month+batchIndex + 失败续跑 | Settlement_BATCH01_Slicing/CB01_CircuitBreak/IDEM01_ConfirmedNotResent/FAIL01_FailedBatchRetriable | ✅ |
-| withdraw 降级 pending 不计入余额 | Withdraw_PendingIntent_NotCountedInBalance、Repo_GetTotalByUserID_ConfirmedDepositOnly | ✅ |
-| 6 位精度 abigen Filterer 事件解码 | ParseBillCreated_TotalAmountIncludesFee、ParseUsageDataSubmitted_OnlyUserIndexed、ParseDepositWithdrawn_PrincipalPlusInterest | ✅ |
-| 占位零地址不订阅事件 | SyncOnce_SkipsPlaceholderContracts、Deployments_PlaceholderContracts | ✅ |
-| chainID 一致校验 | ChainIDMismatchRejected、ValidateChainID、WalletAuth_WrongChainID_Rejected | ✅ |
-| AdminAuth 常量时间 + 缺 key fail | AdminAuth_CorrectKey/WrongKey_401/NoHeader_401/MissingKey_StartupFail | ✅ |
-| abiHash 校验 | ABIHashMatchesDeployments、VerifyABIHashDetectsMismatch、SignatureTopicsMatchBindings | ✅ |
+## 2. 资损红线覆盖审计（对照 design §10 + arch-review B4 + 各 task checkpoint）
 
-**低覆盖区性质判定**：services(39.8)/handlers(18.3)/repository(6.2) 数值偏低，逐项核对低覆盖区均为**非资损路径**——展示/查询 CRUD、SMTP stub（NotificationService 本轮非阻塞）、装配 wiring、虚拟号生成展示等。资损红线路径覆盖密集且红线用例齐全。
+| # | 资损/关键红线 | 覆盖测试（文件 · 用例） | 状态 |
+|---|---------------|------------------------|------|
+| R1 | **精度 6 位**（旧 18 差 10^12） | `utils/format.test.ts` PREC-01：`parseUnits('1.5')===1_500_000n`、`formatAmount(10_000_000n)==='10.00'`、边界 0 / 大额不丢精度 | ✅ 已覆盖 |
+| R2 | **MIN_DEPOSIT 精度+值对齐** | `config/constants.test.ts` PREC-02/03：`MIN_DEPOSIT_USDT===10n*10n**6n`(=10_000_000n)、`SUPPORTED_CURRENCIES===['USDT']` | ✅ 已覆盖 |
+| R3 | **USDT 精度根来源（从链读不硬编码）** | `config/contracts.test.ts` CFG-02：`getUsdtDecimals(31337)===6`、同源 hardhat.json | ✅ **T12 新补** |
+| R4 | **approve exact 两步态**（禁 infinite） | `components/shared/TwoStepAction.test.tsx` TSA-01/04：`approve args===[SPENDER, AMOUNT]`（exact，禁 MaxUint256） | ✅ 已覆盖 |
+| R5 | **approve 成功+action 失败→approved-idle，绝不 re-approve** | TwoStepAction TSA-03 + `derivePhase` 纯函数（approvedOnce+error→approved-idle，`approveWrite.not.toHaveBeenCalled()`）；allowance≥amount 跳步 TSA-02 | ✅ 已覆盖 |
+| R6 | **付账 approve 额 = amount + calculateFee（读链不自算）** | `hooks/contracts/useFeeManager.test.ts` FEE-01：`calculateFee` 走链（`functionName==='calculateFee'`，args=[amount]，不前端算 amount*rate） | ✅ 已覆盖 |
+| R7 | **手续费率读链**（禁写死费率） | useFeeManager FEE-01/02：`getFeeRate` 读链基点 150n→1.5%（/10000）；读链失败→label undefined（兜底 `--` 不写死）；loading→skeleton | ✅ 已覆盖 |
+| R8 | **对账不据 200/txHash 置终态** | `services/api/depositApi.test.ts` REC-01/02：充值/提现仅写 pending 意向，不把 tx_hash 当终态依据；余额取链上 `getDepositAmount`（`hooks/useDeposit.balance.test.ts` REC-04，非后端自述） | ✅ 已覆盖 |
+| R9 | **pending 不染绿 / reorg vs revert 区分** | `components/shared/TxStatusBadge.test.tsx` BADGE-01：pending『处理中』无 success 类、confirmed 才染绿、failed 区分 reorg『已回退』/revert『失败』、缺省不崩 | ✅ 已覆盖 |
+| R10 | **锁仓边界 `>=`（到期即可提）** | `components/shared/LockCountdown.test.tsx` DEP-01a..d：`expiry=0→none`、`now<expiry→locked`、**`now===expiry→unlocked`（边界，不可用 `<`）**、`now>expiry→unlocked` | ✅ 已覆盖 |
+| R11 | **WalletAuth EIP-712 会话签名** | `services/api/signedPost.test.ts` AUTH-01/02/03 + 一次性 nonce：GET nonce→signTypedData(域/字段/message 逐项对齐后端 middleware.go)→带签名头 POST；action 各端点对齐；拒签不发 POST 抛 `WalletAuthRejectedError`；每次写取新 nonce 重签（消费式） | ✅ 已覆盖 |
+| R12 | **billingApi.toBill bigint（禁 parseFloat 浮点）** | `services/api/billingApi.test.ts` / `billingApi.payIntent.test.ts`：total bigint 加减无浮点误差 | ✅ 已覆盖 |
+| R13 | **无二次 parseUnits（双重缩放）** | Billing.tsx / BillDetail.tsx：`totalAmount` 已是 6 位最小单位字符串直接转 bigint，**不再 parseUnits**（代码注释+grep 确认，见 §3） | ✅ 代码层守住（grep 证明） |
+| R14 | **31337 地址单一出口 + 未部署兜底** | `config/contracts.test.ts` CFG-01/03/04：7 合约地址全取自 hardhat.json；未知 chainId 抛错；零地址抛错（不把 0x0 当合约调） | ✅ **T12 新补** |
 
-**口径结论**：以资损红线清单覆盖为准判 **PASS**。低数字覆盖率不构成资损缺口；未发现资损路径无测的缺口。
+**结论**：资损红线 R1-R12、R14 均有单元/组件测试固化；R13 由代码（直接 BigInt 转换 + 注释）+ grep 双保险。
+审计未发现未覆盖的资损/关键路径缺口；T12 仅就 R3/R14（config 单一出口 + 6 位精度根来源，原无专测）新补 4 测。
 
-## Phase 4 — grep 自检
-| 项 | 结果 |
-|---|---|
-| 无硬编码私钥（ORACLE_OWNER/DEPLOYER） | ✅ 仅 `os.Getenv` 读 + 日志 WARN；无 64-hex 私钥字面量（命中的 64-hex 均为 event topic hash） |
-| 无硬编码精度绕过 | ✅ 精度从 `deployments.usdtDecimals`(=6) 读；命中的 `1_000_000` 是 MAX_DATA_MB usage 上界常量，非精度除数 |
-| deployments.json 无 0G 残留 | ✅ chainId=421614、rpcUrl=sepolia-rollup.arbitrum.io/rpc；无 0g.ai/16602/0g_testnet（地址为占位零，等合约 1/3 上链回填，已 _note 标注） |
-| CORS 无 *+credentials | ✅ AllowOrigins 固定白名单（localhost:5173/127.0.0.1:5173/localhost:3000）+ AllowCredentials:true；无 `"*"`（唯一 `"*"` 出现在注释里） |
-| IsPaid 无 HTTP 直置 | ✅ MarkAsPaid 仅 services.go 内部（event_sync 调用），handlers.go 无 IsPaid/MarkAsPaid 写；pay 端点仅写 PayIntentTxHash |
+---
 
-## Phase 5 — 验收映射
-见 test.md §验收映射（requirement §五② + design §8 + arch-review §七红线 → 实际用例）。子系统② 后端验收项（#5 deployments.json schema、#6 event_sync 真实监听落库）+ design §8 T1–T8 全项 + arch-review N1/N2/operatorId 红线均有用例对应且绿。
+## 3. guardRule 终检（grep 全 `packages/web/src` 清零，逐项证明）
 
-## 已知限制（如实记录，不算失败）
-- **业务合约真机端到端**（金额数组语义/事件回填上链）未跑：go-ethereum v1.13.5 simulated.Backend 是 London 上限（ethash faker），跑不了项目 Cancun 字节码（transient storage/PUSH0）。本轮链交互用接口 mock（SettlementClient/SettlementBatchStore）+ 手工构造 types.Log（abigen Filterer.Parse* 解码）覆盖；client 机制层（L3/nonce/降级/chainID）用 London 兼容桩字节码 + 真实绑定验证。
-- 真机端到端待**合约 1/3 真·上链**后用 hardhat 31337 或升级 geth v1.16+（PoS 后端支持 Cancun）。design §7.4 已声明此依赖不阻塞 implement/test。
+命令：`rg -n <pattern> packages/web/src`（`--glob '!*.test.*'` 排除测试黑名单镜像）
 
-## 三自检
-1. **承诺**：只跑测试/验证 + 产文档，不修业务代码——✅ 未改任何 .go / pipeline.json / web / contracts；仅写本 checkpoint + test.md。
-2. **交付物存在**：docs/pipeline/checkpoints/stage-test-done.md + docs/pipeline/stages/test.md——✅ 均已产出。
-3. **正确连接**：Phase 1-5 结果与实际命令输出一致；红线用例名经 `go test -v` 实跑列出核对；N1/N2/operatorId 经 codegraph 源码核对。
+| 模式 | 结果 |
+|------|------|
+| `#3b82f6` | **CLEAN** |
+| `#0a0a14` | **CLEAN** |
+| `#0f0f1a` | **CLEAN** |
+| `#8b5cf6` | **CLEAN** |
+| `#06b6d4` | **CLEAN** |
+| `bg-brand-blue` / `brand-blue`(任意形式，非测试) | **CLEAN** |
+| `to-brand-purple` / `brand-purple`(非测试) | **CLEAN** |
+| `brand-cyan` / `surface-gradient` / `surface-secondary`(非测试) | **CLEAN** |
+| `font-orbitron` / `orbitron`(任意大小写，非测试) | **CLEAN** |
+| `"Inter"` font-family | **CLEAN**（已统一走 `--font-sans` Geist） |
+| 装饰 emoji（🏠📱💰📄🎟🔔🔍🌐💳⚠🔒🚀✨✅❌… 非测试） | **CLEAN**（全 lucide） |
+| 写死费率（交易路径） | **CLEAN**（费率走 `useFeeManager.getFeeRate/calculateFee` 读链） |
+| `parseEther` / `10n**18n` / `decimals:18`(非 nativeCurrency) | **CLEAN** |
+| 二次 `parseUnits`（双重缩放） | **CLEAN**（Billing/BillDetail 直接 BigInt 转换，注释标红线） |
 
-## 结论
-**DONE — 全绿，可进 review。** go build/vet 0 问题；75 用例全绿（含 -race）；资损红线逐条覆盖；4 项 grep 自检全过；唯一遗留（业务合约真机端到端）为环境依赖，design §7.4 已声明不阻塞。
+**合法保留（非违规）**：
+- `pages/skin.test.tsx`：`font-orbitron` 等出现在 `DEAD_TOKENS`/`DECO_EMOJI` 黑名单数组里——是 grep 清零的**运行时镜像断言**（`expect(html).not.toContain(...)`），非真实使用。
+- 国旗 emoji（`services/mock/data.ts` regionFlags / operatorApi `FLAG_MAP`）：保留为**国家标识数据**，不是装饰图标（spec 明确除外）。
+- `config/chains.ts` `nativeCurrency.decimals: 18`：ETH 原生币精度，合法（USDT 走 `usdtDecimals=6`）。
+- `services/api/{usageApi,operatorApi}.ts` `0.05/0.02`：mock **展示估算占位**（注释「暂用默认值，后端未返回」），非链上交易费率路径。
+
+**9 页 100% 深蓝金**：T11/task-12 checkpoint 已确认 9 页 + layout/shared/wallet 全覆盖，emoji→lucide 全量，色值单一出口（`:root`）。T12 grep 复跑维持清零。
+
+---
+
+## 4. 本地 31337 冒烟结果
+
+**状态：web 侧 config 加载/链切换 PASS；live node 全链路冒烟 BLOCKED（环境，非 web 缺陷）。**
+
+### 已跑通（web 侧可解析部分）
+1. `VITE_CHAIN_ID=31337 npm run build` → **exit 0**：证明 wagmi.ts `isLocalChain` 切换 + `config/contracts.ts` 静态 import `deployments/hardhat.json`（7 合约代理地址 + usdt + usdtDecimals=6）编译·打包无误。
+2. `config/contracts.test.ts`（CFG-01..04）：运行时断言 31337 地址全取自 hardhat.json、`getUsdtDecimals(31337)===6`、未知链/零地址抛错兜底。
+3. `packages/web/src/config/deployments/hardhat.json` 已存在（确定性 Hardhat 地址 + `usdtDecimals:6`），web config 链路可达。
+
+### 阻塞步骤 + 原因
+尝试 `cd packages/contracts && npx hardhat node`（后台）→ **启动失败**：
+```
+Error: Cannot find module '@nomicfoundation/hardhat-toolbox'
+  at hardhat.config.ts:2:1
+```
+- **根因**：本分支 `web/deep-blue-gold-refactor` 在 commit c7616e5「web 分支清除后端子项」时清掉了 contracts/backend 子项工具链，`packages/contracts` 的 `@nomicfoundation/hardhat-toolbox` 等 devDeps **未在本分支安装**。
+- **为何不强跑/不修**：补装 contracts 依赖会触碰**禁区**（合约子项目），超出 web 测试 subagent 范围；且 spec 明确「环境跑不起 node → 记录步骤+阻塞原因，不强跑」。
+- **完整冒烟步骤（待 contracts toolchain 就绪后可执行）**：
+  1. `cd packages/contracts && pnpm install`（补 hardhat-toolbox 等）
+  2. `npx hardhat node`（后台，:8545，chainId 31337）
+  3. `npm run deploy:local` → 部署 7 合约 + MockUSDT(6 位)
+  4. 部署地址同步到 `packages/web/src/config/deployments/hardhat.json`（确定性地址，当前已是该组）
+  5. `cd packages/web && VITE_CHAIN_ID=31337 npm run dev` → 浏览器连 MetaMask(31337) 跑充值两步态→pending→读链 confirmed / 付账 / 提现 / 锁仓边界 / 手续费读链 / WalletAuth 会话签名
+
+### Arbitrum 421614 端到端
+**明确后置阻塞**于合约真·上链（`deployments/arbitrum_sepolia.json` 当前为零地址占位）。按 design §11/§12「web DONE 边界」：**web DONE = 本地 31337 全链路绿**；421614 端到端(D17) + 对账三态真链行为 = 后置强制验收，不计入 web DONE 也不成孤儿。
+
+---
+
+## 5. 发现的 bug
+
+**无。** 全程未发现需修的业务逻辑 bug；tsc/build/vitest 全绿，grep 清零达标，资损红线测试全覆盖。
+
+---
+
+## 6. 已知限制
+
+1. **live 31337 全链路冒烟阻塞于 contracts toolchain（本分支未装），非 web 缺陷**（详见 §4）。web 侧 config 加载/链切换以 build + CFG-01..04 单元测固化。
+2. **421614 真链端到端后置**，阻塞合约上链（design 既定边界）。
+3. **coverage 未跑**：`@vitest/coverage-v8` 未安装，按 spec 不擅自加依赖（如需，`pnpm add -D @vitest/coverage-v8` 后 `npx vitest run --coverage`）。
+4. **遗留**：嵌套 `packages/web/.git` 空壳仓库（无 remote）仍在，T12 未碰；T0-T11 改动均已归并入外层 linkworld 仓库，待主 Agent 与用户确认后清理（与 task-12 checkpoint §⚠️ 一致）。
+
+---
+
+## 7. 三自检
+
+1. **承诺**：T12 只补测试/验证/产文档，未改任何业务逻辑（接链 T1-T10 / 换肤 T6-T11 源码 0 改动）；未碰合约/后端/pipeline.json/嵌套 web .git；git add 仅限实际改动的 web 测试文件 + 本 checkpoint。✅
+2. **交付物存在**：`packages/web/src/config/contracts.test.ts`（新增，4 测通过）+ 本文件 `docs/pipeline/checkpoints/stage-test-done.md`。✅
+3. **正确连接**：新测试 import 自 `./contracts` + `./deployments/hardhat.json`（真实生产路径，非 mock 复制），断言对齐 hardhat.json 实际内容；全量 23 files/105 passed 含新测；覆盖审计逐项指向真实测试文件:用例号。✅
+
+---
+
+## 8. 结论：可进 test 阶段
+
+implement T0-T12 全部 DONE：tsc 0 / build exit 0 / **23 files 105 passed** / grep guardRule 全清零 / 9 页 100% 深蓝金 / 资损红线 R1-R14 测试覆盖。web DONE 边界（本地 31337 全链路绿）中 **web 侧可解析部分已绿**，live node 全链路冒烟阻塞于 contracts toolchain（环境，已记录完整复跑步骤），421614 端到端后置阻塞合约上链。**可进 test 阶段。**

@@ -1,45 +1,50 @@
-# Task 05 — T5 计价 PricingService + operatorId 固定映射（后端 2/3）
+# Task 05 — T4 对账重构 + service/NFT 读链路重写（web 3/3）
 
-> 子项目 backend(2/3) | 状态 DONE | 2026-06-09
+> 子项目 web(3/3) | 状态 DONE | 2026-06-10
 
 ### 产出文件
-- packages/backend/internal/services/pricing.go（新：PricingService + OperatorRate 费率表 big.Int 6 位 + Price() + 占位费率/上界常量）
-- packages/backend/internal/services/operatorid.go（新：SeedOperators 单一事实源 + ChainOperatorID + SanityCheckOperators + OperatorChainReader 接口 + ServiceManagerCaller 适配器）
-- packages/backend/internal/services/{pricing_test.go,operatorid_test.go}（新：PRICE-01..05 + OPID-01..03）
-- packages/backend/internal/services/oracle.go（删 GetBill rand.Intn 随机金额；OperatorAPI 收敛为只 GetUsage；OracleServiceV2 注入 PricingService；FetchAndCreateBills 改 GetUsage→Price 确定计价）
-- packages/backend/cmd/main.go（seed 改 SeedOperators 显式 ID=1..11 + 构造 PricingService + 启动 operatorId sanity check 占位降级）
+- packages/web/src/services/api/{depositApi,billingApi}.ts（recordDeposit/Withdraw→postDepositIntent/postWithdrawIntent 6 位去 tx_hash 终态；recordPayment→payIntent；toBill 加 paying 态）
+- packages/web/src/hooks/{useDeposit,useBilling}.ts（recordToBackend→recordIntent；pending 感知 refetchInterval 5s/staleTime 2s 轮询）
+- packages/web/src/hooks/contracts/{useServiceManager,useTrafficCard}.ts（运营商模型 getOperator/getActiveOperators + 逐卡 getCardInfo 重写，清 as never 占位）+ contracts/index.ts + useOperator.ts(useApplyNumber→后端意向)
+- packages/web/src/components/shared/TxStatusBadge.tsx（新建：三态 pending 不染绿/confirmed/failed 区分 reorg vs revert）
+- packages/web/src/types/index.ts（DepositRecord 加 status；Bill status 加 paying）
+- 页面对账逻辑衔接（非 UI 改版）：Deposit/Billing/BillDetail/RegionDetail
+- 多份测试文件
 
 ### git commit
-cb0576e feat: 后端 T5 计价 PricingService(费率表+usage上界L1) + operatorId 固定映射
+e2a0b42 feat: web T4 对账重构(去双写/pending/事件驱动 confirmed) + getLogs 修 + service/NFT 读链路重写
 
 ### TDD
-先红后绿：先写 pricing_test.go+operatorid_test.go → 红(NewPricingService/SeedOperators/ChainOperatorID/MaxDataMB undefined build failed) → 实现 → 绿(ok 0.68s)。
+先红后绿：首轮 7 failed（postDepositIntent 不存在/status 未推 paying/TxStatusBadge import 失败）→ 实现后全绿。
 
 ### 测试结果
-go build ./... 0 error。go test ./... 全绿无回归。T5 用例：PRICE-01 固定金额/PRICE-02 usage 上界/PRICE-03 单 bill 上限/PRICE-04 纯整数无浮点(5 子)/PRICE-05 未知运营商/OPID-01 固定映射/OPID-02 sanity check/OPID-03 零地址/SeedShape。主 Agent 已独立复跑确认 build exit 0 + services test ok。
+npx tsc --noEmit 0 error。npm run build ✓。npx vitest run：11 files / 44 passed（前序 30+新 14，无回归）。用例 REC-01/02(pending 意向去 tx_hash)/REC-03(不据 200 置 paying)/REC-04(余额读链 getDepositAmount)/LOG-01(getLogs 失败 isError 非静默空)/BADGE-01(pending 不染绿)。主 Agent 已独立复跑确认 tsc 0+build ✓+44 测。
 
 ### code-simplifier
-SeedOperators 单一事实源消除 seed 重复；MaxBillPerUser 复用 blockchain 常量（L1/L3 单一事实源不漂移）；OperatorAPI 接口收敛只剩 GetUsage。
+recordIntent 统一去双写；TxStatusBadge 复用三态；service/NFT 按新 ABI 重写消除 as never 占位。
 
 ### spec review
-按 design v2 §4.2/§4.5/§7.0 + arch-review B4 + CEO(占位刺眼化/usage 仍模拟) 执行。usage 上界 L1+单 bill 上限+纯整数计价、operatorId 固定映射不靠 name 比对+sanity check。未越界（组批/熔断 L2 留 T6，handler/鉴权留 T7）。
+按 design v2 §3.1/§3.3/§9 + handoff-web 对账契约 + arch-review B6 执行：三处去双写改 pending、IsPaid 等后端事件回填、余额读链 source of truth、账单轮询后端 confirmed 不前端监听、getLogs 限窗+error 态。未越界（WalletAuth 留 T5、换肤 token 留 T6、页面 UI 改版留 T7/T8/T9）。
 
 ### 设计还原
-后端无 UI。design §4.2 计价 + §4.5 operatorId 逐项落地：amount6=dataMB×单价+callMin×单价 纯 big.Int，seed ID=链上 operatorId 强契约。
+对账三态(pending 不染绿)+ TxStatusBadge 对齐 design §3.1；getLogs 修区分加载失败 vs 真无卡。
 
 ### 复用检查
-复用 blockchain.MaxBillPerUser（L1/L3 同源）；复用现有 OracleServiceV2 注入扩展；SeedOperators 与 ServiceManager.initialize(id=1..11,countryCode US..PH) 逐一核对对齐。
+复用 react-query refetchInterval、getDepositAmount 读链、新 ABI(getOperator/getCardInfo)；TxStatusBadge 供 T9 paying 渲染复用。
 
 ### 设计稿对照
-数值对照：PRICE-01 精确断言 100MB×10000+10min×5000=1_050_000 vs 计价公式 ✅；usage 上界 MaxDataMB=1e6/MaxCallMin=1e5 vs B4 ✅；单 bill 上限==blockchain.MaxBillPerUser（PRICE-03 断言相等，L1/L3 不漂移）✅；operatorId seed ID 1..11 vs 链上 ✅；占位费率刺眼 PLACEHOLDER+启动 warn vs CEO ✅；9 测全绿 ✅；go build 0 ✅。
+数值对照：对账去双写 3 处(充值/提现/付账)✅；余额读链 getDepositAmount(REC-04)✅；getLogs 限窗 latest-5M 块+isError(LOG-01)✅；as never 清零(grep 验证，剩 2 处为 wagmi 动态数组类型限制非占位)✅；44 测 ✅；tsc 0/build ✓ ✅。
 
 ### 新增组件
-新增 PricingService/OperatorRate/SeedOperators/ChainOperatorID/SanityCheckOperators/OperatorChainReader；删 GetBill。无新增业务合约。
+新增 TxStatusBadge；新增 postDepositIntent/postWithdrawIntent/payIntent；service/NFT hooks 按新模型重写。
 
 ### 新增色值
-无（后端任务）。
+无（组件用语义类，换肤 token 留 T6）。
 
-### ⚠️ 遗留（带入 T6/T7）
-- T6：FetchAndCreateBills 当前是逐 user 写 DB Bill 骨架（已用 PricingService 出确定金额），T6 重写为组批 ≤25 + L2 熔断 + 逐批 client.MonthlySettlement + 月度幂等键；组批传 operatorIds[] 用 services.ChainOperatorID(op.ID)。Bill.PlatformFee 当前 "0"，待用链上 FeeManager 回填。
-- T7：TriggerMonthlyBill handler 待加 AdminAuth + 分批结果摘要。
-- usage 仍 rand 模拟（计价引擎正确≠计费正确，真实计量后续 Round）；占位费率/上界待产品拍真值。
+### ⚠️ 遗留（带入 T5/T7/T8/T9/T10 + 跨端）
+- T5：WalletAuth/signedPost 未做；pending 意向 POST 需带签名头。
+- T7 Deposit：toast 已改 pending 文案；两步态/LockCountdown/pending UI 待 T7；Billing/BillDetail 的 payBill(_value) 调用行仍传 parseUnits 18 位（payBill 已忽略 _value）待 T9 清理。
+- T8 Cards：useTrafficCards 暴露 isError/error，Cards.tsx 需用其区分「加载失败重试」vs「真无卡」；Admin 发卡移除归 T8。
+- T9 Billing：Bill status 加 paying，UI 用 TxStatusBadge info 蓝+Loader2 禁绿。
+- T10 RegionDetail：useApplyNumber 改后端意向；手续费展示待 T10；operatorApi.requiredDeposit parseEther(18 位)仍 T2 遗漏，改它同步 RegionDetail 展示。
+- **跨端待对齐**：后端 ApiBill 需返回 pay_intent_tx_hash、deposit history 需返回 status 字段（paying/pending 推导依赖）。

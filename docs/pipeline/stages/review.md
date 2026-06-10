@@ -1,37 +1,36 @@
-# Stage: review — 代码审查 + 安全复审（子项目 backend 2/3）
+# Stage: review — 代码审查 + 安全复审 + 设计审查（子项目 web 3/3）
 
-> **状态**: PASS（第1轮 BLOCKED 1 越权 → fix 5d7aea7 → 第2轮双安全 reviewer 0 ❌ 通过） | **日期**: 2026-06-09 | **Gate**: 3
-> 审查对象：后端实现代码 diff 68e8382..HEAD。三 reviewer 并行（合约安全审计/代码审查/CSO）+ 修复后双安全复审。
+> **状态**: PASS（代码审查 1 ❌ → fix 1a77bde → 复审 0 ❌；CSO/设计 0 ❌） | **日期**: 2026-06-10 | **Gate**: 3
+> 审查对象：web 代码 diff main(05f7d2d)..b7f4873（83 文件 ~5146 增）。三审全员（web 有 UI，Design 路对口）：CSO 安全 / 代码审查(4 维) / 设计审查(视觉)。
 
 ## 一、总裁决：PASS（修复后 0 ❌）
-第1轮两个独立安全 reviewer 同时确认 1 个 ❌（WalletAuth 横向越权）→ fixer 修复 → 第2轮双安全 reviewer 逐条核实代码+测试闭合，0 ❌。代码审查第1轮即 0 ❌。
+代码审查查出 1 个 ❌ 资损（付账授权额/手续费基数二次算费→过额授权）→ 修复 → 复审 0 ❌。CSO + 设计审查首轮即 0 ❌。
 
-## 二、❌ 阻塞项闭合（R1）
-| # | 阻塞 | 修复 | 复审 |
-|---|------|------|------|
-| R1 | WalletAuth 横向越权(OWASP A01)：中间件验签 signer 并 c.Set(CtxWallet)，但 5 个 handler 从 body 取 wallet 操作他人资源(DeactivateService 即时停用他人服务) | fix 5d7aea7：5 个 handler 改用 c.GetString(CtxWallet) 作操作主体忽略 body wallet；PayBill SetPayIntent owner 基于 authed userID(WHERE id=? AND user_id=?)；FindByWallet 大小写不敏感 | ✅ 合约安全+CSO 双确认闭合 |
-| Medium | WalletAuth action 未绑端点(跨端点 nonce 复用) | NewWalletAuth 增 expectedAction，在 ecrecover/消费 nonce 之前校验；main.go 5 路由各绑 action | ✅ 跨 action nonce 拒绝(不消费)闭合 |
+## 二、❌ 阻塞项闭合
+| # | 阻塞 | 来源 | 修复 | 复审 |
+|---|------|------|------|------|
+| W1 | 付账 approveAmount=totalAmount+calculateFee(totalAmount) + FeeBreakdown amount=totalAmount：totalAmount 已含 platformFee，在含费合计上再算费→过额授权(违 exact)+展示费偏大 | 代码审查 | fix 1a77bde：approveAmount=totalAmount(exact)；FeeBreakdown 用 bill.platformFee 直传(4 处)不再二次 calculateFee；Landing 2.5%→1.5%；修正固化错误值的 fee 测 | ✅ approveAmount===totalAmount exact、展示=后端 platformFee、RegionDetail 未误动、无 Hooks 违规 |
 
-新增用例(全绿)：WALLET-AUTHZ-01/02、WALLET-ACTION-01、EmptyAction。最终 79 passing。
+## 三、✅ 三审认可
+- **CSO 安全（0 ❌）**：WalletAuth EIP-712 与后端 middleware.go 逐字节对齐(domain/字段/header/nonce 一次性消费/action 绑定)；资损四红线守住(exact approve 禁 infinite/精度 6 位不绕过/付账额读链不自算/不据 200 置终态/无二次 parseUnits)；无硬编码密钥/.env.local 未提交/无 XSS/无可疑依赖；信任边界正确(链上 source of truth + 200 仅意向)。
+- **设计审查（0 ❌，综合 9.7/10）**：金色铁律 10(卡内金额 navy≈12:1/金仅深底 6.5:1，逐处核 8 个 AmountDisplay 无违规)、色值单一出口 10(旧 token 清零，唯一裸 HEX 是 RainbowKit accentColor 设计指定)、emoji→lucide 10(国旗数据豁免)、视觉态 9(三态/两步态/pending loading/拒签/空 vs 失败态完整)、一致性·无 slop 9、9 页+layout/shared/wallet 覆盖 10。
+- **代码审查（修复后 0 ❌）**：plan T0-T12 对齐 design v2、105 测、四维通过。
 
-## 三、✅ 第1轮三方认可（资损红线逐条核实在代码里）
-- owner key 仅内存/不日志/缺失降级/chainID 校验；WalletAuth 一次性 nonce 台账 Consume 原子条件 UPDATE 防并发重放、EIP-712 绑 chainId 非纯 timestamp。
-- 三层金额闸 L1/L2/L3 复用单一常量不漂移；冷启动回退无样本不除零仅绝对闸。
-- 对账单一路径：IsPaid 唯一 event_sync BillPaid 回填；bills/pay 仅写 PayIntentTxHash；withdraw 仅 pending；GetTotalByUserID 仅计 confirmed。
-- event_sync：K 块确认两阶段、blockHash 父哈希断回退、(txHash,logIndex)去重、占位零地址跳过、事件来源合约地址校验。
-- 精度 6 位全链路 big.Int、string→big.Int fail-fast；AdminAuth 常量时间比较+缺 key fail；CORS 无 *+credentials；go.mod 固定+verify 通过+无 replace；密钥无硬编码/无误提交/.env gitignore/example 纯占位。
-- 代码质量 staff-level、abigen 纯 Go abiHash 复刻、测试断言验行为、simulated.Backend/Cancun 遗留合理。
+## 四、⚠️ 非阻塞（ship 后/后续 polish）
+- 补 FeeBreakdown fee 直传分支单测（修复核心路径目前靠 Billing.test 间接覆盖）。
+- Landing 费率已改 1.5%（W1 顺带）；RegisterSheet 用 ui/input 收口未尽（样式已手对齐）；ui/button 原子默认 <44px 靠调用方补；EXPLORER_URL 双源；operatorApi startingPrice parseFloat 展示精度；.env.example 缺失（onboarding）；TwoStepAction stepper 金色措辞偏差。
+- 设计审查：EmptyState 金图标在米白上偏淡（图标非文本不受 WCAG 约束）。
 
-## 四、⚠️ 非阻塞清理项（后续/随手）
-- ActivateServiceRequest.Wallet body 死字段（handler 已忽略）→ 清理。
-- 死代码 MarkAsPaid/CreateConfirmed（无调用方）。
-- BillCreated 对账校验收窄（processBillCreated 丢弃 totalAmount，design §4.3 要求校验告警）。
-- oracle.go SignData(SHA256)残留+Generate 死分支；自建表多处 AutoMigrate 竞态技术债；生产 chainID=0 单链假设；Withdraw 日志 tx_hash 未 %q 转义。
-- 补 Activate/Deactivate/Deposit 端点级 e2e 越权回归测试。
-
-## 五、上线前 checklist（继承+后端新增，正式网必做）
-- owner key 走 secret manager/KMS；占位常量(MAX_BILL/MAX_BATCH/N/K)拍真值；占位合约地址待合约 1/3 真·上链回填(sync-deployments.sh)。
-- 真机端到端：合约上链后 hardhat 31337 或 geth v1.16+ 跑业务合约结算（Cancun 限制，design §7.4 不阻塞本轮）。
+## 五、上线前 checklist（继承 + web）
+- 合约真·上链(421614) → web deployments/arbitrum_sepolia.json 回填真实地址 + 端到端走查；web DONE 边界=本地 31337 全链路绿(D17 后置)。
+- 31337 live-node 冒烟待补 hardhat-toolbox（合约子项收尾清了工具链）。
+- WalletAuth chainId 需钱包链==后端 walletAuthChainID。
+- 嵌套 packages/web/.git 空壳（无 remote）待清理。
 
 ## 六、结论
-修复后 0 ❌，资损红线代码级闭合 + 越权修复双安全确认，可进 ship。非阻塞清理项与上线 checklist 记录在案。
+修复后 0 ❌，资损红线代码级守住 + 付账基数修复双验、深蓝金视觉 9.7/10、WalletAuth 对齐后端。可进 ship。非阻塞 ⚠️ 与上线 checklist 记录在案。
+
+## 七、三审原始摘要
+- CSO：0 ❌ + 2 ⚠️(.env.example/startingPrice)。
+- 代码审查：1 ❌(W1 付账基数)+2 ⚠️(RegionDetail as any/EXPLORER 双源)→ fix → 复审 0 ❌。
+- 设计审查：0 ❌ + 3 ⚠️(Landing 2.5%[已修]/RegisterSheet ui-input/Button 44px)，9.7/10。

@@ -1,0 +1,36 @@
+{
+  "chainId": 31337,
+  "proxies": {
+    "FeeManager": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "UserRegistry": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "ServiceManager": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+    "TrafficCardNFT": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "Payment": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "Deposit": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+    "Oracle": "0x9A676e781A523b5d0C0e43731313A708CB607508"
+  },
+  "implementations": {
+    "FeeManager": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "UserRegistry": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    "ServiceManager": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+    "TrafficCardNFT": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+    "Payment": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+    "Deposit": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    "Oracle": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
+  },
+  "usdt": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "usdtDecimals": 6,
+  "abiHash": {
+    "FeeManager": "0x75813eaf919f9b6e95ee77044d9c26e3027695cceefb31c9f05d17fd7df948a1",
+    "UserRegistry": "0xca527da9916960e91d34757251357a77f061befb5f3e778e7cdbc748b79675d8",
+    "ServiceManager": "0x8a634a3b4d0e3e5c0b015500b9bcb4d26499f52ccafd06c6c03a687b0259e370",
+    "TrafficCardNFT": "0xf74ea0faa6f4a2c72d1a6efd9b2858620fdba1200cf5947dd0d826d5411558fd",
+    "Payment": "0xa8579606c85a8c91da901f8400127767da1e93557daf056e11d123b438118356",
+    "Deposit": "0xe876a431188d76a43cb1600aced605d2dca7f68d7516bb053dfc6362b23d37d9",
+    "Oracle": "0xd1d0f83aaff6bb08fb11bbcefa961d55ceef7b6d6f8fe86b272772b20c25f359"
+  },
+  "storageLayout": {
+    "_note": "本轮 fresh deploy，无 unsafeAllow；各 proxy 的 storage layout 以此次部署的实现合约为升级基线。OZ upgrades 插件在 .openzeppelin/ 下记录权威 layout 清单。",
+    "manifest": ".openzeppelin/"
+  }
+}

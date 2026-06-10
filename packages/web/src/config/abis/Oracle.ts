@@ -96,19 +96,6 @@ export const OracleABI = [
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ],
-    "name": "MonthlySettlementCompleted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "address",
         "name": "previousOwner",
@@ -122,6 +109,25 @@ export const OracleABI = [
       }
     ],
     "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isActive",
+        "type": "bool"
+      }
+    ],
+    "name": "ServiceVerified",
     "type": "event"
   },
   {
@@ -155,13 +161,7 @@ export const OracleABI = [
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "dataUsage",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "callUsage",
+        "name": "amount",
         "type": "uint256"
       }
     ],
@@ -195,47 +195,7 @@ export const OracleABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "operatorId",
-        "type": "uint256"
-      }
-    ],
-    "name": "getLatestUsage",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "dataUsage",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "callUsage",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_payment",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -255,12 +215,7 @@ export const OracleABI = [
       },
       {
         "internalType": "uint256[]",
-        "name": "dataUsages",
-        "type": "uint256[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "callUsages",
+        "name": "amounts",
         "type": "uint256[]"
       }
     ],
@@ -309,34 +264,6 @@ export const OracleABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "operatorId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "dataUsage",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "callUsage",
-        "type": "uint256"
-      }
-    ],
-    "name": "recordUsage",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
@@ -378,23 +305,23 @@ export const OracleABI = [
       },
       {
         "internalType": "uint256",
-        "name": "operatorId",
+        "name": "",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "dataUsage",
+        "name": "",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "callUsage",
+        "name": "",
         "type": "uint256"
       }
     ],
     "name": "submitUsage",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -426,6 +353,25 @@ export const OracleABI = [
     "name": "upgradeToAndCall",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "verifyServiceActive",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ] as const;

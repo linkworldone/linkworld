@@ -1,41 +1,49 @@
-# Task 02 — T2 config 修复 + 链配置 421614（后端 2/3）
+# Task 02 — T1 链配置 421614 + ABI 重生成 + 单一出口（web 3/3）
 
-> 子项目 backend(2/3) | 状态 DONE | 2026-06-09
+> 子项目 web(3/3) | 状态 DONE | 2026-06-10
 
 ### 产出文件
-- packages/backend/internal/config/config.go（Deployments struct 扩展 Usdt/UsdtDecimals/AbiHash + 新增 IsPlaceholder/HasPlaceholders/PlaceholderContracts/ValidateChainID/ResolveRPCURL + nil map 兜底）
-- packages/backend/internal/config/config_test.go（新建 table-test 8 函数）
-- packages/backend/configs/deployments.json（重写 421614 schema：chainId 421614 + Arbitrum Sepolia rpcUrl + 7 占位零地址 + usdt 占位 + usdtDecimals:6 + abiHash + _note；清除 0G 残留）
-- packages/backend/.env.example（RPC/CHAIN_ID=421614 + ORACLE_OWNER_PRIVATE_KEY/DEPLOYER_PRIVATE_KEY/ADMIN_API_KEY 留空占位）
-- packages/backend/cmd/main.go（blockchain-init 改 ResolveRPCURL + ValidateChainID + 占位 warn；仅此部分，路由/鉴权留 T7）
-- packages/backend/scripts/sync-deployments.sh（上链后回填占位地址）
+- packages/web/src/config/chains.ts（新增 arbitrumSepolia 421614，删 zgMainnet/zgTestnet，留 hardhatLocal）
+- packages/web/src/config/wagmi.ts（非本地链 → arbitrumSepolia，VITE_CHAIN_ID 切换沿用）
+- packages/web/src/config/contracts.ts（单一出口重写：从 deployments json 派生地址修 31337 漂移，ContractAddresses 补 usdt/usdtDecimals，新增 getUsdt/getUsdtDecimals）
+- packages/web/src/config/deployments/{hardhat,arbitrum_sepolia}.json（新增：31337 真源 + 421614 零地址占位待回填）
+- packages/web/src/config/abis/*.ts（8 个从 artifacts 重生成：deposit(uint256)/payBill 去 payable/getLockExpiry/getFeeRate/calculateFee/Oracle/MockUSDT approve·allowance·decimals）+ index.ts 补 export OracleABI/MockUSDTABI
+- packages/web/tsconfig.json（开 resolveJsonModule）
+- packages/web/src/hooks/contracts/*（最小适配保编译：去 value、as never 占位已删方法，标 T3/T4 完善）
 
 ### git commit
-260cc11 feat: 后端 T2 config 键名修复 + deployments.json 421614 schema + RPC/chainID 统一
+559fc78 feat: web T1 链配置 421614 + ABI 重生成(补 Oracle) + contracts 单一出口
 
 ### TDD
-先红后绿：先写 config_test.go → 红（d.Usdt/IsPlaceholder/HasPlaceholders undefined build failed）→ 实现 struct 扩展+5 方法 → 绿（8 函数全 PASS）。
+T1 为接链基建（配置/ABI/类型），非新业务行为。验证靠 tsc 0 + build 绿 + T0 smoke 不回归；业务单测 T2-T12 各自写。
 
 ### 测试结果
-go build ./... 0 error。go test ./internal/config/... ok（8 函数全 PASS）。go test ./internal/blockchain/... ok（T1 未破坏）。go test ./... 全绿。主 Agent 已独立复跑确认 build exit 0 + config test ok。
+npx tsc --noEmit 0 error。npm run build ✓ built。npm test 3 passed（T0 smoke 不回归）。主 Agent 已独立复跑确认 tsc exit 0 + build ✓ + 3 测过。
 
 ### code-simplifier
-config 方法聚焦、复用 struct；deployments.json 加 _note 自解释；无冗余。
+contracts 单一出口消除手抄地址漂移；ABI 从 artifacts 重生成保证与合约一致；最小 hook 适配保编译不超范围。
 
 ### spec review
-按 design v2 §6.5/§6.7/§7.0 + arch-review 执行：键名 contracts→proxies 对齐、421614 schema、ResolveRPCURL 单一优先级、ValidateChainID、IsPlaceholder 占位保护。未越界（client 发交易/event_sync 订阅/鉴权 均留后续；main.go 仅动 blockchain-init RPC/chainID 部分）。
+按 design v2 §1.2/§5 + arch-review + handoff-backend 执行：chains 421614、contracts deployments 单一出口、abis 重生成补 OracleABI、wagmi 链选择。最小 hook 适配（去 value/as never）仅为保 tsc 绿，approve 两步态/精度/对账逻辑严格留 T2/T3/T4，注释标注。未越界换肤/WalletAuth。
 
 ### 设计还原
-后端无 UI。design §6.5/§6.7 逐项落地：config bug 修复（TestLoadDeployments_ParsesProxiesKey 断言 7 项非空）、421614 schema（TestRealDeploymentsJSON 断言无 0G+全占位）、RPC/chainID 统一。
+T1 为接链基建无 UI 还原。design §1.2 deployments 单一出口 + §5 契约映射（deposit(uint256)/payBill 去 payable/getLockExpiry/getFeeRate）逐项落地。
 
 ### 复用检查
-复用 T1 的 abis/abiHash（abiHash 拷自 hardhat.json）；复用现有 config.Load 结构扩展而非重写；sync-deployments.sh 复用 contracts/deployments 产出。
+复用 viem defineChain、artifacts ABI 来源、现有 getContractAddress 零地址保护；新增 getUsdt/getUsdtDecimals。
 
 ### 设计稿对照
-数值对照：deployments chainId 421614 vs R2 目标 ✅；usdtDecimals 6 vs 合约 ✅；proxies 解析 7/7 非空 vs bug 修复 ✅；0G 残留 0 处 vs 清除要求 ✅；config 测试 8 函数 PASS vs 无回归 ✅；go build error 0 ✅。
+数值对照：新增链 421614 vs R2 ✅；contracts 31337 地址=deployments.json proxies（修漂移）✅；abis 导出 6→8（补 Oracle/MockUSDT）✅；usdtDecimals 6 ✅；tsc error 0 ✅；build 绿 ✅；测试 3 不回归 ✅。
 
 ### 新增组件
-新增 config 方法：IsPlaceholder/HasPlaceholders/PlaceholderContracts/ValidateChainID/ResolveRPCURL；新增 scripts/sync-deployments.sh。无新增业务合约。
+新增配置：arbitrumSepolia 链、deployments json（拷入 src）、MockUSDT ABI、getUsdt/getUsdtDecimals。无新增业务组件。
 
 ### 新增色值
-无（后端任务）。
+无（T1 接链基建，换肤留 T6+）。
+
+### ⚠️ 遗留（带入 T2/T3/T4）
+- T2：format.ts/constants 全链路 6 位 + currency ETH→USDT 未动；deposit 内已用 usdtDecimals 解析可复用。
+- T3：approve allowance/exact/TwoStepAction 未实现；payBill 的 _value 占位参数待接 approve 后移除；MockUSDT ABI 就绪。
+- T4：useServiceManager（运营商新模型 getOperator/addOperator）+ useTrafficCard（getCardInfo 逐卡，无 destroyedAt）需按新 ABI 重写去掉 as never。
+- 421614 真上链阻塞：arbitrum_sepolia.json 零地址占位，端到端验收待合约上链；本地 31337 可验。
+- contracts 单一出口当前方案=deployments json 拷入 src，合约重部署需同步该 json，后续可脚本固化。
