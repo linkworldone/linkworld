@@ -6,7 +6,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URISto
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/ITrafficCardNFT.sol";
 
-/// @title TrafficCardNFT - 流量卡凭证（v3: mint→持有→burn→30天服务）
+/// @title TrafficCardNFT - 流量卡凭证（v4: mint→持有→burn/redeemForSim→兑换 SIM 天数，每卡 1 天）
 contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorageUpgradeable, UUPSUpgradeable {
     uint256 private _nextTokenId;
 
@@ -14,8 +14,6 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
     mapping(address => uint256) private _userCardCount;
 
     address public depositContract;
-
-    uint256 public constant DEDUCTION_VALIDITY = 30 days;
 
     /// @notice ERC721 initializer
     function initialize() public initializer {
@@ -70,18 +68,41 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
         return tokenIds;
     }
 
-    /// @notice 用户销毁 NFT 激活服务（仅 owner 可调）
+    /// @notice 用户销毁单张流量卡兑换 1 天 SIM（与 redeemForSim 同语义的便捷入口）
+    /// @dev 每张卡 = 1 天，emit SimRedeemed(user, 1, [tokenId])。链上仅销毁 + emit 天数，SIM 走链下。
     function burn(uint256 tokenId) external {
-        require(_isAuthorized(msg.sender, address(0), tokenId), "Not owner or approved");
+        _redeem(tokenId);
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = tokenId;
+        emit SimRedeemed(msg.sender, 1, ids);
+    }
+
+    /// @notice 批量销毁流量卡兑换 SIM 天数（销毁 N 张 = N 天，天数累加）
+    /// @dev 链上仅负责销毁卡 + emit 天数（= 卡数）；SIM 本身走链下后端。
+    function redeemForSim(uint256[] calldata tokenIds) external returns (uint256 daysCount) {
+        require(tokenIds.length > 0, "No cards");
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            _redeem(tokenIds[i]);
+        }
+        daysCount = tokenIds.length; // 每张 = 1 天
+        emit SimRedeemed(msg.sender, daysCount, tokenIds);
+        return daysCount;
+    }
+
+    /// @notice 单张销毁的内部逻辑（CEI + 计数顺序）
+    /// @dev _isAuthorized(owner, spender, id)：owner 必须是实际持有者，spender 为 msg.sender。
+    ///      计数挂在实际持有者名下，而非 msg.sender（支持被授权方代销毁）。
+    function _redeem(uint256 tokenId) internal {
+        address tokenOwner = ownerOf(tokenId); // tokenId 不存在时 revert（ERC721NonexistentToken）
+        require(_isAuthorized(tokenOwner, msg.sender, tokenId), "Not owner or approved");
         require(!_cardInfo[tokenId].isDestroyed, "Card already destroyed");
 
         _cardInfo[tokenId].isDestroyed = true;
-        _userCardCount[msg.sender]--;
+        _userCardCount[tokenOwner]--;
 
         _burn(tokenId);
 
-        emit CardDestroyed(msg.sender, tokenId, _cardInfo[tokenId].dataAmount);
-        emit ServiceActivated(msg.sender, block.timestamp + 30 days);
+        emit CardDestroyed(tokenOwner, tokenId, _cardInfo[tokenId].dataAmount);
     }
 
     /// @notice 查询卡片信息

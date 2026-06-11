@@ -28,13 +28,10 @@ async function main() {
     // Deploy a dummy minimal UserRegistry stub for demo purposes
     // (In real tests this will be the real UserRegistry address)
     console.log("Deposit impl deployed at", await dep.getAddress());
-    const initData = encodeInit(D.interface, "initialize", [ethers.ZeroAddress]);
+    const initData = encodeInit(D.interface, "initialize", [ethers.ZeroAddress, ethers.ZeroAddress]);
     await (await deployer.sendTransaction({ to: await dep.getAddress(), data: initData })).wait();
     console.log("  Initialized with ZeroAddress");
-    console.log(
-      "  trafficCardQuota:",
-      (await dep.trafficCardQuota()).toString()
-    );
+    console.log("  LOCK_PERIOD:", (await dep.LOCK_PERIOD()).toString());
   }
 }
 

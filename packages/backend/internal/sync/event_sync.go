@@ -49,6 +49,7 @@ type EventSync struct {
 	userRepo    *repository.UserRepository
 	billRepo    *repository.BillRepository
 	depositRepo *repository.DepositRepository
+	simRepo     *repository.SimRepository
 	syncRepo    *repository.SyncStateRepository
 	eventRepo   *repository.ChainEventRepository
 
@@ -77,7 +78,7 @@ func NewEventSync(ethClient *ethclient.Client, userRepo *repository.UserReposito
 	db := userRepo.DB()
 	// 自带迁移 event_sync 专属表（SyncState 游标 + ChainEvent 去重/两阶段），与功能同源、幂等，
 	// 不依赖 main.go 的 AutoMigrate 清单（main.go 不在 T4 改动范围）。
-	if err := db.AutoMigrate(&models.SyncState{}, &models.ChainEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.SyncState{}, &models.ChainEvent{}, &models.Sim{}); err != nil {
 		log.Printf("WARN: event_sync 表迁移失败：%v", err)
 	}
 	return newEventSync(
@@ -85,6 +86,7 @@ func NewEventSync(ethClient *ethclient.Client, userRepo *repository.UserReposito
 		userRepo,
 		repository.NewBillRepository(db),
 		repository.NewDepositRepository(db),
+		repository.NewSimRepository(db),
 		repository.NewSyncStateRepository(db),
 		repository.NewChainEventRepository(db),
 		contracts,
@@ -98,6 +100,7 @@ func newEventSync(
 	userRepo *repository.UserRepository,
 	billRepo *repository.BillRepository,
 	depositRepo *repository.DepositRepository,
+	simRepo *repository.SimRepository,
 	syncRepo *repository.SyncStateRepository,
 	eventRepo *repository.ChainEventRepository,
 	contracts map[string]common.Address,
@@ -110,6 +113,7 @@ func newEventSync(
 		userRepo:      userRepo,
 		billRepo:      billRepo,
 		depositRepo:   depositRepo,
+		simRepo:       simRepo,
 		syncRepo:      syncRepo,
 		eventRepo:     eventRepo,
 		confirmations: CONFIRMATIONS,
@@ -277,6 +281,10 @@ func (s *EventSync) rollbackFrom(from uint64) error {
 		case "DepositMade", "DepositWithdrawn":
 			db.Where("tx_hash = ? AND status = ?", ev.TxHash, models.DepositStatusPending).
 				Delete(&models.Deposit{})
+		case "SimRedeemed":
+			// 回滚未确认 SIM 兑换记账（已 confirmed 不回退）。
+			db.Where("tx_hash = ? AND status = ?", ev.TxHash, models.SimStatusPending).
+				Delete(&models.Sim{})
 		}
 	}
 	// 游标回退到 from-1（下轮从 from 重扫）。
@@ -363,8 +371,8 @@ func (s *EventSync) dispatch(lg types.Log) error {
 
 	case s.addrTrafficNFT != nil && lg.Address == *s.addrTrafficNFT && topic0 == blockchain.CardMintedTopic:
 		return s.processCardMinted(lg)
-	case s.addrTrafficNFT != nil && lg.Address == *s.addrTrafficNFT && topic0 == blockchain.ServiceActivatedTopic:
-		return s.processServiceActivated(lg)
+	case s.addrTrafficNFT != nil && lg.Address == *s.addrTrafficNFT && topic0 == blockchain.SimRedeemedTopic:
+		return s.processSimRedeemed(lg)
 	}
 	return nil
 }
@@ -417,15 +425,9 @@ func (s *EventSync) processDepositMade(lg types.Log) error {
 	// 关联 user（链上以 wallet 为主键，DB 以 userID）。找不到 user 仍记 ChainEvent，待用户注册后由后续对账补。
 	uid := s.userIDByWallet(ev.User)
 	if uid != 0 {
-		// pending 落库（confirmed 由 promoteConfirmed 提升），不计入余额。
-		s.depositRepo.Create(&models.Deposit{
-			UserID:    uid,
-			Amount:    ev.Amount.String(), // 6 位最小单位
-			Type:      "deposit",
-			TxHash:    lg.TxHash.Hex(),
-			Status:    models.DepositStatusPending,
-			BlockHash: lg.BlockHash.Hex(),
-		})
+		// 优先对账回填已有 HTTP 意向记录（无 txHash 的 pending），找不到才新建。
+		// 避免「意向 + 链上事件」产生两条记录、意向那条永久卡 pending（confirmDeposit 只按 txHash 匹配）。
+		s.reconcileOrCreate(uid, "deposit", ev.Amount.String(), lg)
 	}
 	return s.recordEvent("DepositMade", lg, true, 0)
 }
@@ -438,16 +440,9 @@ func (s *EventSync) processDepositWithdrawn(lg types.Log) error {
 	}
 	uid := s.userIDByWallet(ev.User)
 	if uid != 0 {
-		// 提现金额 = principal + interest（本金 + 利息），按 6 位最小单位记 withdraw 负向记账。
-		total := new(big.Int).Add(ev.Principal, ev.Interest)
-		s.depositRepo.Create(&models.Deposit{
-			UserID:    uid,
-			Amount:    total.String(),
-			Type:      "withdraw",
-			TxHash:    lg.TxHash.Hex(),
-			Status:    models.DepositStatusPending,
-			BlockHash: lg.BlockHash.Hex(),
-		})
+		// 提现金额 = amount（单笔 tranche 本金，合约已不再分发利息），按 6 位最小单位记 withdraw 负向记账。
+		// 同样优先回填已有 withdraw 意向（无 txHash 的 pending），找不到才新建（防重复 + 永久 pending）。
+		s.reconcileOrCreate(uid, "withdraw", ev.Amount.String(), lg)
 	}
 	return s.recordEvent("DepositWithdrawn", lg, true, 0)
 }
@@ -518,12 +513,47 @@ func (s *EventSync) processCardMinted(lg types.Log) error {
 	return s.recordEvent("CardMinted", lg, false, 0)
 }
 
-// processServiceActivated 服务激活事件落库。
-func (s *EventSync) processServiceActivated(lg types.Log) error {
-	if _, err := s.trafficNFTF.ParseServiceActivated(lg); err != nil {
+// processSimRedeemed 流量卡销毁兑换 SIM（新玩法，资金类/重要事件，等 K 块确认）。
+// 解析 SimRedeemed(user, daysCount, tokenIds)，按 txHash 对账回填已有 pending SIM 意向：
+// 命中 pending 意向（txHash 匹配 / 或无 txHash）→ 回填 txHash 保持 pending（promoteConfirmed 确认）；
+// 找不到（用户直接链上 redeem、无前端意向）→ 用事件 daysCount 新建一条 pending SIM。
+// 实际 confirmed 终态由 promoteConfirmed（深度 ≥ K）置位。
+func (s *EventSync) processSimRedeemed(lg types.Log) error {
+	ev, err := s.trafficNFTF.ParseSimRedeemed(lg)
+	if err != nil {
 		return err
 	}
-	return s.recordEvent("ServiceActivated", lg, false, 0)
+	uid := s.userIDByWallet(ev.User)
+	if uid != 0 {
+		s.reconcileOrCreateSim(uid, uint(ev.DaysCount.Uint64()), lg)
+	}
+	return s.recordEvent("SimRedeemed", lg, true, 0)
+}
+
+// reconcileOrCreateSim SIM 兑换事件落库的单一对账回填（避免「意向 + 链上事件」双记录）。
+// 查同 user、status=pending、且 (txHash 匹配本 tx / 或 txHash 为空) 的最近一条意向：
+//   - 命中 → 回填 txHash（保持 pending，交 promoteConfirmed 确认）；
+//   - 未命中（链上直接 redeem 无前端意向）→ 用事件 daysCount 新建一条 pending SIM。
+func (s *EventSync) reconcileOrCreateSim(uid uint, days uint, lg types.Log) {
+	db := s.userRepo.DB()
+	txHash := lg.TxHash.Hex()
+	var intent models.Sim
+	err := db.Where("user_id = ? AND status = ? AND (tx_hash = ? OR tx_hash = '' OR tx_hash IS NULL)",
+		uid, models.SimStatusPending, txHash).
+		Order("created_at DESC").
+		First(&intent).Error
+	if err == nil {
+		db.Model(&models.Sim{}).Where("id = ?", intent.ID).
+			Update("tx_hash", txHash)
+		return
+	}
+	// 未命中意向 → 用事件 daysCount 新建一条带 txHash 的 pending SIM。
+	s.simRepo.Create(&models.Sim{
+		UserID: uid,
+		Days:   days,
+		TxHash: txHash,
+		Status: models.SimStatusPending,
+	})
 }
 
 // processTrafficCardApplied 桩事件，仅记录不改金额（design §4.3/§5.2）。
@@ -556,6 +586,9 @@ func (s *EventSync) promoteConfirmed(latest uint64) error {
 			s.confirmDeposit(ev, "withdraw")
 		case "BillCreated":
 			// OnChainBillID 已在 seen 阶段回填，确认即终态，无额外动作。
+		case "SimRedeemed":
+			// SIM 兑换确认：把该 tx 对应的 pending SIM 置 confirmed（K 块后生效）。
+			s.confirmSim(ev.TxHash)
 		}
 		if cerr := s.eventRepo.MarkConfirmed(ev.TxHash, ev.LogIndex); cerr != nil {
 			return cerr
@@ -564,12 +597,59 @@ func (s *EventSync) promoteConfirmed(latest uint64) error {
 	return nil
 }
 
+// reconcileOrCreate 资金事件落库的单一对账回填（充值/提现重复 bug 修复）。
+//
+// 来源二选一防双记录：
+//  1. HTTP 意向（depositService.Deposit）已先建一条 {type, amount, status:pending, tx_hash:""}（无 txHash）；
+//  2. 本链上事件想再落一条带 txHash 的 pending。
+//
+// 若无脑 Create 会得到两条 pending；而 confirmDeposit 只按 tx_hash 匹配 → 意向那条永久卡 pending。
+// 故此处优先查找同 user、同 type、同 amount、status=pending、且 tx_hash 为空的最近一条意向记录：
+//   - 命中 → UPDATE 回填 tx_hash + block_hash（仍 pending，后续 promoteConfirmed 按 txHash 确认它）；
+//   - 未命中（用户直接链上充值、无前端意向）→ 才 Create 新记录。
+//
+// 一笔充值 = 一条记录。amount 按字符串等值匹配（事件 .String() 与意向存储格式一致，均 6 位最小单位）。
+func (s *EventSync) reconcileOrCreate(uid uint, typ, amount string, lg types.Log) {
+	db := s.userRepo.DB()
+	var intent models.Deposit
+	err := db.Where("user_id = ? AND type = ? AND amount = ? AND status = ? AND (tx_hash = '' OR tx_hash IS NULL)",
+		uid, typ, amount, models.DepositStatusPending).
+		Order("created_at DESC").
+		First(&intent).Error
+	if err == nil {
+		// 命中意向 → 回填 txHash/blockHash（状态保持 pending，交给 promoteConfirmed 确认）。
+		db.Model(&models.Deposit{}).Where("id = ?", intent.ID).
+			Updates(map[string]interface{}{
+				"tx_hash":    lg.TxHash.Hex(),
+				"block_hash": lg.BlockHash.Hex(),
+			})
+		return
+	}
+	// 未命中意向（含 ErrRecordNotFound 与其他查询错误）→ 新建一条带 txHash 的 pending 记录。
+	s.depositRepo.Create(&models.Deposit{
+		UserID:    uid,
+		Amount:    amount, // 6 位最小单位
+		Type:      typ,
+		TxHash:    lg.TxHash.Hex(),
+		Status:    models.DepositStatusPending,
+		BlockHash: lg.BlockHash.Hex(),
+	})
+}
+
 // confirmDeposit 将该 tx 对应的 pending deposit/withdraw 记录置 confirmed（计入余额）。
 func (s *EventSync) confirmDeposit(ev models.ChainEvent, typ string) {
 	db := s.userRepo.DB()
 	db.Model(&models.Deposit{}).
 		Where("tx_hash = ? AND type = ? AND status = ?", ev.TxHash, typ, models.DepositStatusPending).
 		Update("status", models.DepositStatusConfirmed)
+}
+
+// confirmSim 将该 tx 对应的 pending SIM 记录置 confirmed（同押金两阶段，深度 ≥ K 才生效）。
+func (s *EventSync) confirmSim(txHash string) {
+	db := s.userRepo.DB()
+	db.Model(&models.Sim{}).
+		Where("tx_hash = ? AND status = ?", txHash, models.SimStatusPending).
+		Update("status", models.SimStatusConfirmed)
 }
 
 // userIDByWallet 由钱包地址查 userID；找不到返回 0（调用方据此决定是否落业务行）。

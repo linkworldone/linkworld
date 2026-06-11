@@ -63,6 +63,13 @@ describe("LinkWorld Contracts Tests", function () {
     await payment.setOracle(await oracle.getAddress());
   }
 
+  // 充值即发卡：NFT owner 转给 Deposit，deposit 内 trafficCardNFT.mint(onlyOwner) 才能调。
+  // 仅在需要"存款触发发卡"的 suite 调用（TrafficCardNFT 直 mint 测试仍需 owner=测试账户）。
+  async function enableDepositMint() {
+    await trafficCardNFT.setDepositContract(await deposit.getAddress());
+    await trafficCardNFT.transferOwnership(await deposit.getAddress());
+  }
+
   describe("FeeManager", function () {
     beforeEach(deployAndWire);
 
@@ -154,15 +161,18 @@ it("SM-02  getOperatorsByCountry US non-empty", async function () {
   describe("Deposit", function () {
     beforeEach(async function () {
       await deployAndWire();
+      await enableDepositMint();
       await userRegistry.connect(user1).register("u1@linkworld.io");
       await mockUSDT.mint(user1.address, usdt(1000));
     });
 
-    it("DP-01  deposit and getDepositAmount", async function () {
+    it("DP-01  deposit(50) and getDepositAmount", async function () {
       const amount = usdt(50);
       await mockUSDT.connect(user1).approve(await deposit.getAddress(), amount);
       await deposit.connect(user1).deposit(amount);
       expect(await deposit.getDepositAmount(user1.address)).to.equal(amount);
+      // 50 USDT → 5 张卡
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(5n);
     });
 
     it("DP-02  unregistered user revert", async function () {
@@ -173,7 +183,7 @@ it("SM-02  getOperatorsByCountry US non-empty", async function () {
       ).to.be.revertedWith("Not registered");
     });
 
-it("DP-03  setOracle stores address", async function () {
+    it("DP-03  setOracle stores address", async function () {
       await deposit.setOracle(await oracle.getAddress());
       expect(await deposit.oracle()).to.equal(await oracle.getAddress());
     });
@@ -245,22 +255,113 @@ it("TC-04  getUserCardCount zero initially", async function () {
       expect(info.dataAmount).to.equal(512);
       expect(info.isDestroyed).to.be.false;
     });
+
+    // 每卡 = 1 天，销毁兑换 SIM 天数（= 卡数）
+    async function mintCards(to, n) {
+      for (let i = 0; i < n; i++) {
+        await trafficCardNFT.mint(to.address, ethers.MaxUint256, `uri-${i}`);
+      }
+    }
+
+    it("RDM-01  redeemForSim 批量销毁 3 张：isDestroyed=true、count 归零、emit SimRedeemed(user,3,[0,1,2])", async function () {
+      await mintCards(user1, 3);
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(3n);
+
+      await expect(trafficCardNFT.connect(user1).redeemForSim([0, 1, 2]))
+        .to.emit(trafficCardNFT, "SimRedeemed")
+        .withArgs(user1.address, 3n, [0n, 1n, 2n]);
+
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(0n);
+      for (let i = 0; i < 3; i++) {
+        expect((await trafficCardNFT.getCardInfo(i)).isDestroyed).to.be.true;
+      }
+    });
+
+    it("RDM-02  redeemForSim 部分销毁：销毁 2 张，count 由 5 减到 3", async function () {
+      await mintCards(user1, 5);
+      const tx = await trafficCardNFT.connect(user1).redeemForSim([1, 3]);
+      const receipt = await tx.wait();
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(3n);
+      expect((await trafficCardNFT.getCardInfo(1)).isDestroyed).to.be.true;
+      expect((await trafficCardNFT.getCardInfo(3)).isDestroyed).to.be.true;
+      expect((await trafficCardNFT.getCardInfo(0)).isDestroyed).to.be.false;
+    });
+
+    it("RDM-03  redeemForSim 返回 daysCount == 卡数", async function () {
+      await mintCards(user1, 4);
+      const daysCount = await trafficCardNFT.connect(user1).redeemForSim.staticCall([0, 1, 2, 3]);
+      expect(daysCount).to.equal(4n);
+    });
+
+    it("RDM-04  非持有者 redeemForSim → revert Not owner or approved", async function () {
+      await mintCards(user1, 2);
+      await expect(
+        trafficCardNFT.connect(user2).redeemForSim([0, 1])
+      ).to.be.revertedWith("Not owner or approved");
+    });
+
+    it("RDM-05  已销毁卡再次 redeemForSim → revert（token 已 _burn，ownerOf revert ERC721NonexistentToken）", async function () {
+      await mintCards(user1, 2);
+      await trafficCardNFT.connect(user1).redeemForSim([0]);
+      await expect(
+        trafficCardNFT.connect(user1).redeemForSim([0])
+      ).to.be.revertedWithCustomError(trafficCardNFT, "ERC721NonexistentToken");
+    });
+
+    it("RDM-06  空数组 redeemForSim → revert No cards", async function () {
+      await expect(
+        trafficCardNFT.connect(user1).redeemForSim([])
+      ).to.be.revertedWith("No cards");
+    });
+
+    it("RDM-07  redeemForSim 含重复 tokenId → 第二次命中已销毁 token，整笔 revert（防双花）", async function () {
+      await mintCards(user1, 2);
+      await expect(
+        trafficCardNFT.connect(user1).redeemForSim([0, 0])
+      ).to.be.revertedWithCustomError(trafficCardNFT, "ERC721NonexistentToken");
+      // 整笔 revert：第 0 张不会被实际销毁，count 仍为 2
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(2n);
+      expect((await trafficCardNFT.getCardInfo(0)).isDestroyed).to.be.false;
+    });
+
+    it("BURN-01  单张 burn 走 SimRedeemed(user,1,[tokenId]) + CardDestroyed，无 ServiceActivated", async function () {
+      await mintCards(user1, 1);
+      await expect(trafficCardNFT.connect(user1).burn(0))
+        .to.emit(trafficCardNFT, "SimRedeemed").withArgs(user1.address, 1n, [0n])
+        .and.to.emit(trafficCardNFT, "CardDestroyed");
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(0n);
+      expect((await trafficCardNFT.getCardInfo(0)).isDestroyed).to.be.true;
+    });
+
+    it("BURN-02  非持有者 burn → revert", async function () {
+      await mintCards(user1, 1);
+      await expect(trafficCardNFT.connect(user2).burn(0)).to.be.revertedWith("Not owner or approved");
+    });
+
+    it("BURN-03  ServiceActivated 事件已移除（合约 ABI 不含该 fragment）", async function () {
+      const hasServiceActivated = trafficCardNFT.interface.fragments.some(
+        (f) => f.type === "event" && (f as any).name === "ServiceActivated"
+      );
+      const hasSimRedeemed = trafficCardNFT.interface.fragments.some(
+        (f) => f.type === "event" && (f as any).name === "SimRedeemed"
+      );
+      expect(hasServiceActivated).to.be.false;
+      expect(hasSimRedeemed).to.be.true;
+    });
   });
 
-  // ===== T4：自动发卡（_mintFor + onlyOracle + 幂等 + nonReentrant）+ 固定 quota + 计价改 amounts[] =====
-  describe("T4 自动发卡 + 计价修正", function () {
+  // ===== 充值即发卡（mint-on-deposit）+ 月末结算（amounts[] 计价，不再月度发卡）=====
+  describe("充值即发卡 + 月末结算", function () {
     const LOCK = 30 * 24 * 60 * 60; // 30 days
 
-    // NFT owner 必须转给 Deposit，_mintFor 才能调 nft.mint(onlyOwner)
-    async function setupAutoIssue() {
+    // 充值即发卡：NFT owner 转给 Deposit；operator 1 设分账地址供 createBill fail-fast
+    async function setupMintOnDeposit() {
       await deployAndWire();
-      await trafficCardNFT.setDepositContract(await deposit.getAddress());
-      await trafficCardNFT.transferOwnership(await deposit.getAddress());
-      // operator 1 设分账地址，createBill fail-fast 校验通过
+      await enableDepositMint();
       await serviceManager.setOperatorPaymentAddress(1, user2.address);
     }
 
-    // 让 user 注册 + 存款（锁仓 30 天）
+    // 让 user 注册 + 分档存款（每次 push 一笔 30 天独立锁 + 即发卡）
     async function registerAndDeposit(signer, email, amount) {
       await userRegistry.connect(signer).register(email);
       await mockUSDT.mint(signer.address, amount);
@@ -268,99 +369,31 @@ it("TC-04  getUserCardCount zero initially", async function () {
       await deposit.connect(signer).deposit(amount);
     }
 
-    beforeEach(setupAutoIssue);
+    beforeEach(setupMintOnDeposit);
 
-    it("ISS-01  非 oracle 调 issueMonthlyTrafficCards revert", async function () {
-      await expect(
-        deposit.connect(user1).issueMonthlyTrafficCards([user1.address])
-      ).to.be.revertedWith("Only oracle");
-    });
-
-    it("ISS-02  oracle 调：到期+有存款+无卡 → mint；未到期 → 跳过不 revert", async function () {
-      await registerAndDeposit(user1, "iss02a@linkworld.io", usdt(50));
-      await registerAndDeposit(user2, "iss02b@linkworld.io", usdt(50));
-      // user1 锁仓到期，user2 不到期
-      await deposit.setOracle(user3.address); // EOA 充当 oracle 直接调
-      await ethers.provider.send("evm_increaseTime", [LOCK + 1]);
-      await ethers.provider.send("evm_mine", []);
-      // 再让 user2 续一次存款把锁仓推到未来
-      await mockUSDT.mint(user2.address, usdt(50));
-      await mockUSDT.connect(user2).approve(await deposit.getAddress(), usdt(50));
-      await deposit.connect(user2).deposit(usdt(50)); // user2 lockExpiry = now + 30d（未到期）
-
-      await deposit.connect(user3).issueMonthlyTrafficCards([user1.address, user2.address]);
-
-      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(1);
-      expect(await trafficCardNFT.getUserCardCount(user2.address)).to.equal(0);
-    });
-
-    it("ISS-03  已有卡用户重复 issue → 不重复 mint（幂等）", async function () {
-      await registerAndDeposit(user1, "iss03@linkworld.io", usdt(50));
-      await deposit.setOracle(user3.address);
-      await ethers.provider.send("evm_increaseTime", [LOCK + 1]);
-      await ethers.provider.send("evm_mine", []);
-
-      await deposit.connect(user3).issueMonthlyTrafficCards([user1.address]);
-      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(1);
-
-      // 重复调用：getUserCardCount==0 校验保证不重复发卡
-      await deposit.connect(user3).issueMonthlyTrafficCards([user1.address]);
-      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(1);
-    });
-
-    it("ISS-04  混合批：满足者发卡、不满足者跳过、整批不 revert", async function () {
-      // user1 满足；user2 无存款（不满足）；user3 无存款（不满足）
-      await registerAndDeposit(user1, "iss04@linkworld.io", usdt(50));
-      await deposit.setOracle(owner.address); // owner 充当 oracle
-      await ethers.provider.send("evm_increaseTime", [LOCK + 1]);
-      await ethers.provider.send("evm_mine", []);
-
-      await expect(
-        deposit.issueMonthlyTrafficCards([user1.address, user2.address, user3.address])
-      ).to.not.be.reverted;
-
-      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(1);
-      expect(await trafficCardNFT.getUserCardCount(user2.address)).to.equal(0);
-      expect(await trafficCardNFT.getUserCardCount(user3.address)).to.equal(0);
-    });
-
-    it("ISS-05  发卡 dataAmount == trafficCardQuota（与存款额无关）", async function () {
-      await registerAndDeposit(user1, "iss05@linkworld.io", usdt(50));
-      await deposit.setOracle(owner.address);
-      await ethers.provider.send("evm_increaseTime", [LOCK + 1]);
-      await ethers.provider.send("evm_mine", []);
-
-      await deposit.issueMonthlyTrafficCards([user1.address]);
-      const quota = await deposit.trafficCardQuota();
+    it("ISS-01  存 50 USDT → 即发 5 张无限流量卡", async function () {
+      await registerAndDeposit(user1, "iss01@linkworld.io", usdt(50));
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(5n);
       const info = await trafficCardNFT.getCardInfo(0);
-      expect(info.dataAmount).to.equal(quota);
+      expect(info.dataAmount).to.equal(ethers.MaxUint256); // 无限流量哨兵
     });
 
-    it("DEC  dataAmount 固定：存 10/20 USDT 发的卡 quota 一致（删 _deposits/100000）", async function () {
-      await registerAndDeposit(user1, "dec-a@linkworld.io", usdt(10));
-      await registerAndDeposit(user2, "dec-b@linkworld.io", usdt(20));
-      await deposit.setOracle(owner.address);
-      await ethers.provider.send("evm_increaseTime", [LOCK + 1]);
-      await ethers.provider.send("evm_mine", []);
-
-      await deposit.issueMonthlyTrafficCards([user1.address, user2.address]);
-      const quota = await deposit.trafficCardQuota();
-      const info0 = await trafficCardNFT.getCardInfo(0);
-      const info1 = await trafficCardNFT.getCardInfo(1);
-      expect(info0.dataAmount).to.equal(quota);
-      expect(info1.dataAmount).to.equal(quota);
-      expect(info0.dataAmount).to.equal(info1.dataAmount);
+    it("ISS-02  多笔存款张数累加：10 + 100 → 1 + 10 = 11 张", async function () {
+      await userRegistry.connect(user1).register("iss02@linkworld.io");
+      await mockUSDT.mint(user1.address, usdt(1000));
+      await mockUSDT.connect(user1).approve(await deposit.getAddress(), usdt(1000));
+      await deposit.connect(user1).deposit(usdt(10));
+      await deposit.connect(user1).deposit(usdt(100));
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(11n);
+      expect(await deposit.getTrancheCount(user1.address)).to.equal(2n);
     });
 
-    it("DEC-2  mintTrafficCard(onlyOwner 薄壳) 也用 trafficCardQuota", async function () {
-      await registerAndDeposit(user1, "dec2@linkworld.io", usdt(50));
-      await ethers.provider.send("evm_increaseTime", [LOCK + 1]);
-      await ethers.provider.send("evm_mine", []);
-      // NFT owner 已是 deposit；mintTrafficCard 的 onlyOwner 指 Deposit 的 owner（= 测试 owner）
-      await deposit.mintTrafficCard(user1.address);
-      const quota = await deposit.trafficCardQuota();
-      const info = await trafficCardNFT.getCardInfo(0);
-      expect(info.dataAmount).to.equal(quota);
+    it("ISS-03  非档位金额（30 USDT）→ Invalid tier，不发卡", async function () {
+      await userRegistry.connect(user1).register("iss03@linkworld.io");
+      await mockUSDT.mint(user1.address, usdt(30));
+      await mockUSDT.connect(user1).approve(await deposit.getAddress(), usdt(30));
+      await expect(deposit.connect(user1).deposit(usdt(30))).to.be.revertedWith("Invalid tier");
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(0n);
     });
 
     it("MS-01  monthlySettlement 用 amounts[] → createBill amount==amounts[i]（不再 usage 求和）", async function () {
@@ -381,15 +414,13 @@ it("TC-04  getUserCardCount zero initially", async function () {
       ).to.be.reverted;
     });
 
-    it("MS-03  端到端：createBill + issueMonthlyTrafficCards + applyTrafficCardToBill 链路通", async function () {
+    it("MS-03  端到端：充值即发卡 + monthlySettlement(createBill + applyTrafficCardToBill) 链路通", async function () {
+      // 用户存款时已得卡；月末结算只建账单 + 抵扣（不再月度发卡）
       await registerAndDeposit(user1, "ms03@linkworld.io", usdt(50));
-      await oracle.setPayment(await payment.getAddress());
-      // oracle 既是 Deposit 的 oracle（setupAutoIssue 中 deployAndWire 已 deposit.setOracle(oracle)），
-      // 也是 Payment 的 oracle（deployAndWire 已 payment.setOracle(oracle)）
-      await ethers.provider.send("evm_increaseTime", [LOCK + 1]);
-      await ethers.provider.send("evm_mine", []);
+      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(5n);
 
-      const amount = usdt(80);
+      await oracle.setPayment(await payment.getAddress());
+      const amount = usdt(50);
       await expect(
         oracle.monthlySettlement([user1.address], [1], [amount])
       ).to.not.be.reverted;
@@ -398,8 +429,6 @@ it("TC-04  getUserCardCount zero initially", async function () {
       const bills = await payment.getUserBills(user1.address);
       expect(bills.length).to.equal(1);
       expect(bills[0].amount).to.equal(amount);
-      // 流量卡已发
-      expect(await trafficCardNFT.getUserCardCount(user1.address)).to.equal(1);
     });
 
     it("MS-04  monthlySettlement 长度不一致 → revert", async function () {

@@ -358,11 +358,17 @@ export const TrafficCardNFTABI = [
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "expiresAt",
+        "name": "daysCount",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
+        "name": "tokenIds",
+        "type": "uint256[]"
       }
     ],
-    "name": "ServiceActivated",
+    "name": "SimRedeemed",
     "type": "event"
   },
   {
@@ -402,19 +408,6 @@ export const TrafficCardNFTABI = [
     ],
     "name": "Upgraded",
     "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "DEDUCTION_VALIDITY",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
   },
   {
     "inputs": [],
@@ -711,6 +704,25 @@ export const TrafficCardNFTABI = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "tokenIds",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "redeemForSim",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "daysCount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

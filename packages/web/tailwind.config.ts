@@ -10,6 +10,12 @@ const config: Config = {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      // base-ui Tabs 等组件用 data-orientation 表达方向；
+      // 注册简写别名后 data-horizontal:/data-vertical:/group-data-*-/tabs: 等 variant 才生效。
+      data: {
+        horizontal: "orientation=horizontal",
+        vertical: "orientation=vertical",
+      },
       fontFamily: {
         sans: ["var(--font-sans)"],
         display: ["var(--font-display)"],

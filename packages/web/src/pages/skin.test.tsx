@@ -50,6 +50,12 @@ vi.mock("@/hooks/useOperator", () => ({
   useRegions: () => ({ data: [] }),
   useMyNumbers: () => ({ data: [] }),
 }));
+vi.mock("@/hooks/contracts", () => ({
+  useTrafficCards: () => ({ cards: [], isLoading: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock("@/hooks/useSim", () => ({
+  useMySims: () => ({ data: [] }),
+}));
 vi.mock("@/hooks/useNotification", () => ({
   useNotifications: () => ({ data: [] }),
   useMarkAsRead: () => ({ mutate: vi.fn() }),
@@ -101,13 +107,14 @@ describe("SKIN-01: 其余页换肤——无旧 token / 无装饰 emoji", () => {
   });
 });
 
-describe("SKIN-02: TabBar 5 项 lucide 图标", () => {
-  it("渲染 5 个导航项，每项含 lucide svg（非 emoji）", () => {
+describe("SKIN-02: TabBar 4 项 lucide 图标", () => {
+  it("渲染 4 个导航项，每项含 lucide svg（非 emoji）", () => {
+    // Services 入口暂时隐藏（功能未打通），底部导航由 5 项减为 4 项：Home / Deposit / Bills / Cards
     const { container } = renderPage(<TabBar />, "/dashboard");
     const buttons = container.querySelectorAll("button");
-    expect(buttons.length).toBe(5);
-    // 5 项各一 lucide svg。
-    expect(container.querySelectorAll("svg").length).toBeGreaterThanOrEqual(5);
+    expect(buttons.length).toBe(4);
+    // 4 项各一 lucide svg。
+    expect(container.querySelectorAll("svg").length).toBeGreaterThanOrEqual(4);
     assertClean(container.innerHTML, "TabBar");
   });
 });

@@ -35,8 +35,10 @@ var (
 	// CardMinted(address indexed user, uint256 tokenId, uint256 dataAmount)（TrafficCardNFT 合约 emit）
 	CardMintedTopic = common.HexToHash("0xcb1c56d5745b05695241c17b7cfaece9a64f70bc32508c0997990633be8056ff")
 
-	// ServiceActivated(address indexed user, uint256 expiresAt)
-	ServiceActivatedTopic = common.HexToHash("0xb80b22a2820bc6903467108d07f27d58e62385559f0805156d5a6d884ad086fb")
+	// SimRedeemed(address indexed user, uint256 daysCount, uint256[] tokenIds)
+	// 流量卡销毁兑换 SIM（新玩法）：daysCount=销毁卡数=兑换天数；user indexed，daysCount/tokenIds 在 data 区。
+	// 替代已移除的 ServiceActivated。单张 burn 也 emit SimRedeemed(...,1,...)。
+	SimRedeemedTopic = common.HexToHash("0x2b22b8bfbca140907fa0a889499309fc6098870b0feb3b4af1993c079007b6b7")
 
 	// TrafficCardApplied(uint256 indexed billId)（桩事件，仅记录不改金额）
 	TrafficCardAppliedTopic = common.HexToHash("0x6ee1062e7611525ff44a2bea1e6ccffff047903a965c69aa96334ad680cd8701")

@@ -35,7 +35,8 @@ export type WalletAuthAction =
   | "withdraw"
   | "bills/pay"
   | "service/activate"
-  | "service/deactivate";
+  | "service/deactivate"
+  | "sim/claim";
 
 export interface SignedPostOpts {
   /** 发起写操作的钱包地址（签名地址必须 == 该地址，后端 ecrecover 绑 msg.sender 语义）。 */

@@ -59,7 +59,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	if err := db.AutoMigrate(&models.User{}, &models.Bill{}, &models.Deposit{},
-		&models.SyncState{}, &models.ChainEvent{}); err != nil {
+		&models.Sim{}, &models.SyncState{}, &models.ChainEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db
@@ -125,6 +125,7 @@ func newSyncWithFake(t *testing.T, src *fakeSource, db *gorm.DB) (*EventSync, *r
 		userRepo,
 		repository.NewBillRepository(db),
 		repository.NewDepositRepository(db),
+		repository.NewSimRepository(db),
 		repository.NewSyncStateRepository(db),
 		repository.NewChainEventRepository(db),
 		testContracts(),
@@ -222,17 +223,17 @@ func TestParseUsageDataSubmitted_OnlyUserIndexed(t *testing.T) {
 	}
 }
 
-func TestParseDepositWithdrawn_PrincipalPlusInterest(t *testing.T) {
+func TestParseDepositWithdrawn_AmountAndTranche(t *testing.T) {
 	lg := buildLog(t, bindings.DepositMetaData.ABI, "DepositWithdrawn", testDeposit, 12, 0,
 		[]common.Hash{common.BytesToHash(testWallet.Bytes())},
-		big.NewInt(1_000_000), big.NewInt(3_000)) // principal 1.0 + interest 0.003
+		big.NewInt(1_000_000), big.NewInt(2)) // amount 1.0 + trancheIndex 2
 	f, _ := bindings.NewDepositFilterer(testDeposit, nil)
 	ev, err := f.ParseDepositWithdrawn(lg)
 	if err != nil {
 		t.Fatalf("ParseDepositWithdrawn: %v", err)
 	}
-	if ev.Principal.Cmp(big.NewInt(1_000_000)) != 0 || ev.Interest.Cmp(big.NewInt(3_000)) != 0 {
-		t.Errorf("principal/interest = %s/%s", ev.Principal, ev.Interest)
+	if ev.Amount.Cmp(big.NewInt(1_000_000)) != 0 || ev.TrancheIndex.Cmp(big.NewInt(2)) != 0 {
+		t.Errorf("amount/trancheIndex = %s/%s", ev.Amount, ev.TrancheIndex)
 	}
 }
 
@@ -253,7 +254,7 @@ func TestSignatureTopicsMatchBindings(t *testing.T) {
 		{"UsageDataSubmitted", bindings.OracleMetaData.ABI, "UsageDataSubmitted", blockchain.UsageDataSubmittedTopic},
 		{"UserRegistered", bindings.UserRegistryMetaData.ABI, "UserRegistered", blockchain.UserRegisteredTopic},
 		{"CardMinted", bindings.TrafficCardNFTMetaData.ABI, "CardMinted", blockchain.CardMintedTopic},
-		{"ServiceActivated", bindings.TrafficCardNFTMetaData.ABI, "ServiceActivated", blockchain.ServiceActivatedTopic},
+		{"SimRedeemed", bindings.TrafficCardNFTMetaData.ABI, "SimRedeemed", blockchain.SimRedeemedTopic},
 	}
 	for _, c := range cases {
 		parsed, err := abiFromJSON(c.abiJSON)
@@ -314,6 +315,153 @@ func TestSyncOnce_DepositMade_TwoPhaseConfirmation(t *testing.T) {
 	}
 	if total, _ := depRepo.GetTotalByUserID(uid); total != "1000000" {
 		t.Errorf("confirmed 后应计入余额 1000000，得到 %s", total)
+	}
+}
+
+// TestSyncOnce_SimRedeemed_TwoPhaseConfirmation 验证流量卡销毁兑换 SIM 两阶段确认（新玩法，资金类事件）：
+// 无前端意向时链上事件按 daysCount 新建 pending SIM，K 块后 promoteConfirmed 置 confirmed。
+func TestSyncOnce_SimRedeemed_TwoPhaseConfirmation(t *testing.T) {
+	db := newTestDB(t)
+	src := newFakeSource()
+	s, ur := newSyncWithFake(t, src, db)
+	uid := seedUser(t, ur)
+
+	// 块 10 一条 SimRedeemed(user, daysCount=3, tokenIds=[1,2,3])。head=10 → 深度不足 K(3)，应 pending。
+	src.head = 10
+	src.logsByBlk[10] = []types.Log{
+		buildLog(t, bindings.TrafficCardNFTMetaData.ABI, "SimRedeemed", testTrafficNFT, 10, 0,
+			[]common.Hash{common.BytesToHash(testWallet.Bytes())},
+			big.NewInt(3), []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(3)}),
+	}
+	if err := s.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	simRepo := repository.NewSimRepository(db)
+	sims, _ := simRepo.FindByUserID(uid)
+	if len(sims) != 1 || sims[0].Status != models.SimStatusPending {
+		t.Fatalf("期望 1 条 pending SIM，得到 %+v", sims)
+	}
+	if sims[0].Days != 3 {
+		t.Errorf("SIM days 应为 daysCount=3，得到 %d", sims[0].Days)
+	}
+
+	// 链推进到 13（深度 = 3 ≥ K）→ 确认。
+	src.head = 13
+	if err := s.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	sims, _ = simRepo.FindByUserID(uid)
+	if sims[0].Status != models.SimStatusConfirmed {
+		t.Fatalf("深度达 K 后 SIM 应 confirmed，得到 %s", sims[0].Status)
+	}
+}
+
+// TestSyncOnce_SimRedeemed_ReconcilesIntent 验证 SIM 对账回填（避免意向 + 事件双记录）：
+// 先有一条 HTTP claim 意向（pending、无 txHash），链上 SimRedeemed 应回填同一条 txHash 而非新建第二条，
+// 且 K 块后该条被 confirmSim 确认。
+func TestSyncOnce_SimRedeemed_ReconcilesIntent(t *testing.T) {
+	db := newTestDB(t)
+	src := newFakeSource()
+	s, ur := newSyncWithFake(t, src, db)
+	uid := seedUser(t, ur)
+
+	// 先落一条无 txHash 的 pending 意向（模拟 HTTP /api/sim/claim）。
+	simRepo := repository.NewSimRepository(db)
+	if err := simRepo.Create(&models.Sim{
+		UserID: uid, Days: 3, Destination: "US", Recipient: "Alice", AddressLine: "1 Main St",
+		Status: models.SimStatusPending,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	src.head = 10
+	src.logsByBlk[10] = []types.Log{
+		buildLog(t, bindings.TrafficCardNFTMetaData.ABI, "SimRedeemed", testTrafficNFT, 10, 0,
+			[]common.Hash{common.BytesToHash(testWallet.Bytes())},
+			big.NewInt(3), []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(3)}),
+	}
+	if err := s.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	sims, _ := simRepo.FindByUserID(uid)
+	if len(sims) != 1 {
+		t.Fatalf("意向应被回填而非新建第二条，得到 %d 条", len(sims))
+	}
+	if sims[0].TxHash == "" {
+		t.Errorf("意向应回填 txHash，得到空")
+	}
+	// 收件信息保留（事件回填不覆盖意向字段）。
+	if sims[0].Destination != "US" || sims[0].Recipient != "Alice" {
+		t.Errorf("回填不应丢失收件信息，得到 dest=%s recipient=%s", sims[0].Destination, sims[0].Recipient)
+	}
+
+	// K 块后确认。
+	src.head = 13
+	if err := s.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	sims, _ = simRepo.FindByUserID(uid)
+	if sims[0].Status != models.SimStatusConfirmed {
+		t.Fatalf("K 块后意向应 confirmed，得到 %s", sims[0].Status)
+	}
+}
+
+// TestSyncOnce_DepositMade_ReconcilesIntent 验证充值对账回填（双记录 bug 修复）：
+// 先有一条 HTTP 意向（pending、无 txHash），链上 DepositMade 应回填该同一条而非新建第二条，
+// 且 K 块后该条能被 confirmDeposit（按 txHash）确认计入余额。
+func TestSyncOnce_DepositMade_ReconcilesIntent(t *testing.T) {
+	db := newTestDB(t)
+	src := newFakeSource()
+	s, ur := newSyncWithFake(t, src, db)
+	uid := seedUser(t, ur)
+
+	// 预置一条 HTTP 意向：同 user+amount、pending、无 txHash（模拟 depositService.Deposit）。
+	depRepo := repository.NewDepositRepository(db)
+	if err := depRepo.Create(&models.Deposit{
+		UserID: uid, Amount: "1000000", Type: "deposit",
+		TxHash: "", Status: models.DepositStatusPending,
+	}); err != nil {
+		t.Fatalf("seed intent: %v", err)
+	}
+
+	// 块 10 链上 DepositMade（同 amount）。head=10 → 深度不足 K，应仍 pending 但已回填 txHash。
+	src.head = 10
+	src.logsByBlk[10] = []types.Log{
+		buildLog(t, bindings.DepositMetaData.ABI, "DepositMade", testDeposit, 10, 0,
+			[]common.Hash{common.BytesToHash(testWallet.Bytes())}, big.NewInt(1_000_000)),
+	}
+	if err := s.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// 关键断言：仍是 1 条（回填意向，未新建第二条）。
+	deps, _ := depRepo.FindByUserID(uid)
+	if len(deps) != 1 {
+		t.Fatalf("DEDUP-INTENT 🔴: 有意向应回填同一条，期望 1 条 deposit，得到 %d 条: %+v", len(deps), deps)
+	}
+	if deps[0].Status != models.DepositStatusPending {
+		t.Fatalf("回填后应仍 pending（待 K 块确认），得到 %s", deps[0].Status)
+	}
+	if deps[0].TxHash == "" {
+		t.Fatalf("链上事件应回填 txHash 到意向记录，得到空")
+	}
+
+	// 链推进到 13（深度 ≥ K）→ 该唯一记录被确认计入余额（不再永久卡 pending）。
+	src.head = 13
+	if err := s.SyncOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	deps, _ = depRepo.FindByUserID(uid)
+	if len(deps) != 1 {
+		t.Fatalf("确认后仍应只有 1 条，得到 %d", len(deps))
+	}
+	if deps[0].Status != models.DepositStatusConfirmed {
+		t.Fatalf("回填的意向记录在 K 块后应被 confirmDeposit 确认，得到 %s", deps[0].Status)
+	}
+	if total, _ := depRepo.GetTotalByUserID(uid); total != "1000000" {
+		t.Errorf("确认后应计入余额 1000000，得到 %s", total)
 	}
 }
 
@@ -450,7 +598,7 @@ func TestSyncOnce_SkipsPlaceholderContracts(t *testing.T) {
 	contracts := testContracts()
 	contracts["Payment"] = common.Address{} // 占位零地址
 	s := newEventSync(src, userRepo, repository.NewBillRepository(db),
-		repository.NewDepositRepository(db), repository.NewSyncStateRepository(db),
+		repository.NewDepositRepository(db), repository.NewSimRepository(db), repository.NewSyncStateRepository(db),
 		repository.NewChainEventRepository(db), contracts, 31337)
 	if s.addrPayment != nil {
 		t.Errorf("占位零地址 Payment 应跳过订阅（addrPayment 应为 nil）")

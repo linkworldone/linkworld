@@ -33,6 +33,7 @@ func main() {
 		&models.Bill{},
 		&models.UserService{},
 		&models.UsageData{},
+		&models.Sim{},
 	)
 
 	// Seed operators if empty —— 显式写 ID=链上 operatorId(1..11)（design §4.5 / arch-review）。
@@ -54,6 +55,7 @@ func main() {
 	userServiceRepo := repository.NewUserServiceRepository(db)
 	depositRepo := repository.NewDepositRepository(db)
 	usageRepo := repository.NewUsageDataRepository(db)
+	simRepo := repository.NewSimRepository(db)
 	// WalletAuth 一次性 nonce 台账（arch-review 🔴 N1）：自建表（与 settlement/event_sync 同策略）。
 	nonceRepo := repository.NewWalletNonceRepository(db)
 	if err := nonceRepo.Migrate(); err != nil {
@@ -73,6 +75,7 @@ func main() {
 	pricingService := services.NewPricingService()
 	oracleV2 := services.NewOracleServiceV2(operatorAPI, pricingService, userRepo, userServiceRepo, billRepo, usageRepo)
 	usageService := services.NewUsageService(oracleV2, usageRepo, userRepo, userServiceRepo)
+	simService := services.NewSimService(simRepo, userRepo)
 
 	// walletAuthChainID 绑定到 WalletAuth EIP-712 domain（防跨链重放，arch-review 🔴 N1）。
 	// 取 deployments.chainId（与 env CHAIN_ID 一致校验后），加载失败时回退 env CHAIN_ID。
@@ -162,7 +165,7 @@ func main() {
 		log.Fatal("无法确定 chainId（deployments.json 与 env CHAIN_ID 均缺失）：WalletAuth 不可用，拒绝启动")
 	}
 
-	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService, virtualGen, oracleV2, usageService, nonceRepo)
+	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService, virtualGen, oracleV2, usageService, simService, nonceRepo)
 
 	// AdminAuth 中间件（design §6.6）：缺 ADMIN_API_KEY → 启动 fail（管理端点不允许裸奔）。
 	adminAuth, aerr := middleware.NewAdminAuth(os.Getenv("ADMIN_API_KEY"))
@@ -202,15 +205,17 @@ func main() {
 	r.POST("/api/virtual-number/generate", handler.GenerateVirtualNumber)
 	r.GET("/api/countries", handler.GetCountryList)
 	r.GET("/api/usage/:wallet", handler.GetUsage)
+	r.GET("/api/sim/:wallet", handler.GetSims)
 	// WalletAuth nonce 签发（公开：前端取 nonce 再签名）。
 	r.GET("/api/auth/nonce/:wallet", handler.GetWalletNonce)
 
 	// --- 用户写端点（WalletAuth：钱包签名 ecrecover 绑 wallet，design §6.6）---
 	r.POST("/api/service/activate", walletAuth("service/activate"), handler.ActivateService)
 	r.POST("/api/service/deactivate", walletAuth("service/deactivate"), handler.DeactivateService)
-	r.POST("/api/bills/pay", walletAuth("bills/pay"), handler.PayBill) // B2：仅写 pending 意向不置 IsPaid
-	r.POST("/api/deposit", walletAuth("deposit"), handler.Deposit)     // 意向记录
-	r.POST("/api/withdraw", walletAuth("withdraw"), handler.Withdraw)  // B3：不凭 txHash 记账，仅 pending
+	r.POST("/api/bills/pay", walletAuth("bills/pay"), handler.PayBill)  // B2：仅写 pending 意向不置 IsPaid
+	r.POST("/api/deposit", walletAuth("deposit"), handler.Deposit)      // 意向记录
+	r.POST("/api/withdraw", walletAuth("withdraw"), handler.Withdraw)   // B3：不凭 txHash 记账，仅 pending
+	r.POST("/api/sim/claim", walletAuth("sim/claim"), handler.ClaimSim) // 流量卡销毁兑换 SIM：仅 pending 意向
 
 	// --- 管理/平台触发端点（AdminAuth：X-Admin-Key 常量时间比较，design §6.6）---
 	r.POST("/api/oracle/monthly-bill", adminAuth, handler.TriggerMonthlyBill)

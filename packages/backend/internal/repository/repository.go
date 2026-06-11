@@ -477,3 +477,23 @@ func (r *ChainEventRepository) DeleteUnconfirmedFrom(fromBlock uint64) ([]models
 		Delete(&models.ChainEvent{}).Error
 	return evs, err
 }
+
+// SimRepository 「流量卡销毁兑换 SIM」记录仓储（新玩法）。
+type SimRepository struct {
+	db *gorm.DB
+}
+
+func NewSimRepository(db *gorm.DB) *SimRepository {
+	return &SimRepository{db: db}
+}
+
+func (r *SimRepository) Create(sim *models.Sim) error {
+	return r.db.Create(sim).Error
+}
+
+// FindByUserID 按用户查 SIM 列表（最新在前）。
+func (r *SimRepository) FindByUserID(userID uint) ([]models.Sim, error) {
+	var sims []models.Sim
+	err := r.db.Where("user_id = ?", userID).Order("created_at desc").Find(&sims).Error
+	return sims, err
+}

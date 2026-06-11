@@ -7,7 +7,7 @@ import {
   usePublicClient,
 } from "wagmi";
 import { parseAbiItem, type Log } from "viem";
-import { TrafficCardNFTABI, DepositABI } from "../../config/abis";
+import { TrafficCardNFTABI } from "../../config/abis";
 import { getContractAddress } from "../../config/contracts";
 
 const CARD_MINTED_EVENT = parseAbiItem(
@@ -165,38 +165,25 @@ export function useTrafficCardCredit(address: `0x${string}` | undefined) {
   };
 }
 
-export function useBurnCard() {
+/**
+ * 批量销毁流量卡兑换 SIM 天数（一步式玩法）。
+ * 调 redeemForSim(tokenIds[])：每张卡 = 1 天，SIM 天数 = 销毁卡数。
+ * 单张 burn 仍在合约内（语义为兑换），但前端多选流程统一走 redeemForSim。
+ */
+export function useRedeemForSim() {
   const chainId = useChainId();
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   const isConfirming = !!hash && rawConfirming;
 
-  const burnCard = (tokenId: bigint) => {
+  const redeem = (tokenIds: bigint[]) => {
     writeContract({
       address: getContractAddress(chainId, "TrafficCardNFT"),
       abi: TrafficCardNFTABI,
-      functionName: "burn",
-      args: [tokenId],
+      functionName: "redeemForSim",
+      args: [tokenIds],
     });
   };
 
-  return { burnCard, hash, isPending, isConfirming, isSuccess, error, reset };
-}
-
-export function useIssueMonthlyCards() {
-  const chainId = useChainId();
-  const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
-  const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
-  const isConfirming = !!hash && rawConfirming;
-
-  const issue = (users: `0x${string}`[]) => {
-    writeContract({
-      address: getContractAddress(chainId, "Deposit"),
-      abi: DepositABI,
-      functionName: "issueMonthlyTrafficCards",
-      args: [users],
-    });
-  };
-
-  return { issue, hash, isPending, isConfirming, isSuccess, error, reset };
+  return { redeem, hash, isPending, isConfirming, isSuccess, error, reset };
 }
