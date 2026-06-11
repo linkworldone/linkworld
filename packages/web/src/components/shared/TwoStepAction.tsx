@@ -77,8 +77,9 @@ export function TwoStepAction({
   const allowanceQ = useAllowance(owner, spender);
   const allowance = (allowanceQ.data as bigint | undefined) ?? 0n;
   const allowanceLoaded = allowanceQ.data !== undefined;
-  // allowance ≥ 需求额 → 视为已授权（跳步 / 不 re-approve）。amount=0 视为无需授权。
-  const hasAllowance = amount > 0n ? allowance >= amount : true;
+  // allowance ≥ 需求额 → 视为已授权（跳步 / 不 re-approve）。
+  // amount<=0（未选档位/无需求额）→ 视为「未就绪」而非已授权，避免未操作就显示「已授权/重试」。
+  const hasAllowance = amount > 0n && allowance >= amount;
 
   const approveTx = useApprove();
   const approveState = useTxState({
