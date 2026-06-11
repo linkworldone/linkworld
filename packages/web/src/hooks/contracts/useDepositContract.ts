@@ -66,17 +66,50 @@ export function useContractDeposit() {
   return { deposit, hash, isPending, isConfirming, isSuccess, error };
 }
 
+/**
+ * 单笔保证金（合约 `Tranche`）：amount=本金（6 位最小单位），unlockAt=解锁 unix 秒，
+ * withdrawn=是否已取回。每笔独立锁 30 天，各自到期单独取（withdraw(trancheIndex)）。
+ */
+export interface Tranche {
+  amount: bigint;
+  unlockAt: bigint;
+  withdrawn: boolean;
+}
+
+/**
+ * 读全部保证金笔次 `getTranches(addr)`，供提现页按笔列出。
+ * 数组下标即合约 trancheIndex（withdraw 逐笔取回的入参）。
+ * 提现对到期/已取回敏感 → 短 staleTime 让取回后能尽快重读刷新状态。
+ */
+export function useTranches(address: `0x${string}` | undefined) {
+  const chainId = useChainId();
+  const query = useReadContract({
+    address: getContractAddress(chainId, "Deposit"),
+    abi: DepositABI,
+    functionName: "getTranches",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address, staleTime: 10_000 },
+  });
+  const tranches = (query.data as readonly Tranche[] | undefined) ?? [];
+  return { ...query, tranches };
+}
+
+/**
+ * 逐笔取回保证金 `withdraw(trancheIndex)`。每笔独立锁 30 天，到期单独取。
+ * trancheIndex = getTranches 返回数组的下标。
+ */
 export function useContractWithdraw() {
   const chainId = useChainId();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   const isConfirming = !!hash && rawConfirming;
 
-  const withdraw = () => {
+  const withdraw = (trancheIndex: number | bigint) => {
     writeContract({
       address: getContractAddress(chainId, "Deposit"),
       abi: DepositABI,
       functionName: "withdraw",
+      args: [BigInt(trancheIndex)],
     });
   };
 

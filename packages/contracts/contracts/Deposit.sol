@@ -12,7 +12,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @title Deposit - 用户保证金管理（可升级版，ERC20 USDT）
+/// @title Deposit - 用户充值管理（可升级版，ERC20 USDT）
+/// @notice 分档充值（10/20/50/100 USDT）→ 逐笔独立锁仓 30 天 + 充值即按比例发流量卡。
 contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuardTransient, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
@@ -20,14 +21,21 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
     ITrafficCardNFT public trafficCardNFT;
 
     address public oracle;
-    uint256 public trafficCardQuota;
 
-    mapping(address => uint256) private _deposits;
-    mapping(address => uint256) private _lockExpiry;
-    mapping(uint256 => uint256) private _operatorRequiredDeposit;
+    /// @notice 每个用户的逐笔锁仓记录（每次 deposit push 一笔）
+    mapping(address => Tranche[]) private _tranches;
 
     /// @notice 资金通道代币（USDT，6 位精度）。仅支持标准 ERC20，禁 fee-on-transfer。
     IERC20 public usdt;
+
+    /// @notice 锁仓周期（每笔独立计时）
+    uint256 public constant LOCK_PERIOD = 30 days;
+
+    /// @notice 发卡基准档位（10 USDT → 1 张），张数 = amount / TIER_UNIT
+    uint256 private constant TIER_MULTIPLIER = 10;
+
+    /// @notice 无限流量哨兵值（每张流量卡的 dataAmount）
+    uint256 private constant UNLIMITED_DATA = type(uint256).max;
 
     /// @notice Initializer
     /// @param _userRegistry 用户注册合约
@@ -36,7 +44,6 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
         __Ownable_init(msg.sender);
         userRegistry = IUserRegistry(_userRegistry);
         usdt = IERC20(_usdt);
-        trafficCardQuota = 100 * 1024 * 1024; // 默认 100M
     }
 
     /// @notice 设置预言机地址
@@ -49,98 +56,107 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
         trafficCardNFT = ITrafficCardNFT(_trafficCardNFT);
     }
 
-    /// @notice 用户存入保证金（USDT，锁仓30天）。需先 approve(deposit, amount)。
-    /// @param amount 存入的 USDT 数量（最小单位，需 ≥ 10 USDT）
-    function deposit(uint256 amount) external {
+    /// @notice 用户分档充值（仅 10/20/50/100 USDT），充值即按比例发卡，并新增一笔 30 天独立锁。
+    /// @dev 需先 approve(deposit, amount)。CEI：先收款 + 记账，再 mint（mint 有 onERC721Received 回调，靠 nonReentrant 兜底）。
+    /// @param amount 存入的 USDT 数量（最小单位）。按 IERC20Metadata.decimals() 折算后必须等于 10/20/50/100 档。
+    function deposit(uint256 amount) external nonReentrant {
         require(userRegistry.isRegistered(msg.sender), "Not registered");
-        require(amount >= 10 * 10 ** IERC20Metadata(address(usdt)).decimals(), "Below min deposit");
 
+        uint256 unit = 10 ** IERC20Metadata(address(usdt)).decimals();
+        require(
+            amount == 10 * unit || amount == 20 * unit || amount == 50 * unit || amount == 100 * unit,
+            "Invalid tier"
+        );
+
+        // 收款
         usdt.safeTransferFrom(msg.sender, address(this), amount);
 
-        _deposits[msg.sender] += amount;
-        if (_lockExpiry[msg.sender] < block.timestamp) {
-            _lockExpiry[msg.sender] = block.timestamp + 30 days;
-        } else {
-            _lockExpiry[msg.sender] += 30 days;
-        }
+        // 记一笔独立锁
+        _tranches[msg.sender].push(Tranche({
+            amount: amount,
+            unlockAt: block.timestamp + LOCK_PERIOD,
+            withdrawn: false
+        }));
 
         emit DepositMade(msg.sender, amount);
+
+        // 充值即发卡：张数 = amount / (10 * unit)（10→1 / 20→2 / 50→5 / 100→10）
+        uint256 cardCount = amount / (TIER_MULTIPLIER * unit);
+        for (uint256 i = 0; i < cardCount; i++) {
+            uint256 tokenId = trafficCardNFT.mint(
+                msg.sender,
+                UNLIMITED_DATA,
+                generateTokenURI(msg.sender, i)
+            );
+            emit TrafficCardMinted(msg.sender, tokenId, UNLIMITED_DATA);
+        }
     }
 
-    /// @notice 提取保证金（USDT）。CEI：先清零状态再 safeTransfer。
-    function withdraw() external {
-        require(block.timestamp >= _lockExpiry[msg.sender], "Lock not expired");
-        require(_deposits[msg.sender] > 0, "No deposit");
+    /// @notice 逐笔提取：仅退该笔本金，各笔互不影响。CEI：先置 withdrawn=true 再 safeTransfer。
+    /// @param trancheIndex _tranches[msg.sender] 的下标
+    function withdraw(uint256 trancheIndex) external nonReentrant {
+        Tranche[] storage list = _tranches[msg.sender];
+        require(trancheIndex < list.length, "Invalid tranche");
 
-        uint256 principal = _deposits[msg.sender];
-        _deposits[msg.sender] = 0;
-        _lockExpiry[msg.sender] = 0;
+        Tranche storage t = list[trancheIndex];
+        require(!t.withdrawn, "Already withdrawn");
+        require(block.timestamp >= t.unlockAt, "Lock not expired");
+
+        uint256 principal = t.amount;
+        t.withdrawn = true;
 
         usdt.safeTransfer(msg.sender, principal);
 
-        emit DepositWithdrawn(msg.sender, principal, 0);
+        emit DepositWithdrawn(msg.sender, principal, trancheIndex);
     }
 
-    /// @notice 为用户 mint 流量卡（锁仓到期后调用，仅 owner 手动发卡入口）
-    /// @dev onlyOwner 薄壳，复用 internal _mintFor；手动发卡要求三校验全部满足（不满足 revert）。
-    function mintTrafficCard(address user) external onlyOwner nonReentrant returns (uint256) {
-        require(_canMint(user), "Mint conditions not met");
-        return _mintFor(user);
-    }
-
-    /// @notice 发卡三校验：锁仓到期 && 有存款 && 当前无卡（幂等）。
-    function _canMint(address user) internal view returns (bool) {
-        return block.timestamp >= _lockExpiry[user]
-            && _deposits[user] > 0
-            && trafficCardNFT.getUserCardCount(user) == 0;
-    }
-
-    /// @notice 内部发卡（B3）：固定额度 trafficCardQuota（v2-C，与存款额/精度解耦）。
-    /// @dev 被 mintTrafficCard(onlyOwner) 与 issueMonthlyTrafficCards(onlyOracle) 复用，逻辑单一。
-    ///      调用方负责权限与 nonReentrant；TrafficCardNFT.mint 内 _userCardCount++ 早于 _safeMint 回调（CEI）。
-    function _mintFor(address user) internal returns (uint256) {
-        uint256 dataAmount = trafficCardQuota;
-        uint256 tokenId = trafficCardNFT.mint(user, dataAmount, generateTokenURI(user));
-
-        emit TrafficCardMinted(user, tokenId, dataAmount);
-        return tokenId;
-    }
-
-    /// @notice 生成 tokenURI
-    function generateTokenURI(address user) public view returns (string memory) {
+    /// @notice 生成 tokenURI（同 tx 多张带索引避免完全重复）
+    function generateTokenURI(address user, uint256 index) public view returns (string memory) {
         return string(abi.encodePacked(
             "https://api.linkworld.io/traffic-card/",
             Strings.toHexString(uint256(uint160(user))),
             "-",
-            Strings.toString(block.timestamp / 1 days)
+            Strings.toString(block.timestamp / 1 days),
+            "-",
+            Strings.toString(index)
         ));
     }
 
-    /// @notice 获取用户保证金余额
+    /// @notice 获取用户全部锁仓笔（前端按笔展示解锁时间 + 取回按钮）
+    function getTranches(address user) external view returns (Tranche[] memory) {
+        return _tranches[user];
+    }
+
+    /// @notice 获取用户锁仓笔数
+    function getTrancheCount(address user) external view returns (uint256) {
+        return _tranches[user].length;
+    }
+
+    /// @notice 获取用户当前锁仓总额（未取回笔 amount 之和）。保持函数名给前端/后端兼容。
     function getDepositAmount(address user) external view returns (uint256) {
-        return _deposits[user];
-    }
-
-    /// @notice 获取用户锁仓到期时间
-    function getLockExpiry(address user) external view returns (uint256) {
-        return _lockExpiry[user];
-    }
-
-    /// @notice 月度批量自动发卡（仅 oracle 调）。
-    /// @dev B3：走独立 internal _mintFor（不经 onlyOwner mintTrafficCard，避免 revert）；
-    ///      每个 user 三校验失败则 continue 跳过（不 revert 整批）；幂等靠 getUserCardCount==0。
-    ///      A1：nonReentrant（_mintFor→nft.mint→_safeMint 有 onERC721Received 回调入口）。
-    ///      消歧：禁用 NFT.mintBatch（其内 this.mint 外部调用会撞 onlyOwner），改逐张 mint。
-    function issueMonthlyTrafficCards(address[] calldata users) external nonReentrant {
-        require(msg.sender == oracle, "Only oracle");
-
-        for (uint256 i = 0; i < users.length; i++) {
-            address user = users[i];
-            if (!_canMint(user)) {
-                continue;
+        Tranche[] storage list = _tranches[user];
+        uint256 total;
+        for (uint256 i = 0; i < list.length; i++) {
+            if (!list[i].withdrawn) {
+                total += list[i].amount;
             }
-            _mintFor(user);
         }
+        return total;
+    }
+
+    /// @notice 兼容旧接口：返回未取回笔中最早的解锁时间（无未取回笔则 0）。
+    function getLockExpiry(address user) external view returns (uint256) {
+        Tranche[] storage list = _tranches[user];
+        uint256 earliest;
+        for (uint256 i = 0; i < list.length; i++) {
+            if (!list[i].withdrawn) {
+                uint256 u = list[i].unlockAt;
+                if (earliest == 0 || u < earliest) {
+                    earliest = u;
+                }
+            }
+        }
+        return earliest;
     }
 
     /// @inheritdoc UUPSUpgradeable

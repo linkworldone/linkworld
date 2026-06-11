@@ -47,6 +47,29 @@ const (
 	DepositStatusConfirmed = "confirmed"
 )
 
+// Sim 是「流量卡销毁兑换 SIM」的链下记录（新玩法）：用户一次性销毁多张流量卡 NFT
+// （每张=1 天）兑换到一张无限流量 SIM（链下实体/eSIM，配送）。
+// 链上只销毁卡 + emit SimRedeemed(user, daysCount, tokenIds)；SIM 身份/天数/收件信息全记后端 DB。
+// Status 两阶段（同押金）：pending(HTTP claim 意向) → confirmed(链上 SimRedeemed 等 K 块确认)。
+type Sim struct {
+	ID          uint      `gorm:"primarykey" json:"id"`
+	UserID      uint      `gorm:"index" json:"userId"`
+	Days        uint      `json:"days"`                      // 无限流量天数(=销毁卡数)
+	Destination string    `gorm:"size:8" json:"destination"` // 目的地 code(US/JP/...)
+	Recipient   string    `json:"recipient"`                 // 收件人
+	AddressLine string    `json:"addressLine"`               // 收件地址
+	TxHash      string    `json:"txHash"`
+	Status      string    `gorm:"size:16;index" json:"status"` // pending → confirmed(同押金两阶段)
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// Sim.Status 取值常量（同押金两阶段状态机）。
+const (
+	SimStatusPending   = "pending"
+	SimStatusConfirmed = "confirmed"
+)
+
 type Bill struct {
 	ID                   uint   `gorm:"primarykey" json:"id"`
 	UserID               uint   `gorm:"index" json:"user_id"`

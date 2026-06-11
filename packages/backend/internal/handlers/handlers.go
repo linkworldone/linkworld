@@ -24,6 +24,7 @@ type Handler struct {
 	virtualGen          *services.VirtualNumberGenerator
 	oracleV2            *services.OracleServiceV2
 	usageService        *services.UsageService
+	simService          *services.SimService
 	// nonceRepo 供 GET /api/auth/nonce/:wallet 签发 WalletAuth 一次性 nonce（arch-review 🔴 N1）。
 	nonceRepo *repository.WalletNonceRepository
 }
@@ -39,6 +40,7 @@ func NewHandler(
 	virtualGen *services.VirtualNumberGenerator,
 	oracleV2 *services.OracleServiceV2,
 	usageService *services.UsageService,
+	simService *services.SimService,
 	nonceRepo *repository.WalletNonceRepository,
 ) *Handler {
 	return &Handler{
@@ -52,6 +54,7 @@ func NewHandler(
 		virtualGen:          virtualGen,
 		oracleV2:            oracleV2,
 		usageService:        usageService,
+		simService:          simService,
 		nonceRepo:           nonceRepo,
 	}
 }
@@ -244,6 +247,49 @@ func (h *Handler) PayBill(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Payment intent recorded (pending; confirmed by on-chain BillPaid event)"})
+}
+
+// SimClaimRequest 「流量卡销毁兑换 SIM」claim 意向（新玩法）。
+// tokenIds 为前端勾选销毁的流量卡 NFT（每张=1 天），days = len(tokenIds)。
+// txHash 为链上 redeemForSim 交易哈希（意向追溯；SIM confirmed 终态唯一由 event_sync 监听 SimRedeemed 回填）。
+type SimClaimRequest struct {
+	Destination string   `json:"destination" binding:"required"`
+	Recipient   string   `json:"recipient" binding:"required"`
+	AddressLine string   `json:"addressLine" binding:"required"`
+	TokenIDs    []uint64 `json:"tokenIds" binding:"required,min=1"`
+	TxHash      string   `json:"txHash"`
+}
+
+// ClaimSim 接收 SIM 兑换 pending 意向（WalletAuth 保护，action "sim/claim"）。
+// ⚠️ 只落 Status=pending 意向——SIM confirmed 终态唯一由 event_sync 监听链上 SimRedeemed 等 K 块回填。
+// R1 防越权：归属 wallet 唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body。
+func (h *Handler) ClaimSim(c *gin.Context) {
+	var req SimClaimRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	authWallet := c.GetString(middleware.CtxWallet)
+	sim, err := h.simService.Claim(authWallet, req.Destination, req.Recipient, req.AddressLine, uint(len(req.TokenIDs)), req.TxHash)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "SIM redemption intent recorded (pending; confirmed by on-chain SimRedeemed event)",
+		"sim":     sim,
+	})
+}
+
+// GetSims 公开读：返回该用户的 SIM 列表（camelCase JSON）。
+func (h *Handler) GetSims(c *gin.Context) {
+	wallet := c.Param("wallet")
+	sims, err := h.simService.GetByWallet(wallet)
+	if err != nil {
+		c.JSON(http.StatusOK, []interface{}{})
+		return
+	}
+	c.JSON(http.StatusOK, sims)
 }
 
 type GenerateVirtualNumberRequest struct {

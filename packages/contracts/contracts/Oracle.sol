@@ -19,17 +19,6 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
         uint256 amount
     );
 
-    // 累计使用量（本月）- 不上链，仅月末汇总
-    mapping(address => mapping(uint256 => UsageInfo)) private _monthlyUsage;
-    // 最新提交的使用数据（用于查询）
-    mapping(address => mapping(uint256 => UsageInfo)) private _latestUsage;
-
-    struct UsageInfo {
-        uint256 dataUsage;
-        uint256 callUsage;
-        uint256 timestamp;
-    }
-
     /// @notice Initializer
     function initialize() public initializer {
         __Ownable_init(msg.sender);
@@ -81,9 +70,8 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
             }
         }
 
-        if (address(deposit) != address(0)) {
-            deposit.issueMonthlyTrafficCards(users);
-        }
+        // 发卡逻辑已迁移：Deposit 改为"充值即按比例发卡"，不再有月度批量发卡入口。
+        // 这里只做账单生成 + 流量卡抵扣（用户在 deposit 时已持卡）。
 
         if (address(payment) != address(0)) {
             for (uint256 i = 0; i < users.length; i++) {
@@ -96,6 +84,7 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     /// @notice 提交使用数据（预留接口，用于 0G Compute/Chainlink 接入）
+    /// @dev 预留接口，本轮 v2-A 不参与计价；旁路去留与后端(2/3)对齐（design §4.4 / arch-review ⚠️5）。
     function submitUsage(
         address user,
         uint256,

@@ -21,7 +21,7 @@ export function Header() {
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/notifications")} className="relative min-w-[44px] min-h-[44px] flex items-center justify-center text-text-on-dark-secondary">
             <Bell className="size-5" strokeWidth={1.75} />
-            {unreadCount && unreadCount > 0 && (
+            {(unreadCount ?? 0) > 0 && (
               <span className="absolute top-1.5 right-1.5 bg-status-danger text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center">{unreadCount}</span>
             )}
           </button>
@@ -34,7 +34,7 @@ export function Header() {
   const pageTitles: Record<string, string> = {
     "/deposit": "Deposit",
     "/services": "Services",
-    "/billing": "Billing",
+    "/billing": "History",
     "/notifications": "Notifications",
   };
 

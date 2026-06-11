@@ -29,9 +29,16 @@ var (
 	_ = abi.ConvertType
 )
 
+// IDepositTranche is an auto generated low-level Go binding around an user-defined struct.
+type IDepositTranche struct {
+	Amount    *big.Int
+	UnlockAt  *big.Int
+	Withdrawn bool
+}
+
 // DepositMetaData contains all meta data concerning the Deposit contract.
 var DepositMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"}],\"name\":\"AddressEmptyCode\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"implementation\",\"type\":\"address\"}],\"name\":\"ERC1967InvalidImplementation\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ERC1967NonPayable\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"FailedCall\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"InvalidInitialization\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"NotInitializing\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"OwnableInvalidOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"OwnableUnauthorizedAccount\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ReentrancyGuardReentrantCall\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"token\",\"type\":\"address\"}],\"name\":\"SafeERC20FailedOperation\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"length\",\"type\":\"uint256\"}],\"name\":\"StringsInsufficientHexLength\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"UUPSUnauthorizedCallContext\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"slot\",\"type\":\"bytes32\"}],\"name\":\"UUPSUnsupportedProxiableUUID\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"DepositMade\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"principal\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"interest\",\"type\":\"uint256\"}],\"name\":\"DepositWithdrawn\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"version\",\"type\":\"uint64\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"tokenId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"dataAmount\",\"type\":\"uint256\"}],\"name\":\"TrafficCardMinted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"implementation\",\"type\":\"address\"}],\"name\":\"Upgraded\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"UPGRADE_INTERFACE_VERSION\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"}],\"name\":\"generateTokenURI\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"}],\"name\":\"getDepositAmount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"}],\"name\":\"getLockExpiry\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_userRegistry\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_usdt\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"users\",\"type\":\"address[]\"}],\"name\":\"issueMonthlyTrafficCards\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"}],\"name\":\"mintTrafficCard\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"oracle\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"proxiableUUID\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_oracle\",\"type\":\"address\"}],\"name\":\"setOracle\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_trafficCardNFT\",\"type\":\"address\"}],\"name\":\"setTrafficCardNFT\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"trafficCardNFT\",\"outputs\":[{\"internalType\":\"contractITrafficCardNFT\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"trafficCardQuota\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newImplementation\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"upgradeToAndCall\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"usdt\",\"outputs\":[{\"internalType\":\"contractIERC20\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"userRegistry\",\"outputs\":[{\"internalType\":\"contractIUserRegistry\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"}],\"name\":\"AddressEmptyCode\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"implementation\",\"type\":\"address\"}],\"name\":\"ERC1967InvalidImplementation\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ERC1967NonPayable\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"FailedCall\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"InvalidInitialization\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"NotInitializing\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"OwnableInvalidOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"OwnableUnauthorizedAccount\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ReentrancyGuardReentrantCall\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"token\",\"type\":\"address\"}],\"name\":\"SafeERC20FailedOperation\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"length\",\"type\":\"uint256\"}],\"name\":\"StringsInsufficientHexLength\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"UUPSUnauthorizedCallContext\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"slot\",\"type\":\"bytes32\"}],\"name\":\"UUPSUnsupportedProxiableUUID\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"DepositMade\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"trancheIndex\",\"type\":\"uint256\"}],\"name\":\"DepositWithdrawn\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"version\",\"type\":\"uint64\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"tokenId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"dataAmount\",\"type\":\"uint256\"}],\"name\":\"TrafficCardMinted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"implementation\",\"type\":\"address\"}],\"name\":\"Upgraded\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"LOCK_PERIOD\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UPGRADE_INTERFACE_VERSION\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"generateTokenURI\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"}],\"name\":\"getDepositAmount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"}],\"name\":\"getLockExpiry\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"}],\"name\":\"getTrancheCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"}],\"name\":\"getTranches\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"unlockAt\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"withdrawn\",\"type\":\"bool\"}],\"internalType\":\"structIDeposit.Tranche[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_userRegistry\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_usdt\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"oracle\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"proxiableUUID\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_oracle\",\"type\":\"address\"}],\"name\":\"setOracle\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_trafficCardNFT\",\"type\":\"address\"}],\"name\":\"setTrafficCardNFT\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"trafficCardNFT\",\"outputs\":[{\"internalType\":\"contractITrafficCardNFT\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newImplementation\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"upgradeToAndCall\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"usdt\",\"outputs\":[{\"internalType\":\"contractIERC20\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"userRegistry\",\"outputs\":[{\"internalType\":\"contractIUserRegistry\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"trancheIndex\",\"type\":\"uint256\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // DepositABI is the input ABI used to generate the binding from.
@@ -180,6 +187,37 @@ func (_Deposit *DepositTransactorRaw) Transact(opts *bind.TransactOpts, method s
 	return _Deposit.Contract.contract.Transact(opts, method, params...)
 }
 
+// LOCKPERIOD is a free data retrieval call binding the contract method 0x1820cabb.
+//
+// Solidity: function LOCK_PERIOD() view returns(uint256)
+func (_Deposit *DepositCaller) LOCKPERIOD(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _Deposit.contract.Call(opts, &out, "LOCK_PERIOD")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// LOCKPERIOD is a free data retrieval call binding the contract method 0x1820cabb.
+//
+// Solidity: function LOCK_PERIOD() view returns(uint256)
+func (_Deposit *DepositSession) LOCKPERIOD() (*big.Int, error) {
+	return _Deposit.Contract.LOCKPERIOD(&_Deposit.CallOpts)
+}
+
+// LOCKPERIOD is a free data retrieval call binding the contract method 0x1820cabb.
+//
+// Solidity: function LOCK_PERIOD() view returns(uint256)
+func (_Deposit *DepositCallerSession) LOCKPERIOD() (*big.Int, error) {
+	return _Deposit.Contract.LOCKPERIOD(&_Deposit.CallOpts)
+}
+
 // UPGRADEINTERFACEVERSION is a free data retrieval call binding the contract method 0xad3cb1cc.
 //
 // Solidity: function UPGRADE_INTERFACE_VERSION() view returns(string)
@@ -211,12 +249,12 @@ func (_Deposit *DepositCallerSession) UPGRADEINTERFACEVERSION() (string, error) 
 	return _Deposit.Contract.UPGRADEINTERFACEVERSION(&_Deposit.CallOpts)
 }
 
-// GenerateTokenURI is a free data retrieval call binding the contract method 0xee74c96e.
+// GenerateTokenURI is a free data retrieval call binding the contract method 0x13613d4d.
 //
-// Solidity: function generateTokenURI(address user) view returns(string)
-func (_Deposit *DepositCaller) GenerateTokenURI(opts *bind.CallOpts, user common.Address) (string, error) {
+// Solidity: function generateTokenURI(address user, uint256 index) view returns(string)
+func (_Deposit *DepositCaller) GenerateTokenURI(opts *bind.CallOpts, user common.Address, index *big.Int) (string, error) {
 	var out []interface{}
-	err := _Deposit.contract.Call(opts, &out, "generateTokenURI", user)
+	err := _Deposit.contract.Call(opts, &out, "generateTokenURI", user, index)
 
 	if err != nil {
 		return *new(string), err
@@ -228,18 +266,18 @@ func (_Deposit *DepositCaller) GenerateTokenURI(opts *bind.CallOpts, user common
 
 }
 
-// GenerateTokenURI is a free data retrieval call binding the contract method 0xee74c96e.
+// GenerateTokenURI is a free data retrieval call binding the contract method 0x13613d4d.
 //
-// Solidity: function generateTokenURI(address user) view returns(string)
-func (_Deposit *DepositSession) GenerateTokenURI(user common.Address) (string, error) {
-	return _Deposit.Contract.GenerateTokenURI(&_Deposit.CallOpts, user)
+// Solidity: function generateTokenURI(address user, uint256 index) view returns(string)
+func (_Deposit *DepositSession) GenerateTokenURI(user common.Address, index *big.Int) (string, error) {
+	return _Deposit.Contract.GenerateTokenURI(&_Deposit.CallOpts, user, index)
 }
 
-// GenerateTokenURI is a free data retrieval call binding the contract method 0xee74c96e.
+// GenerateTokenURI is a free data retrieval call binding the contract method 0x13613d4d.
 //
-// Solidity: function generateTokenURI(address user) view returns(string)
-func (_Deposit *DepositCallerSession) GenerateTokenURI(user common.Address) (string, error) {
-	return _Deposit.Contract.GenerateTokenURI(&_Deposit.CallOpts, user)
+// Solidity: function generateTokenURI(address user, uint256 index) view returns(string)
+func (_Deposit *DepositCallerSession) GenerateTokenURI(user common.Address, index *big.Int) (string, error) {
+	return _Deposit.Contract.GenerateTokenURI(&_Deposit.CallOpts, user, index)
 }
 
 // GetDepositAmount is a free data retrieval call binding the contract method 0xb8ba16fd.
@@ -302,6 +340,68 @@ func (_Deposit *DepositSession) GetLockExpiry(user common.Address) (*big.Int, er
 // Solidity: function getLockExpiry(address user) view returns(uint256)
 func (_Deposit *DepositCallerSession) GetLockExpiry(user common.Address) (*big.Int, error) {
 	return _Deposit.Contract.GetLockExpiry(&_Deposit.CallOpts, user)
+}
+
+// GetTrancheCount is a free data retrieval call binding the contract method 0x49cfece1.
+//
+// Solidity: function getTrancheCount(address user) view returns(uint256)
+func (_Deposit *DepositCaller) GetTrancheCount(opts *bind.CallOpts, user common.Address) (*big.Int, error) {
+	var out []interface{}
+	err := _Deposit.contract.Call(opts, &out, "getTrancheCount", user)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetTrancheCount is a free data retrieval call binding the contract method 0x49cfece1.
+//
+// Solidity: function getTrancheCount(address user) view returns(uint256)
+func (_Deposit *DepositSession) GetTrancheCount(user common.Address) (*big.Int, error) {
+	return _Deposit.Contract.GetTrancheCount(&_Deposit.CallOpts, user)
+}
+
+// GetTrancheCount is a free data retrieval call binding the contract method 0x49cfece1.
+//
+// Solidity: function getTrancheCount(address user) view returns(uint256)
+func (_Deposit *DepositCallerSession) GetTrancheCount(user common.Address) (*big.Int, error) {
+	return _Deposit.Contract.GetTrancheCount(&_Deposit.CallOpts, user)
+}
+
+// GetTranches is a free data retrieval call binding the contract method 0x39732bcc.
+//
+// Solidity: function getTranches(address user) view returns((uint256,uint256,bool)[])
+func (_Deposit *DepositCaller) GetTranches(opts *bind.CallOpts, user common.Address) ([]IDepositTranche, error) {
+	var out []interface{}
+	err := _Deposit.contract.Call(opts, &out, "getTranches", user)
+
+	if err != nil {
+		return *new([]IDepositTranche), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]IDepositTranche)).(*[]IDepositTranche)
+
+	return out0, err
+
+}
+
+// GetTranches is a free data retrieval call binding the contract method 0x39732bcc.
+//
+// Solidity: function getTranches(address user) view returns((uint256,uint256,bool)[])
+func (_Deposit *DepositSession) GetTranches(user common.Address) ([]IDepositTranche, error) {
+	return _Deposit.Contract.GetTranches(&_Deposit.CallOpts, user)
+}
+
+// GetTranches is a free data retrieval call binding the contract method 0x39732bcc.
+//
+// Solidity: function getTranches(address user) view returns((uint256,uint256,bool)[])
+func (_Deposit *DepositCallerSession) GetTranches(user common.Address) ([]IDepositTranche, error) {
+	return _Deposit.Contract.GetTranches(&_Deposit.CallOpts, user)
 }
 
 // Oracle is a free data retrieval call binding the contract method 0x7dc0d1d0.
@@ -428,37 +528,6 @@ func (_Deposit *DepositCallerSession) TrafficCardNFT() (common.Address, error) {
 	return _Deposit.Contract.TrafficCardNFT(&_Deposit.CallOpts)
 }
 
-// TrafficCardQuota is a free data retrieval call binding the contract method 0x3ce8bfc6.
-//
-// Solidity: function trafficCardQuota() view returns(uint256)
-func (_Deposit *DepositCaller) TrafficCardQuota(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _Deposit.contract.Call(opts, &out, "trafficCardQuota")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// TrafficCardQuota is a free data retrieval call binding the contract method 0x3ce8bfc6.
-//
-// Solidity: function trafficCardQuota() view returns(uint256)
-func (_Deposit *DepositSession) TrafficCardQuota() (*big.Int, error) {
-	return _Deposit.Contract.TrafficCardQuota(&_Deposit.CallOpts)
-}
-
-// TrafficCardQuota is a free data retrieval call binding the contract method 0x3ce8bfc6.
-//
-// Solidity: function trafficCardQuota() view returns(uint256)
-func (_Deposit *DepositCallerSession) TrafficCardQuota() (*big.Int, error) {
-	return _Deposit.Contract.TrafficCardQuota(&_Deposit.CallOpts)
-}
-
 // Usdt is a free data retrieval call binding the contract method 0x2f48ab7d.
 //
 // Solidity: function usdt() view returns(address)
@@ -561,48 +630,6 @@ func (_Deposit *DepositSession) Initialize(_userRegistry common.Address, _usdt c
 // Solidity: function initialize(address _userRegistry, address _usdt) returns()
 func (_Deposit *DepositTransactorSession) Initialize(_userRegistry common.Address, _usdt common.Address) (*types.Transaction, error) {
 	return _Deposit.Contract.Initialize(&_Deposit.TransactOpts, _userRegistry, _usdt)
-}
-
-// IssueMonthlyTrafficCards is a paid mutator transaction binding the contract method 0x0948eaad.
-//
-// Solidity: function issueMonthlyTrafficCards(address[] users) returns()
-func (_Deposit *DepositTransactor) IssueMonthlyTrafficCards(opts *bind.TransactOpts, users []common.Address) (*types.Transaction, error) {
-	return _Deposit.contract.Transact(opts, "issueMonthlyTrafficCards", users)
-}
-
-// IssueMonthlyTrafficCards is a paid mutator transaction binding the contract method 0x0948eaad.
-//
-// Solidity: function issueMonthlyTrafficCards(address[] users) returns()
-func (_Deposit *DepositSession) IssueMonthlyTrafficCards(users []common.Address) (*types.Transaction, error) {
-	return _Deposit.Contract.IssueMonthlyTrafficCards(&_Deposit.TransactOpts, users)
-}
-
-// IssueMonthlyTrafficCards is a paid mutator transaction binding the contract method 0x0948eaad.
-//
-// Solidity: function issueMonthlyTrafficCards(address[] users) returns()
-func (_Deposit *DepositTransactorSession) IssueMonthlyTrafficCards(users []common.Address) (*types.Transaction, error) {
-	return _Deposit.Contract.IssueMonthlyTrafficCards(&_Deposit.TransactOpts, users)
-}
-
-// MintTrafficCard is a paid mutator transaction binding the contract method 0xb81d9ac2.
-//
-// Solidity: function mintTrafficCard(address user) returns(uint256)
-func (_Deposit *DepositTransactor) MintTrafficCard(opts *bind.TransactOpts, user common.Address) (*types.Transaction, error) {
-	return _Deposit.contract.Transact(opts, "mintTrafficCard", user)
-}
-
-// MintTrafficCard is a paid mutator transaction binding the contract method 0xb81d9ac2.
-//
-// Solidity: function mintTrafficCard(address user) returns(uint256)
-func (_Deposit *DepositSession) MintTrafficCard(user common.Address) (*types.Transaction, error) {
-	return _Deposit.Contract.MintTrafficCard(&_Deposit.TransactOpts, user)
-}
-
-// MintTrafficCard is a paid mutator transaction binding the contract method 0xb81d9ac2.
-//
-// Solidity: function mintTrafficCard(address user) returns(uint256)
-func (_Deposit *DepositTransactorSession) MintTrafficCard(user common.Address) (*types.Transaction, error) {
-	return _Deposit.Contract.MintTrafficCard(&_Deposit.TransactOpts, user)
 }
 
 // RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.
@@ -710,25 +737,25 @@ func (_Deposit *DepositTransactorSession) UpgradeToAndCall(newImplementation com
 	return _Deposit.Contract.UpgradeToAndCall(&_Deposit.TransactOpts, newImplementation, data)
 }
 
-// Withdraw is a paid mutator transaction binding the contract method 0x3ccfd60b.
+// Withdraw is a paid mutator transaction binding the contract method 0x2e1a7d4d.
 //
-// Solidity: function withdraw() returns()
-func (_Deposit *DepositTransactor) Withdraw(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _Deposit.contract.Transact(opts, "withdraw")
+// Solidity: function withdraw(uint256 trancheIndex) returns()
+func (_Deposit *DepositTransactor) Withdraw(opts *bind.TransactOpts, trancheIndex *big.Int) (*types.Transaction, error) {
+	return _Deposit.contract.Transact(opts, "withdraw", trancheIndex)
 }
 
-// Withdraw is a paid mutator transaction binding the contract method 0x3ccfd60b.
+// Withdraw is a paid mutator transaction binding the contract method 0x2e1a7d4d.
 //
-// Solidity: function withdraw() returns()
-func (_Deposit *DepositSession) Withdraw() (*types.Transaction, error) {
-	return _Deposit.Contract.Withdraw(&_Deposit.TransactOpts)
+// Solidity: function withdraw(uint256 trancheIndex) returns()
+func (_Deposit *DepositSession) Withdraw(trancheIndex *big.Int) (*types.Transaction, error) {
+	return _Deposit.Contract.Withdraw(&_Deposit.TransactOpts, trancheIndex)
 }
 
-// Withdraw is a paid mutator transaction binding the contract method 0x3ccfd60b.
+// Withdraw is a paid mutator transaction binding the contract method 0x2e1a7d4d.
 //
-// Solidity: function withdraw() returns()
-func (_Deposit *DepositTransactorSession) Withdraw() (*types.Transaction, error) {
-	return _Deposit.Contract.Withdraw(&_Deposit.TransactOpts)
+// Solidity: function withdraw(uint256 trancheIndex) returns()
+func (_Deposit *DepositTransactorSession) Withdraw(trancheIndex *big.Int) (*types.Transaction, error) {
+	return _Deposit.Contract.Withdraw(&_Deposit.TransactOpts, trancheIndex)
 }
 
 // DepositDepositMadeIterator is returned from FilterDepositMade and is used to iterate over the raw logs and unpacked data for DepositMade events raised by the Deposit contract.
@@ -945,15 +972,15 @@ func (it *DepositDepositWithdrawnIterator) Close() error {
 
 // DepositDepositWithdrawn represents a DepositWithdrawn event raised by the Deposit contract.
 type DepositDepositWithdrawn struct {
-	User      common.Address
-	Principal *big.Int
-	Interest  *big.Int
-	Raw       types.Log // Blockchain specific contextual infos
+	User         common.Address
+	Amount       *big.Int
+	TrancheIndex *big.Int
+	Raw          types.Log // Blockchain specific contextual infos
 }
 
 // FilterDepositWithdrawn is a free log retrieval operation binding the contract event 0x7719804546c0185709e60c90d164447ff251a5ba29af0216faa921350f6bebf7.
 //
-// Solidity: event DepositWithdrawn(address indexed user, uint256 principal, uint256 interest)
+// Solidity: event DepositWithdrawn(address indexed user, uint256 amount, uint256 trancheIndex)
 func (_Deposit *DepositFilterer) FilterDepositWithdrawn(opts *bind.FilterOpts, user []common.Address) (*DepositDepositWithdrawnIterator, error) {
 
 	var userRule []interface{}
@@ -970,7 +997,7 @@ func (_Deposit *DepositFilterer) FilterDepositWithdrawn(opts *bind.FilterOpts, u
 
 // WatchDepositWithdrawn is a free log subscription operation binding the contract event 0x7719804546c0185709e60c90d164447ff251a5ba29af0216faa921350f6bebf7.
 //
-// Solidity: event DepositWithdrawn(address indexed user, uint256 principal, uint256 interest)
+// Solidity: event DepositWithdrawn(address indexed user, uint256 amount, uint256 trancheIndex)
 func (_Deposit *DepositFilterer) WatchDepositWithdrawn(opts *bind.WatchOpts, sink chan<- *DepositDepositWithdrawn, user []common.Address) (event.Subscription, error) {
 
 	var userRule []interface{}
@@ -1012,7 +1039,7 @@ func (_Deposit *DepositFilterer) WatchDepositWithdrawn(opts *bind.WatchOpts, sin
 
 // ParseDepositWithdrawn is a log parse operation binding the contract event 0x7719804546c0185709e60c90d164447ff251a5ba29af0216faa921350f6bebf7.
 //
-// Solidity: event DepositWithdrawn(address indexed user, uint256 principal, uint256 interest)
+// Solidity: event DepositWithdrawn(address indexed user, uint256 amount, uint256 trancheIndex)
 func (_Deposit *DepositFilterer) ParseDepositWithdrawn(log types.Log) (*DepositDepositWithdrawn, error) {
 	event := new(DepositDepositWithdrawn)
 	if err := _Deposit.contract.UnpackLog(event, "DepositWithdrawn", log); err != nil {

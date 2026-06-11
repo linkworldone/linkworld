@@ -30,17 +30,16 @@ export default function Notifications() {
 
   return (
     <div className="px-4 space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-[17px] font-bold">Notifications</h2>
-        {unread.length > 0 && (
+      {unread.length > 0 && (
+        <div className="flex justify-end">
           <button
             onClick={() => address && markAllAsRead.mutate(address)}
             className="text-xs text-brand-royal font-semibold"
           >
             Mark all read
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {!notifications?.length ? (
         <EmptyState icon={Bell} message="No notifications yet." />

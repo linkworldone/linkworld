@@ -286,3 +286,47 @@ func (s *UserServiceService) GetUserService(wallet string) (*models.UserService,
 }
 
 var ErrServiceAlreadyActive = &ServiceError{"Service already active"}
+
+// SimService 「流量卡销毁兑换 SIM」业务（新玩法，design 新增）。
+// 用户在前端勾选多张流量卡 NFT 一次性 redeemForSim 销毁，兑换到一张无限流量 SIM。
+// 链上只销毁卡 + emit SimRedeemed；SIM 身份/天数/收件信息全记后端 DB。
+type SimService struct {
+	simRepo  *repository.SimRepository
+	userRepo *repository.UserRepository
+}
+
+func NewSimService(simRepo *repository.SimRepository, userRepo *repository.UserRepository) *SimService {
+	return &SimService{simRepo: simRepo, userRepo: userRepo}
+}
+
+// Claim 记录用户 SIM 兑换 pending 意向（同押金两阶段状态机）。
+// ⚠️ 写 Status=pending——SIM 终态(confirmed)唯一由 event_sync 监听 SimRedeemed 等 K 块回填。
+// days = 销毁卡数（len(tokenIds)），归属 wallet 由调用方从 WalletAuth CtxWallet 取（不信 body）。
+func (s *SimService) Claim(wallet, destination, recipient, addressLine string, days uint, txHash string) (*models.Sim, error) {
+	user, err := s.userRepo.FindByWallet(wallet)
+	if err != nil {
+		return nil, err
+	}
+	sim := &models.Sim{
+		UserID:      user.ID,
+		Days:        days,
+		Destination: destination,
+		Recipient:   recipient,
+		AddressLine: addressLine,
+		TxHash:      txHash,
+		Status:      models.SimStatusPending,
+	}
+	if err := s.simRepo.Create(sim); err != nil {
+		return nil, err
+	}
+	return sim, nil
+}
+
+// GetByWallet 返回该用户的 SIM 列表。
+func (s *SimService) GetByWallet(wallet string) ([]models.Sim, error) {
+	user, err := s.userRepo.FindByWallet(wallet)
+	if err != nil {
+		return nil, err
+	}
+	return s.simRepo.FindByUserID(user.ID)
+}

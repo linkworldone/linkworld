@@ -210,8 +210,8 @@ func (c *Client) depositCaller() (*bindings.DepositCaller, error) {
 //   - 本地 nonce 计数器取 nonce（发一笔 +1），失败时下次 resync。
 //   - bind.WaitMined 等回执，返回 *types.Receipt（status=1 成功，0 失败；供 T6 失败批续跑用）。
 //
-// 注：Oracle.monthlySettlement 内部已调 deposit.issueMonthlyTrafficCards(users)（Oracle.sol），
-// 故 IssueMonthlyTrafficCards 一般无需后端单独发；仍提供独立方法以备手动补发。
+// 注：月卡发放逻辑已从合约移除（Oracle.monthlySettlement 不再调 deposit.issueMonthlyTrafficCards），
+// 后端亦不再提供对应发卡方法。
 func (c *Client) MonthlySettlement(ctx context.Context, users []common.Address, operatorIds, amounts []*big.Int) (*types.Receipt, error) {
 	if !c.CanWrite() {
 		return nil, fmt.Errorf("链上写已降级关闭：owner key 未注入（只读仍可）")
@@ -240,32 +240,6 @@ func (c *Client) MonthlySettlement(ctx context.Context, users []common.Address, 
 	if err != nil {
 		c.markNonceDirty() // 发送失败：下次 resync，避免计数器跑偏
 		return nil, fmt.Errorf("send monthlySettlement: %w", err)
-	}
-	return c.waitMined(ctx, sentTx)
-}
-
-// IssueMonthlyTrafficCards 调 Deposit.issueMonthlyTrafficCards(users) 手动补发月卡
-//（onlyOracle：要求 client 的 owner == 链上 Oracle 调用者语义，本轮供机制完整性，T6 视需调用）。
-func (c *Client) IssueMonthlyTrafficCards(ctx context.Context, users []common.Address) (*types.Receipt, error) {
-	if !c.CanWrite() {
-		return nil, fmt.Errorf("链上写已降级关闭：owner key 未注入（只读仍可）")
-	}
-	addr, ok := c.contracts["Deposit"]
-	if !ok {
-		return nil, fmt.Errorf("Deposit 合约地址未配置")
-	}
-	tx, err := bindings.NewDepositTransactor(addr, c.backend)
-	if err != nil {
-		return nil, err
-	}
-	opts, err := c.newTransactOpts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	sentTx, err := tx.IssueMonthlyTrafficCards(opts, users)
-	if err != nil {
-		c.markNonceDirty()
-		return nil, fmt.Errorf("send issueMonthlyTrafficCards: %w", err)
 	}
 	return c.waitMined(ctx, sentTx)
 }

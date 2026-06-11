@@ -6,10 +6,10 @@ require (
 	github.com/ethereum/go-ethereum v1.13.5
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
-	github.com/glebarez/sqlite v1.11.0
+	github.com/glebarez/sqlite v1.10.0
 	github.com/stretchr/testify v1.11.1
 	gorm.io/driver/postgres v1.5.4
-	gorm.io/gorm v1.25.7
+	gorm.io/gorm v1.25.6
 )
 
 require (
