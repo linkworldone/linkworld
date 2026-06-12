@@ -15,11 +15,14 @@ export const arbitrumSepolia = defineChain({
   testnet: true,
 });
 
+// 本地链 RPC 可通过 VITE_RPC_URL 覆盖（公网部署时指向 Caddy 反代的 /rpc），缺省回退到本机 hardhat
+const LOCAL_RPC = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
+
 export const hardhatLocal = defineChain({
   id: 31337,
   name: "Hardhat Local",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
-    default: { http: ["http://127.0.0.1:8545"] },
+    default: { http: [LOCAL_RPC] },
   },
 });
