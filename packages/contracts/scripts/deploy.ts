@@ -1,6 +1,39 @@
-import { ethers, upgrades, network } from "hardhat";
+import { ethers, ContractTransaction, upgrades, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
+
+async function sendAndWait(txPromise: Promise<ContractTransaction>, description: string) {
+  const tx = await txPromise;
+  console.log(`${description} tx hash: ${tx.hash}`);
+  await tx.wait();
+}
+
+function multiplyFeeValue(value: unknown | undefined, factor = 2n) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "bigint") return value * factor;
+  if (typeof value === "number") return BigInt(value) * factor;
+  if (typeof value === "string") return BigInt(value) * factor;
+  if (typeof value === "object" && value !== null && "toBigInt" in value) {
+    return (value as any).toBigInt() * factor;
+  }
+  return undefined;
+}
+
+async function getTxOverrides() {
+  const feeData = await ethers.provider.getFeeData();
+  const maxFeePerGas = multiplyFeeValue(feeData.maxFeePerGas);
+  const maxPriorityFeePerGas = multiplyFeeValue(feeData.maxPriorityFeePerGas);
+  if (maxFeePerGas && maxPriorityFeePerGas) {
+    return {
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    };
+  }
+
+  const gasPriceValue = feeData.gasPrice ?? (await ethers.provider.getGasPrice());
+  const gasPrice = multiplyFeeValue(gasPriceValue);
+  return gasPrice ? { gasPrice } : {};
+}
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -77,15 +110,16 @@ async function main() {
   console.log("Oracle:", oracleAddr);
 
   // 关联合约 (v3 简化)
-  await trafficCardNFT.setDepositContract(depositAddr);
-  await deposit.setTrafficCardNFT(trafficCardNFTAddr);
-  await deposit.setOracle(oracleAddr);
-  await payment.setPlatformWallet(deployer.address);
-  await oracle.setDeposit(depositAddr);
+  const txOverrides = await getTxOverrides();
+  await sendAndWait(trafficCardNFT.setDepositContract(depositAddr, txOverrides), "trafficCardNFT.setDepositContract");
+  await sendAndWait(deposit.setTrafficCardNFT(trafficCardNFTAddr, txOverrides), "deposit.setTrafficCardNFT");
+  await sendAndWait(deposit.setOracle(oracleAddr, txOverrides), "deposit.setOracle");
+  await sendAndWait(payment.setPlatformWallet(deployer.address, txOverrides), "payment.setPlatformWallet");
+  await sendAndWait(oracle.setDeposit(depositAddr, txOverrides), "oracle.setDeposit");
   console.log("Contracts linked");
 
   // 将 TrafficCardNFT 的 ownership 转给 Deposit 合约，让其可调用 mint
-  await trafficCardNFT.transferOwnership(depositAddr);
+  await sendAndWait(trafficCardNFT.transferOwnership(depositAddr, txOverrides), "trafficCardNFT.transferOwnership");
   console.log("TrafficCardNFT ownership transferred to Deposit");
 
   console.log("\n=== Deployment Summary ===");

@@ -66,7 +66,7 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
 
             if (dataUsage > 0 || callUsage > 0) {
                 uint256 totalAmount = dataUsage + callUsage;
-                payment.createBill(user, operatorId, totalAmount);
+                IPayment(payment).createBill(user, operatorId, totalAmount);
 
                 emit UsageDataSubmitted(user, operatorId, dataUsage, callUsage);
             }
@@ -75,14 +75,14 @@ contract Oracle is IOracle, OwnableUpgradeable, UUPSUpgradeable {
         }
 
         if (address(deposit) != address(0)) {
-            deposit.issueMonthlyTrafficCards(users);
+            IDeposit(deposit).issueMonthlyTrafficCards(users);
         }
 
         if (address(payment) != address(0)) {
             for (uint256 i = 0; i < users.length; i++) {
                 IPayment.Bill[] memory unpaidBills = IPayment(payment).getUnpaidBills(users[i]);
                 if (unpaidBills.length > 0) {
-                    payment.applyTrafficCardToBill(unpaidBills[0].id);
+                    IPayment(payment).applyTrafficCardToBill(unpaidBills[0].id);
                 }
             }
         }

@@ -32,6 +32,12 @@ const config: HardhatUserConfig = {
       accounts: [DEPLOYER_KEY],
       timeout: 60000,
     },
+    sepolia: {
+      url: "https://ethereum-sepolia-rpc.publicnode.com",
+      chainId: 11155111,
+      accounts: [DEPLOYER_KEY],
+      timeout: 60000,
+    },
   },
   paths: {
     sources: "./contracts",

@@ -1,0 +1,11 @@
+{
+  "chainId": 11155111,
+  "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+  "contracts": {
+    "FeeManager": "0xABdAE095405Babab3A1D03F30c85c4BafAE4C236",
+    "UserRegistry": "0xDd6A8925189408e19752B28E392CA1Bb129313a2",
+    "ServiceManager": "0x3f17EA83F26C4b19Dab8C80c9A87B8F3058dEE3D",
+    "TrafficCardNFT": "0xdB8E0B11892b12f035279f51f0F678C2063724Ec",
+    "Payment": "0xB78f201232Bb1b853e0DDBC0514b6233aaf5eb5b"
+  }
+}

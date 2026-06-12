@@ -12,6 +12,7 @@ interface IOracle {
     }
 
     event ServiceVerified(address indexed user, bool isActive);
+    event UsageDataSubmitted(address indexed user, uint256 indexed operatorId, uint256 dataUsage, uint256 callUsage);
 
     function verifyServiceActive(address user) external view returns (bool);
     function submitUsage(

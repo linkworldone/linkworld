@@ -1,0 +1,21 @@
+{
+  "chainId": 11155111,
+  "proxies": {
+    "FeeManager": "0x60dfe503d240B3f45C6c6fb22B4D958a3dad04aC",
+    "UserRegistry": "0xb254b70037FB8F0DdaDc8cAAa11C40261f9f3f35",
+    "ServiceManager": "0xbb2D970F1b4A0188504AE2390BBd86aD8fAd08C8",
+    "TrafficCardNFT": "0xf52A6dF2Fa5A5d22FBd0471575e8d2F9F93c52c1",
+    "Payment": "0x703BBe527191984abd3a754449d96f2DB911600f",
+    "Deposit": "0x7Ac1a76f10c1b82Ef1592eA176e286f3797b7566",
+    "Oracle": "0xb541184AAd45B8DA314902b7eF6cBAFCD8350288"
+  },
+  "implementations": {
+    "FeeManager": "0x727737dD7Eb0216B05A2Fd9722b1574c1e3B1F0d",
+    "UserRegistry": "0x46A37B515058AAc4100037cf0291529066960104",
+    "ServiceManager": "0x859De1c9543cb80f3cB9A55e2Ac690fA2b70f314",
+    "TrafficCardNFT": "0xC795D0B5f37c365f3aB35d9265fbDB0A985cb683",
+    "Payment": "0x2c496068577719B096faA15dDcdf76F9543Fa2e1",
+    "Deposit": "0xffcFc38663Ff7BA540490F403beaDE4F29835611",
+    "Oracle": "0x45d2E95790AC00d9c47E4feDbeF8633836C717Da"
+  }
+}
