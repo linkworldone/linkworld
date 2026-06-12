@@ -32,10 +32,19 @@ const config: HardhatUserConfig = {
       accounts: [DEPLOYER_KEY],
       timeout: 60000,
     },
+<<<<<<< HEAD
     sepolia: {
       url: "https://ethereum-sepolia-rpc.publicnode.com",
       chainId: 11155111,
       accounts: [DEPLOYER_KEY],
+=======
+    // Arbitrum Sepolia 测试网（本轮目标部署网络，fresh deploy）
+    // 有 DEPLOYER_PRIVATE_KEY 则用之，无则空数组（避免无 key 时报错，仍可 compile/test）
+    arbitrum_sepolia: {
+      url: process.env.ARBITRUM_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
+      chainId: 421614,
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+>>>>>>> 48e2c2a1bafc65ef37ea369d3f85ef9eb004e69d
       timeout: 60000,
     },
   },

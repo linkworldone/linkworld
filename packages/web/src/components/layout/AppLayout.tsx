@@ -4,6 +4,7 @@ import { useUser } from "@/hooks/useUser";
 import { Header } from "./Header";
 import { TabBar } from "./TabBar";
 import { GuardCard } from "@/components/shared/GuardCard";
+import { Wallet, ShieldAlert } from "lucide-react";
 
 export function AppLayout() {
   const { address, isConnected } = useAccount();
@@ -31,7 +32,7 @@ export function AppLayout() {
       return (
         <div className="max-w-mobile mx-auto min-h-screen bg-surface">
           <Header />
-          <GuardCard icon={"\u{1F4B0}"} title="Deposit Required" message="You need to deposit funds before accessing this feature." actionLabel="Go to Deposit" actionPath="/deposit" />
+          <GuardCard icon={Wallet} title="Deposit Required" message="You need to deposit funds before accessing this feature." actionLabel="Go to Deposit" actionPath="/deposit" />
           <TabBar />
         </div>
       );
@@ -44,7 +45,7 @@ export function AppLayout() {
       return (
         <div className="max-w-mobile mx-auto min-h-screen bg-surface">
           <Header />
-          <GuardCard icon={"\u26A0\uFE0F"} title="Account Suspended" message="Please settle your outstanding bills to restore access." actionLabel="Go to Billing" actionPath="/billing" />
+          <GuardCard icon={ShieldAlert} title="Account Suspended" message="Please settle your outstanding bills to restore access." actionLabel="Go to Billing" actionPath="/billing" />
           <TabBar />
         </div>
       );

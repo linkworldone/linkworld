@@ -1,4 +1,4 @@
-import { parseEther } from "viem";
+import { parseUnits } from "../../utils/format";
 import { apiClient } from "./client";
 import type { Region, Operator } from "../../types";
 
@@ -37,7 +37,9 @@ function toOperator(api: ApiOperator): Operator {
     id: String(api.id),
     name: api.name,
     region: api.region,
-    requiredDeposit: parseEther(api.required_deposit),
+    // requiredDeposit 是 USDT 押金（6 位最小单位语义，T2）。
+    // 禁用 parseEther（18 位）——18 当 6 差 10^12 倍资损红线（utils/format USDT_DECIMALS=6）。
+    requiredDeposit: parseUnits(api.required_deposit, 6),
     dataRate: 0.05, // 暂用默认值，后端未返回
     callRate: 0.02,
     isActive: api.is_active,

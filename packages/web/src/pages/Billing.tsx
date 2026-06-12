@@ -1,129 +1,112 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo } from "react";
 import { useAccount } from "wagmi";
-import { Button } from "@/components/ui/button";
-import { BottomSheet } from "@/components/shared/BottomSheet";
-import { useBills, usePayBill } from "@/hooks/useBilling";
-import { formatDate, formatUSD, parseUnits } from "@/utils/format";
+import { ArrowDownToLine, Flame, History as HistoryIcon } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { useDepositHistory } from "@/hooks/useDeposit";
+import { useMySims } from "@/hooks/useSim";
+import { formatAmount, formatDate } from "@/utils/format";
+import type { DepositRecord } from "@/types";
+import type { SimRecord } from "@/services/api/simApi";
 
-type Filter = "unpaid" | "paid";
+// 流量卡 NFT 活动时间线（History）：获取（充值发卡）+ 销毁（兑换 SIM）两类记录混排倒序。
+// 合约规则：每 10 USDT 发 1 张卡。DepositRecord.amount 为 USDT 6 位最小单位 bigint，
+// 故卡数 N = amount / (10 USDT) = amount / 10_000_000n。
+const CARDS_PER_DEPOSIT_UNIT = 10_000_000n; // 10 USDT × 10^6（6 位最小单位）
+
+type TimelineItem =
+  | { kind: "acquire"; key: string; date: string; cards: bigint; usdtMinUnit: bigint }
+  | { kind: "burn"; key: string; date: string; days: number; destination: string; status: SimRecord["status"] };
 
 export default function Billing() {
-  const navigate = useNavigate();
   const { address } = useAccount();
-  const [filter, setFilter] = useState<Filter>("unpaid");
-  const { data: bills } = useBills(address, filter);
-  const { payBill, isContractPending, isSuccess, recordToBackend } = usePayBill();
-  const [payingBillId, setPayingBillId] = useState<string | null>(null);
+  const { data: deposits } = useDepositHistory(address);
+  const { data: sims } = useMySims(address);
 
-  const unpaidBills = bills?.filter((b) => b.status !== "paid") || [];
-  const payingBill = bills?.find((b) => b.id === payingBillId);
+  const items = useMemo<TimelineItem[]>(() => {
+    const acquire: TimelineItem[] = (deposits ?? [])
+      .filter((r: DepositRecord) => r.type === "deposit")
+      .map((r) => ({
+        kind: "acquire" as const,
+        key: `deposit-${r.id}`,
+        date: r.timestamp,
+        cards: r.amount / CARDS_PER_DEPOSIT_UNIT,
+        usdtMinUnit: r.amount,
+      }));
 
-  // 合约支付成功后同步后端
-  useEffect(() => {
-    if (isSuccess && payingBillId) {
-      recordToBackend(payingBillId);
-      setPayingBillId(null);
-    }
-  }, [isSuccess]);
+    const burn: TimelineItem[] = (sims ?? []).map((s: SimRecord) => ({
+      kind: "burn" as const,
+      key: `sim-${s.id}`,
+      date: s.createdAt,
+      days: s.days,
+      destination: s.destination,
+      status: s.status,
+    }));
 
-  const handlePay = () => {
-    if (!payingBillId || !payingBill) return;
-    const totalAmountWei = parseUnits(payingBill.totalAmount.toString());
-    payBill(BigInt(payingBillId), totalAmountWei);
-  };
+    return [...acquire, ...burn].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+  }, [deposits, sims]);
+
+  if (items.length === 0) {
+    return (
+      <div className="px-4">
+        <EmptyState
+          icon={HistoryIcon}
+          message="暂无记录。充值获取流量卡、销毁兑换 SIM 后这里会显示。"
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="px-4 space-y-3">
-      <div className="flex bg-surface-card rounded-xl p-0.5">
-        {(["unpaid", "paid"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`flex-1 py-2 rounded-lg text-[13px] font-semibold capitalize transition-colors ${
-              filter === f ? "bg-brand-blue text-white" : "text-text-muted"
-            }`}
-          >
-            {f === "unpaid" ? "Unpaid" : "History"}
-          </button>
-        ))}
-      </div>
-
-      {filter === "unpaid" && unpaidBills.length > 0 && (
-        <div className="p-3 bg-status-danger/15 border border-status-danger/30 rounded-xl flex items-center gap-2">
-          <span className="text-base">⚠️</span>
-          <div className="text-xs text-status-danger">
-            {unpaidBills.length} unpaid bill{unpaidBills.length > 1 ? "s" : ""} · Due by{" "}
-            {formatDate(unpaidBills[0].dueDate)}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-2.5">
-        {bills?.map((bill) => (
-          <div key={bill.id} className={`p-4 bg-surface-card rounded-xl ${bill.status === "paid" ? "opacity-70" : ""}`}>
-            <div className="flex justify-between items-center mb-3">
-              <button onClick={() => navigate(`/billing/${bill.id}`)} className="text-sm font-bold hover:text-brand-blue">
-                {new Date(bill.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-              </button>
-              <Badge variant={bill.status === "paid" ? "secondary" : "destructive"} className="text-[10px]">
-                {bill.status === "paid" ? "Paid" : "Unpaid"}
-              </Badge>
-            </div>
-            <div className="space-y-1.5 mb-3">
-              <div className="flex justify-between text-xs">
-                <span className="text-text-secondary">Operator Fee</span>
-                <span>{formatUSD(bill.operatorFee)}</span>
+    <div className="px-4 space-y-2.5">
+      {items.map((item) =>
+        item.kind === "acquire" ? (
+          <Card key={item.key}>
+            <CardContent className="py-4 flex items-start gap-3">
+              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-gold/15">
+                <ArrowDownToLine className="size-5 text-brand-gold" strokeWidth={1.75} />
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-text-secondary">Platform Fee (2.5%)</span>
-                <span>{formatUSD(bill.platformFee)}</span>
-              </div>
-              {bill.trafficCardDeduction && parseFloat(bill.trafficCardDeduction) > 0 && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-text-secondary">Traffic Card Deduction</span>
-                  <span className="text-status-success">-{formatUSD(bill.trafficCardDeduction)}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-text-on-light-primary">
+                  获取 {item.cards.toString()} 张流量卡
                 </div>
-              )}
-              <div className="h-px bg-surface-secondary my-1" />
-              <div className="flex justify-between text-sm font-bold">
-                <span>Total</span>
-                <span>{formatUSD(bill.totalAmount)}</span>
+                <div className="text-xs text-text-on-light-secondary mt-0.5">
+                  充值 {formatAmount(item.usdtMinUnit)} USDT
+                </div>
+                <div className="text-[10px] text-text-muted mt-1.5">{formatDate(item.date)}</div>
               </div>
-            </div>
-            {bill.status !== "paid" && (
-              <Button onClick={() => setPayingBillId(bill.id)} className="w-full">
-                Pay Now
-              </Button>
-            )}
-            {bill.status === "paid" && bill.paidAt && (
-              <div className="text-[10px] text-text-muted">Paid on {formatDate(bill.paidAt)}</div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <BottomSheet open={payingBillId !== null} onOpenChange={(o) => !o && setPayingBillId(null)}>
-        <h2 className="text-lg font-bold mb-4">Confirm Payment</h2>
-        {payingBill && (
-          <>
-            <div className="p-3 bg-surface-secondary rounded-xl space-y-2 mb-4">
-              <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Amount</span>
-                <span className="font-bold">{formatUSD(payingBill.totalAmount)}</span>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card key={item.key}>
+            <CardContent className="py-4 flex items-start gap-3">
+              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-gold/15">
+                <Flame className="size-5 text-brand-gold" strokeWidth={1.75} />
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Source</span>
-                <span>Deposit Balance</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-text-on-light-primary">
+                    销毁 {item.days} 张 → 领取 SIM
+                  </span>
+                  <Badge
+                    variant={item.status === "confirmed" ? "secondary" : "outline"}
+                    className="text-[10px]"
+                  >
+                    {item.status === "confirmed" ? "已确认" : "处理中"}
+                  </Badge>
+                </div>
+                <div className="text-xs text-text-on-light-secondary mt-0.5">
+                  {item.days} 天无限流量 · {item.destination}
+                </div>
+                <div className="text-[10px] text-text-muted mt-1.5">{formatDate(item.date)}</div>
               </div>
-            </div>
-            <Button onClick={handlePay} disabled={isContractPending} className="w-full py-3">
-              {isContractPending ? "Processing..." : "Confirm Payment"}
-            </Button>
-          </>
-        )}
-      </BottomSheet>
+            </CardContent>
+          </Card>
+        ),
+      )}
     </div>
   );
 }

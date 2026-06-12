@@ -1,137 +1,72 @@
-# LinkWorld Color System Mapping
+# color-mapping.md — Link World Web 基线·色值映射
 
-## CSS Variables (Root :root) from index.css
+> Web/Tailwind 项目（**非 Flutter**）。色值分两套并存：
+> 1. `tailwind.config.ts` 的 `theme.extend.colors` 自定义 token（业务组件直接用，HEX 硬编码）
+> 2. `src/index.css` 的 shadcn CSS 变量（oklch，UI 原子组件用）
+> 扫描时间：2026-06-06
 
-| Semantic Name | CSS Variable | Current Value | OKLCH Parse | Purpose |
-|---------------|--------------|---------------|-------------|---------|
-| **Background** | `--background` | `oklch(0.07 0.02 270)` | L:7%, C:0.02, H:270 | Primary dark background |
-| **Foreground** | `--foreground` | `oklch(0.88 0 0)` | L:88%, C:0, H:0 | Primary text color (near white) |
-| **Card** | `--card` | `oklch(0.10 0.02 270)` | L:10%, C:0.02, H:270 | Card/panel backgrounds |
-| **Card Foreground** | `--card-foreground` | `oklch(0.88 0 0)` | L:88%, C:0, H:0 | Text on cards |
-| **Popover** | `--popover` | `oklch(0.10 0.02 270)` | L:10%, C:0.02, H:270 | Popover/dropdown backgrounds |
-| **Popover Foreground** | `--popover-foreground` | `oklch(0.88 0 0)` | L:88%, C:0, H:0 | Text on popovers |
-| **Primary (MAIN THEME)** | `--primary` | `oklch(0.62 0.21 255)` | L:62%, C:0.21, H:255 (blue hue) | Button primary, active states, links |
-| **Primary Foreground** | `--primary-foreground` | `oklch(1 0 0)` | L:100%, C:0, H:0 | Text on primary buttons (white) |
-| **Secondary** | `--secondary` | `oklch(0.15 0.02 270)` | L:15%, C:0.02, H:270 | Secondary button/surface |
-| **Secondary Foreground** | `--secondary-foreground` | `oklch(0.88 0 0)` | L:88%, C:0, H:0 | Text on secondary |
-| **Muted** | `--muted` | `oklch(0.15 0.02 270)` | L:15%, C:0.02, H:270 | Disabled/muted backgrounds |
-| **Muted Foreground** | `--muted-foreground` | `oklch(0.53 0 0)` | L:53%, C:0, H:0 | Disabled/muted text (gray) |
-| **Accent** | `--accent` | `oklch(0.15 0.02 270)` | L:15%, C:0.02, H:270 | Accent elements |
-| **Accent Foreground** | `--accent-foreground` | `oklch(0.88 0 0)` | L:88%, C:0, H:0 | Text on accent |
-| **Destructive** | `--destructive` | `oklch(0.577 0.245 27.325)` | L:57.7%, C:0.245, H:27.325 (red-orange) | Delete/error states |
-| **Border** | `--border` | `oklch(0.18 0.02 270)` | L:18%, C:0.02, H:270 | Border colors |
-| **Input** | `--input` | `oklch(0.18 0.02 270)` | L:18%, C:0.02, H:270 | Form input backgrounds |
-| **Ring** | `--ring` | `oklch(0.62 0.21 255)` | L:62%, C:0.21, H:255 (blue) | Focus ring color (matches primary) |
-| **Chart 1** | `--chart-1` | `oklch(0.62 0.21 255)` | Blue | Chart/visualization |
-| **Chart 2** | `--chart-2` | `oklch(0.65 0.18 290)` | Purple-blue | Chart variant |
-| **Chart 3** | `--chart-3` | `oklch(0.70 0.15 195)` | Cyan | Chart variant |
-| **Chart 4** | `--chart-4` | `oklch(0.75 0.18 145)` | Green | Chart variant |
-| **Chart 5** | `--chart-5` | `oklch(0.70 0.18 55)` | Yellow-orange | Chart variant |
-| **Radius** | `--radius` | `0.75rem` | 12px | Standard border radius |
-| **Sidebar** | `--sidebar` | `oklch(0.10 0.02 270)` | L:10%, C:0.02, H:270 | Sidebar background |
-| **Sidebar Foreground** | `--sidebar-foreground` | `oklch(0.88 0 0)` | L:88%, C:0, H:0 | Sidebar text |
-| **Sidebar Primary** | `--sidebar-primary` | `oklch(0.62 0.21 255)` | Blue | Sidebar active/primary |
-| **Sidebar Primary Foreground** | `--sidebar-primary-foreground` | `oklch(1 0 0)` | White | Sidebar primary text |
-| **Sidebar Accent** | `--sidebar-accent` | `oklch(0.15 0.02 270)` | L:15%, C:0.02, H:270 | Sidebar accent |
-| **Sidebar Accent Foreground** | `--sidebar-accent-foreground` | `oklch(0.88 0 0)` | L:88%, C:0, H:0 | Sidebar accent text |
-| **Sidebar Border** | `--sidebar-border` | `oklch(0.18 0.02 270)` | L:18%, C:0.02, H:270 | Sidebar border |
-| **Sidebar Ring** | `--sidebar-ring` | `oklch(0.62 0.21 255)` | Blue | Sidebar focus ring |
+## 1. Tailwind 自定义色 token（`tailwind.config.ts` → theme.extend.colors）
 
----
+业务组件（layout/shared/wallet/pages）主要消费这套，**值为硬编码 HEX**。`darkMode: "class"`。
 
-## Tailwind Config Color Extensions (`tailwind.config.ts`)
+| token | 值 | 用途 / 出现位置 |
+|-------|-----|----------------|
+| `surface.DEFAULT` | `#0a0a14` | 页面主背景（`bg-surface`，AppLayout/TabBar 等） |
+| `surface.card` | `#0f0f1a` | 卡片/抽屉背景（BottomSheet、RegisterSheet `bg-surface-card`） |
+| `surface.secondary` | `#1a1a2e` | 次级背景/输入框/拖拽条（`bg-surface-secondary`） |
+| `surface.gradient.from` | `#1a1a3e` | 渐变起点（备用，当前页面少用） |
+| `surface.gradient.to` | `#0f1a2e` | 渐变终点 |
+| `brand.blue` | `#3b82f6` | 主品牌色 / 激活态 / 链接（TabBar 激活、ConnectButton、聚焦边框）；亦是 RainbowKit accentColor |
+| `brand.purple` | `#8b5cf6` | 辅助品牌色（Header 头像渐变球 `to-brand-purple`） |
+| `brand.cyan` | `#06b6d4` | 点缀色（当前页面少用） |
+| `status.success` | `#22c55e` | 成功/激活状态（StatusBadge active） |
+| `status.warning` | `#f59e0b` | 警告/金额默认色（AmountDisplay 默认、StatusBadge inactive） |
+| `status.danger` | `#ef4444` | 错误/未付/角标（角标背景、校验错误、StatusBadge suspended） |
+| `text.primary` | `#e0e0e0` | 主文本（`text-text-primary`，body 默认） |
+| `text.secondary` | `#888888` | 次文本（说明/币种后缀 `text-text-secondary`） |
+| `text.muted` | `#555555` | 弱文本（标签/未激活 tab `text-text-muted`） |
+| `border.DEFAULT` | `#1a1a2e` | 边框（`border-border`，与 surface.secondary 同值） |
 
-| Tailwind Class | Hex Color | Purpose |
-|----------------|-----------|---------|
-| **surface** DEFAULT | `#0a0a14` | Main dark background |
-| **surface** card | `#0f0f1a` | Card/component backgrounds |
-| **surface** secondary | `#1a1a2e` | Secondary surface |
-| **surface** gradient-from | `#1a1a3e` | Gradient start (darker blue-gray) |
-| **surface** gradient-to | `#0f1a2e` | Gradient end (darker blue) |
-| **brand** blue | `#3b82f6` | Primary brand blue |
-| **brand** purple | `#8b5cf6` | Brand purple accent |
-| **brand** cyan | `#06b6d4` | Brand cyan |
-| **status** success | `#22c55e` | Positive state (green) |
-| **status** warning | `#f59e0b` | Warning state (amber) |
-| **status** danger | `#ef4444` | Error/danger state (red) |
-| **text** primary | `#e0e0e0` | Primary text (light gray) |
-| **text** secondary | `#888888` | Secondary text (medium gray) |
-| **text** muted | `#555555` | Muted text (dark gray) |
-| **border** DEFAULT | `#1a1a2e` | Border color |
-| **maxWidth** mobile | `430px` | Mobile viewport max-width |
+其它 extend：`fontFamily.orbitron: ["Orbitron"]`（科技风字体，当前未见使用）；`maxWidth.mobile: "430px"`（移动端容器宽度，全局布局用）。
 
----
+## 2. shadcn CSS 变量（`src/index.css` → `:root`，oklch 色彩空间）
 
-## Current Theme Color (Primary & Background) - CURRENT STATE
+UI 原子组件（button/badge/tabs）消费这套。**只有一套 `:root`（深色），无独立 light 主题块** —— 即应用强制深色，`darkMode:"class"` 的 `.dark` 覆盖未定义。
 
-### Primary Button/Active Color
-- **Current**: `oklch(0.62 0.21 255)` = bright blue (~#3b82f6 in sRGB)
-- **Used In**: Button default variant, active tab states, active icon color in TabBar, focus rings
-- **Visual**: Bright blue, good contrast on dark backgrounds
+字体变量：`--font-sans: 'Geist Variable'`，`--font-heading: var(--font-sans)`（在 `.theme` 下）。body 实际 `font-family: "Inter", system-ui`（与 Geist 变量不一致，存在冲突）。
 
-### Background Surfaces
-- **Root Background** (`--background`): `oklch(0.07 0.02 270)` = near-black with slight blue tint (#0a0a14)
-- **Card Backgrounds**: `oklch(0.10 0.02 270)` = very dark blue-gray (#0f0f1a)
-- **Gradient Surfaces**: `#1a1a3e` → `#0f1a2e` (gradient from darker blue to deeper blue)
+| 变量 | 值（oklch） | 近似含义 |
+|------|-------------|----------|
+| `--background` | `oklch(0.07 0.02 270)` | 近黑带紫蓝调主背景 |
+| `--foreground` | `oklch(0.88 0 0)` | 浅灰主文本 |
+| `--card` / `--popover` | `oklch(0.10 0.02 270)` | 卡片/浮层背景 |
+| `--card-foreground` / `--popover-foreground` | `oklch(0.88 0 0)` | 卡片文本 |
+| `--primary` | `oklch(0.62 0.21 255)` | 蓝色主色（≈ #3b82f6 同色系） |
+| `--primary-foreground` | `oklch(1 0 0)` | 纯白（主色上文字） |
+| `--secondary` / `--muted` / `--accent` | `oklch(0.15 0.02 270)` | 次级/静音/强调背景（深紫蓝） |
+| `--secondary-foreground` / `--accent-foreground` | `oklch(0.88 0 0)` | 对应文本 |
+| `--muted-foreground` | `oklch(0.53 0 0)` | 中灰弱文本 |
+| `--destructive` | `oklch(0.577 0.245 27.325)` | 红色（危险） |
+| `--border` / `--input` | `oklch(0.18 0.02 270)` | 边框/输入边框 |
+| `--ring` | `oklch(0.62 0.21 255)` | 聚焦环（= primary） |
+| `--radius` | `0.75rem` | 圆角基准 |
+| `--chart-1..5` | 255/290/195/145/55 色相 | 图表配色（蓝/紫/青/绿/橙） |
+| `--sidebar*` | 同 card/primary 系列 | 侧边栏（当前移动端布局未用 sidebar） |
 
-### Summary
-- **Overall Theme**: Dark mode with blue-dominant color scheme
-- **Primary accent**: Bright blue (#3b82f6)
-- **Secondary accent**: Purple (#8b5cf6)
-- **Status colors**: Green (success), Amber (warning), Red (danger)
+## 3. 当前主题风格总结 & 与新主题对比
 
----
+**当前风格**：深色「赛博/科技夜」—— 主背景近黑偏紫蓝（`#0a0a14` / oklch 270 色相），主色亮蓝 `#3b82f6`，辅以紫 `#8b5cf6`、青 `#06b6d4` 点缀，状态色用标准红/黄/绿。整体偏冷、霓虹感，强制深色无浅色主题。
 
-## Hardcoded Colors in Source Code
+**两套色值不统一**是最大问题：业务组件吃 Tailwind HEX token，UI 原子吃 oklch CSS 变量，二者色相/明度大体对齐（蓝主色基本一致）但**各自为政，改主题需两处同步改**。
 
-| File | Line | Hex/Color | Usage |
-|------|------|-----------|-------|
-| `/src/components/wallet/ConnectButton.tsx` | 12 | `bg-brand-blue` | Connect button background |
-| `/src/components/layout/TabBar.tsx` | 34 | `text-brand-blue` | Active tab icon color |
-| `/src/pages/Dashboard.tsx` | 64 | `text-brand-blue` | "Data Used" label color |
-| `/src/pages/Dashboard.tsx` | 70 | `text-brand-purple` | "Calls" label color |
-| `/src/pages/Dashboard.tsx` | 76 | `text-status-warning` | "Est. Bill" label color |
-| `/src/pages/Landing.tsx` | 27 | `from-brand-blue to-brand-purple` | Logo gradient |
-| `/src/pages/Landing.tsx` | 33 | `from-brand-blue to-brand-purple` | Hero circle gradient |
-| `/src/pages/Landing.tsx` | 52 | `text-brand-blue` | "50+ Countries" number |
-| `/src/pages/Landing.tsx` | 56 | `text-status-success` | "2.5% Platform Fee" number |
-| `/src/pages/Landing.tsx` | 60 | `text-brand-purple` | "0 KYC" number |
-| `/src/pages/Billing.tsx` | 45 | `bg-brand-blue` | Filter button active state |
-| `/src/components/layout/Header.tsx` | 27 | `from-brand-blue to-brand-purple` | Avatar gradient |
+**新主题目标**：深蓝渐变 `#0C2340 → #1E40AF` + 金色点缀。
 
----
+| 维度 | 当前 | 新主题（目标） | 迁移动作 |
+|------|------|----------------|----------|
+| 主背景 | `#0a0a14`（近黑紫蓝） | `#0C2340`（深海军蓝）渐变到 `#1E40AF` | 改 `surface.*` + `--background`/`--card`；启用 `surface.gradient` |
+| 主色 | `#3b82f6`（亮蓝） | `#1E40AF`（皇家蓝）系 | 改 `brand.blue` + `--primary`/`--ring`；同步 main.tsx RainbowKit accentColor |
+| 点缀色 | purple/cyan | **金色**（新增，如 #D4AF37/#F0C75E） | `brand` 下新增 `gold` token + 对应 CSS 变量；replace purple/cyan 点缀 |
+| 色相 | 270（紫蓝） | ~255-265（更纯蓝/海军蓝） | oklch 色相微调 |
+| 状态色 | 标准红黄绿 | 可沿用 | 基本不动 |
 
-## Replacement Plan for Theme Recolor (Deep Blue Gradient)
-
-**Target Primary Gradient**: `linear-gradient(135deg, #0C2340 0%, #1E40AF 50%)`
-- `#0C2340`: Deep navy/midnight blue
-- `#1E40AF`: Strong blue
-- Direction: 135° diagonal
-
-### CSS Variables to Update in `index.css`
-1. `--primary`: Change from `oklch(0.62 0.21 255)` to blue value matching `#1E40AF`
-2. `--background`: Possibly adjust to match gradient tone
-3. `--card`: Consider slight adjustment for harmony
-4. Consider adding new gradient variables for gradient applications
-
-### Tailwind Config Updates in `tailwind.config.ts`
-1. `brand.blue`: Update from `#3b82f6` to `#1E40AF` (or keep if used elsewhere)
-2. Add new `gradient` utilities if needed:
-   - `bg-gradient-primary`: `linear-gradient(135deg, #0C2340 0%, #1E40AF 50%)`
-3. Consider `primary-dark`: `#0C2340` and `primary-main`: `#1E40AF`
-
-### Files Affected (Using Colors)
-- `/src/pages/Landing.tsx`: Hero gradient (logo, circle)
-- `/src/components/layout/Header.tsx`: Avatar gradient
-- `/src/pages/Dashboard.tsx`: Data/Calls/Bill labels
-- `/src/pages/Billing.tsx`: Filter active button
-- `/src/components/layout/TabBar.tsx`: Active tab color
-
----
-
-## Summary Statistics
-- **Total CSS Variables**: 28 defined in `:root`
-- **Total Tailwind Extensions**: 15 color groups + 1 size extension
-- **Hardcoded Colors**: 12 instances across 5 files
-- **Status Colors**: 3 (success, warning, danger)
-- **Primary Color Hue**: 255° (blue range)
+**关键迁移点**：① 统一色值出口（建议业务组件改吃 CSS 变量或语义化 Tailwind token，消除 HEX 硬编码）；② `main.tsx` 的 `accentColor: "#3b82f6"` 与多处 `text-white`/`bg-brand-blue` 硬编码需一并改；③ body 字体 `"Inter"` 与 `--font-sans: Geist` 冲突，重构时顺手对齐；④ Orbitron 字体已声明未用，金色科技标题可考虑启用。

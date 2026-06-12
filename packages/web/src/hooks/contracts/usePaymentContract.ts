@@ -8,13 +8,14 @@ export function useContractPayBill() {
   const { isPending: rawConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   const isConfirming = !!hash && rawConfirming;
 
-  const payBill = (billId: bigint, value: bigint) => {
+  // payBill 去 payable（链上直分 USDT，不再随 tx 带原生币）。付账前 USDT approve(Payment,
+  // amount+calculateFee) 走 TwoStepAction（T9），故此处仅传 billId——不再带 value/总额第二参。
+  const payBill = (billId: bigint) => {
     writeContract({
       address: getContractAddress(chainId, "Payment"),
       abi: PaymentABI,
       functionName: "payBill",
       args: [billId],
-      value,
     });
   };
 

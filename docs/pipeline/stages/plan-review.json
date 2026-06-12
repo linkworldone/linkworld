@@ -1,0 +1,197 @@
+{
+  "subproject": "web (3/3)",
+  "stage": "plan",
+  "date": "2026-06-10",
+  "branch": "web/deep-blue-gold-refactor",
+  "serial": true,
+  "doneBoundary": "本地 31337 全链路绿；Arbitrum D17 + 对账三态真链行为后置强制验收，阻塞于合约上链，不计入 web DONE",
+  "order": ["T0-baseline", "T1-chain-abi", "T2-precision-constants", "T3-approve-twostep", "T4-reconcile", "T5-walletauth", "T6-theme-base", "T7-deposit", "T8-cards", "T9-billing", "T10-region-detail", "T11-reskin-rest", "T12-test-build"],
+  "pages": {
+    "T0-baseline": {
+      "task": "清 tsc + 搭 vitest 设施",
+      "scope": "infra",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "测试设施", "use": "vitest + @testing-library/react + @testing-library/jest-dom (jsdom)", "grade": "new", "action": "装 devDeps + vitest 配置 + setup"},
+        {"need": "清 TS6133", "use": "components/wallet/RegisterSheet.tsx:22", "grade": "modify", "action": "移除未用 isSuccess 解构，全量 tsc -b 绿"}
+      ],
+      "depends": [],
+      "gate": "tsc -b && vite build 绿；vitest run 可跑",
+      "acceptance": ["tsc -b && vite build 绿", "npx vitest run 通过(0用例亦可)"]
+    },
+    "T1-chain-abi": {
+      "task": "链配置 + ABI 重生成（chains 421614 / contracts deployments 单一出口 / abis 补 OracleABI）",
+      "scope": "接链",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "Arbitrum Sepolia 链", "use": "config/chains.ts", "grade": "modify", "action": "新增 arbitrumSepolia(421614) + sepolia.arbiscan.io；保留 hardhatLocal"},
+        {"need": "地址单一出口", "use": "config/contracts.ts", "grade": "modify", "action": "31337 用 deployments/hardhat.json.proxies 覆盖（已漂移）+ 删 16601 换 421614 全0占位 + type 增 USDT；建议 deployments json→contracts.ts 脚本"},
+        {"need": "链选择", "use": "config/wagmi.ts", "grade": "modify", "action": "zgTestnet→arbitrumSepolia；getDefaultConfig chains/transports 同步"},
+        {"need": "ABI 重生成", "use": "config/abis/*", "grade": "modify", "action": "从 artifacts 重生成据 abiHash 比对（deposit/payBill 去 payable）"},
+        {"need": "补 OracleABI 导出", "use": "config/abis/index.ts", "grade": "modify", "action": "export { OracleABI }（现缺，D11）"}
+      ],
+      "depends": ["T0-baseline"],
+      "gate": "tsc 绿；31337 地址=deployments；421614 占位；OracleABI 导出",
+      "acceptance": ["contracts.ts 31337 与 deployments.proxies 一致", "abis/index.ts 导出 OracleABI", "421614 全0占位 getContractAddress 抛错保护"]
+    },
+    "T2-precision-constants": {
+      "task": "精度 + 常量（format 6 位 / MIN_DEPOSIT_USDT / SUPPORTED_CURRENCIES USDT / billingApi bigint）",
+      "scope": "接链",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "6 位精度", "use": "utils/format.ts", "grade": "modify", "action": "parseUnits/formatAmount 走 usdtDecimals(6)，禁默认 18"},
+        {"need": "常量对齐", "use": "config/constants.ts", "grade": "modify", "action": "删 PLATFORM_FEE_RATE；MIN_DEPOSIT_USDT=10n*10n**6n（精度修+值100→10）；SUPPORTED_CURRENCIES=[USDT]"},
+        {"need": "depositApi 精度", "use": "services/api/depositApi.ts", "grade": "modify", "action": "parseEther→parseUnits(amount,6)；currency ETH→USDT"},
+        {"need": "billingApi bigint", "use": "services/api/billingApi.ts", "grade": "modify", "action": "toBill total 用 BigInt 加减(禁 parseFloat)，展示经 formatAmount(total,6)"}
+      ],
+      "depends": ["T1-chain-abi"],
+      "gate": "单元测过（format 6位 / MIN_DEPOSIT / toBill bigint）",
+      "acceptance": ["parseUnits('1.5',6)===1500000n", "formatAmount(1500000n,6,2)==='1.50'", "MIN_DEPOSIT_USDT===10n*10n**6n", "toBill total 无浮点误差 + 大额不溢出"]
+    },
+    "T3-approve-twostep": {
+      "task": "USDT approve hooks + TwoStepAction",
+      "scope": "接链",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "ERC20 ABI", "use": "config/abis（新 ERC20/MockUSDT）", "grade": "new", "action": "approve/allowance/balanceOf/decimals"},
+        {"need": "授权 hooks", "use": "hooks/contracts/useApprove + useAllowance", "grade": "new", "action": "exact-amount approve（禁 infinite）+ allowance 检测"},
+        {"need": "去 value 加 amount", "use": "hooks/contracts/{useDepositContract,usePaymentContract}.ts", "grade": "modify", "action": "deposit 去 value 加 args:[amount]；payBill 去 value"},
+        {"need": "两步态状态机", "use": "components/TwoStepAction", "grade": "new", "action": "编排两个 useTxState；allowance 跳步；★approved-idle 回退不 re-approve；充值/付账复用"}
+      ],
+      "depends": ["T2-precision-constants"],
+      "gate": "TwoStepAction 组件测全分支过（mock wagmi）",
+      "acceptance": ["allowance≥需求额跳步直达 ②", "approve 拒签回 idle", "approve 成功+action 失败→approved-idle(不 re-approve)", "成功进 pending"]
+    },
+    "T4-reconcile": {
+      "task": "对账重构（去双写 / pending / TxStatusBadge / confirmed 轮询 / getLogs 修）",
+      "scope": "接链",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "去充值/提现双写", "use": "hooks/useDeposit.ts + services/api/depositApi.ts", "grade": "modify", "action": "仅 POST pending 意向；余额读链 getDepositAmount；提现废弃 txHash 记账；currency USDT"},
+        {"need": "去付账双写 + paying 态", "use": "hooks/useBilling.ts + services/api/billingApi.ts", "grade": "modify", "action": "不据 200 置已付；Bill status 扩 unpaid/paying/paid/overdue；is_paid 轮询后端(refetch≈5s)"},
+        {"need": "getLogs 限流修", "use": "hooks/contracts/useTrafficCard.ts", "grade": "modify", "action": "二选一：后端列表端点(首选)/限 fromBlock 窗口；必补 error 态禁静默置空"},
+        {"need": "交易三态徽章", "use": "components/TxStatusBadge", "grade": "new", "action": "pending/confirmed/failed；reorg vs revert 文案区分"}
+      ],
+      "depends": ["T3-approve-twostep"],
+      "gate": "去双写；pending 态；getLogs error 态；徽章三态测过",
+      "acceptance": ["不据 200/txHash 置终态", "paying 态 info 蓝禁绿", "getLogs 失败渲染重试不静默置空", "TxStatusBadge 三态渲染含 reorg/revert 区分"]
+    },
+    "T5-walletauth": {
+      "task": "WalletAuth（signedPost + EIP-712 + 会话 nonce）",
+      "scope": "接链",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "签名 helper", "use": "services/api/client.ts + signedPost", "grade": "new", "action": "signedPost(path,body) 内部 await signTypedData 取/签缓存 → 带头调 axios；不在全局拦截器调 hook"},
+        {"need": "会话签名 hook", "use": "hooks/useWalletAuth", "grade": "new", "action": "EIP-712 会话级签名一次(nonce+时间窗) 内存缓存复用；过期/换钱包重签；禁每次写操作签"}
+      ],
+      "depends": ["T4-reconcile"],
+      "gate": "signedPost 不在 axios 拦截器调 hook；会话级一次",
+      "acceptance": ["写端点带签名头读端点不加", "会话内只签一次复用", "nonce/字段跨端待与后端 signatures.go 对齐(标记)"]
+    },
+    "T6-theme-base": {
+      "task": "深蓝金基建（index.css CSS 变量单一出口 / tailwind token→var / 字体 / ui-card·ui-input）",
+      "scope": "换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "navy-deep #0A1B33", "royal #1E40AF", "gold #D4AF37", "gold-hover #E0BE4E", "champagne #F0C75E", "cream surface.card #F7F3EA", "card-elevated #FBF8F1", "surface.input #EFE9DB", "warning #F08C2E"],
+      "components": [
+        {"need": "CSS 变量真源", "use": "index.css :root", "grade": "modify", "action": "shadcn 变量映射新 oklch；删 body 'Inter'；加 Space Grotesk"},
+        {"need": "token 引 var", "use": "tailwind.config.ts", "grade": "modify", "action": "token 全改 var(--...)；删 orbitron/cyan/purple；warning 橙"},
+        {"need": "暖米白卡原子", "use": "components/ui/card.tsx", "grade": "new", "action": "bg-surface-card + 1px 金线渐变(停靠点0/50/100%) + radius-lg + 轻阴影"},
+        {"need": "输入原子", "use": "components/ui/input.tsx", "grade": "new", "action": "bg-surface-input + navy 文字 + royal focus ring"}
+      ],
+      "depends": ["T1-chain-abi"],
+      "gate": "CSS 变量单一出口；ui/card·ui/input 落地；grep 无裸 HEX 定义残留",
+      "acceptance": ["index.css :root 唯一真源", "tailwind token 全 var() 引用", "ui/card 金线渐变停靠点 0/50/100%"]
+    },
+    "T7-deposit": {
+      "task": "Deposit 页（两步态 + 锁仓倒计时 + pending）",
+      "scope": "接链+换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "royal #1E40AF", "info #2563EB"],
+      "components": [
+        {"need": "两步充值", "use": "TwoStepAction", "grade": "use", "action": "approve→deposit 复用 T3 状态机"},
+        {"need": "锁仓倒计时", "use": "components/LockCountdown + hooks/useLockExpiry", "grade": "new", "action": "读 getLockExpiry 倒计时；解锁判定 now>=expiry(>= 边界)"},
+        {"need": "页改造", "use": "pages/Deposit.tsx", "grade": "modify", "action": "两步态+倒计时+pending；明示再次充值顺延30天；余额卡换暖米白；金额 navy"}
+      ],
+      "depends": ["T3-approve-twostep", "T6-theme-base"],
+      "gate": "31337 充值两步态→pending；锁仓顺延提示",
+      "acceptance": ["approve 两步态", "锁仓倒计时累加顺延提示", "充值后 pending 不染绿余额读链", "now>=expiry 即可提"]
+    },
+    "T8-cards": {
+      "task": "Cards 页（双 Tab 去 Admin + NFT 读链 + SIM 领取）",
+      "scope": "接链+换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "royal #1E40AF"],
+      "components": [
+        {"need": "双 Tab", "use": "ui/tabs (variant=line)", "grade": "use", "action": "Tab1 流量卡 NFT / Tab2 SIM 领取"},
+        {"need": "去 Admin 发卡", "use": "pages/Cards.tsx", "grade": "modify", "action": "移除 useIssueMonthlyCards 按钮→自动发放说明卡(Sparkles/Info)；NFT 读链+不可转卖/销毁30天；空态 EmptyState(CreditCard)"},
+        {"need": "SIM 领取", "use": "BottomSheet + ui/input", "grade": "use", "action": "选国家+收件表单→toast+写 pendingSync+全球通即将推出(Nfc/MailPlus)"}
+      ],
+      "depends": ["T4-reconcile", "T6-theme-base"],
+      "gate": "Tab1 NFT 读链+error 态；Tab2 SIM→pendingSync；无 Admin 按钮",
+      "acceptance": ["无 Issue Monthly Card Admin 按钮", "NFT 列表读链真实+加载失败重试", "SIM 提交写 pendingSync"]
+    },
+    "T9-billing": {
+      "task": "Billing/BillDetail（paying 态 + FeeBreakdown 读链）",
+      "scope": "接链+换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "info #2563EB", "danger #EF4444"],
+      "components": [
+        {"need": "费用明细", "use": "components/FeeBreakdown + hooks/useFeeRate", "grade": "new", "action": "读链 getFeeRate(150/10000=1.5%)/calculateFee；total bigint；loading skeleton 不写死"},
+        {"need": "paying 态", "use": "pages/Billing.tsx + pages/BillDetail.tsx", "grade": "modify", "action": "paying=info 蓝+Loader2 禁绿；金额 navy；逾期 AlertTriangle"}
+      ],
+      "depends": ["T4-reconcile", "T6-theme-base"],
+      "gate": "paying 态 info 蓝禁绿；手续费读链；明细 bigint",
+      "acceptance": ["手续费=链上 getFeeRate 实读", "paying 态禁显示绿已付", "FeeBreakdown total bigint"]
+    },
+    "T10-region-detail": {
+      "task": "RegionDetail（申请号码弹层手续费）",
+      "scope": "接链+换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "royal #1E40AF"],
+      "components": [
+        {"need": "申请弹层手续费", "use": "FeeBreakdown", "grade": "use", "action": "申请号码弹层展示 calculateFee 读链值"},
+        {"need": "页换肤", "use": "pages/RegionDetail.tsx", "grade": "modify", "action": "运营商列表+申请弹层换肤；金额 navy；复用 BottomSheet"}
+      ],
+      "depends": ["T9-billing"],
+      "gate": "申请弹层展示 calculateFee 读链值",
+      "acceptance": ["申请号码弹层手续费=链上实读", "弹层换肤深蓝金"]
+    },
+    "T11-reskin-rest": {
+      "task": "其余页换肤 + emoji→lucide（Landing/Dashboard/Services/Notifications/layout/TabBar）",
+      "scope": "换肤",
+      "figmaPages": [],
+      "colors": ["navy #0C2340", "gold #D4AF37", "cream #F7F3EA", "royal #1E40AF", "text.on-dark.primary #F7F3EA", "text.on-dark.gold #D4AF37", "status.success #22C55E", "status.danger #EF4444"],
+      "components": [
+        {"need": "金额分流", "use": "components/shared/AmountDisplay.tsx", "grade": "modify", "action": "默认 colorClass→按底色分流(卡内 navy/深底金)；增 tone prop；币种 USDT"},
+        {"need": "icon 类型改 LucideIcon", "use": "components/shared/{EmptyState,GuardCard}.tsx", "grade": "modify", "action": "icon prop string→LucideIcon(D5)"},
+        {"need": "emoji→lucide + 换肤", "use": "pages/{Landing,Dashboard,Services,Notifications}.tsx + layout/{AppLayout,Header,TabBar}.tsx", "grade": "modify", "action": "TabBar 5 图标 + AppLayout GuardCard + Globe/Search/SmartphoneNfc/BellOff/AlertTriangle/Bell；brand-blue→royal/gold；删 brand-purple"},
+        {"need": "钱包组件换肤", "use": "components/wallet/{ConnectButton,RegisterSheet}.tsx", "grade": "modify", "action": "brand-blue→token；ConnectButton 改用 Button；RegisterSheet 用 ui/input"},
+        {"need": "RainbowKit 金色", "use": "main.tsx", "grade": "modify", "action": "darkTheme accentColor #D4AF37 / accentColorForeground #0C2340"}
+      ],
+      "depends": ["T6-theme-base", "T7-deposit", "T8-cards", "T9-billing", "T10-region-detail"],
+      "gate": "grep 无旧色值(C8)/无 emoji 图标(C9)；9 页 100% 深蓝金(C7)",
+      "acceptance": ["grep 无 #3b82f6/#0a0a14/#0f0f1a/brand-blue/brand-purple/#8b5cf6/#06b6d4", "grep 无 emoji 当图标", "9 页+layout/shared/wallet 100% 深蓝金", "AmountDisplay 卡内 navy"]
+    },
+    "T12-test-build": {
+      "task": "测试 + 构建绿 + 31337 冒烟",
+      "scope": "infra",
+      "figmaPages": [],
+      "colors": [],
+      "components": [
+        {"need": "单元/组件测", "use": "vitest", "grade": "use", "action": "format 精度/constants/billingApi bigint/approve 额/LockCountdown 边界/parseContractError + TwoStepAction/TxStatusBadge"},
+        {"need": "31337 冒烟", "use": "本地链全链路", "grade": "use", "action": "充值两步态→pending→读链 confirmed；付账；提现；锁仓边界"},
+        {"need": "grep 清零核对", "use": "C8/C9 grep", "grade": "use", "action": "旧色值/emoji 清零"}
+      ],
+      "depends": ["T0-baseline", "T1-chain-abi", "T2-precision-constants", "T3-approve-twostep", "T4-reconcile", "T5-walletauth", "T6-theme-base", "T7-deposit", "T8-cards", "T9-billing", "T10-region-detail", "T11-reskin-rest"],
+      "gate": "vitest run 绿 + tsc -b && vite build 绿 + 31337 全链路冒烟",
+      "acceptance": ["npx vitest run 全绿", "tsc -b && vite build 绿", "31337 充值/提现/付账三态+锁仓+手续费读链+WalletAuth 冒烟通过"]
+    }
+  }
+}
