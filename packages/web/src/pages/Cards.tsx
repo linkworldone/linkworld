@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
+import { useTranslation } from "react-i18next";
 import {
   Sparkles,
   Info,
@@ -42,31 +43,32 @@ function isInfiniteData(dataAmount: bigint): boolean {
 
 // SIM 领取目的地（先以热门旅游地为主：东南亚/东亚数据成本低、出行频次高）。
 // comingSoon: 高成本区（美欧澳）数据批发贵，无限卡暂不开放，下拉置灰标「即将开放」。
-const SIM_DESTINATIONS: { code: string; name: string; comingSoon?: boolean }[] = [
-  { code: "TH", name: "泰国 Thailand" },
-  { code: "JP", name: "日本 Japan" },
-  { code: "KR", name: "韩国 South Korea" },
-  { code: "SG", name: "新加坡 Singapore" },
-  { code: "MY", name: "马来西亚 Malaysia" },
-  { code: "VN", name: "越南 Vietnam" },
-  { code: "ID", name: "印度尼西亚 Indonesia" },
-  { code: "PH", name: "菲律宾 Philippines" },
-  { code: "HK", name: "中国香港 Hong Kong" },
-  { code: "MO", name: "中国澳门 Macau" },
-  { code: "TW", name: "中国台湾 Taiwan" },
-  { code: "AE", name: "阿联酋 UAE" },
-  { code: "MV", name: "马尔代夫 Maldives" },
-  { code: "AU", name: "澳大利亚 Australia", comingSoon: true },
-  { code: "US", name: "美国 United States", comingSoon: true },
-  { code: "GB", name: "英国 United Kingdom", comingSoon: true },
-  { code: "FR", name: "法国 France", comingSoon: true },
+// 展示名走 i18n（t("destinations.<code>")），此处只保留 code 与开放状态。
+const SIM_DESTINATIONS: { code: string; comingSoon?: boolean }[] = [
+  { code: "TH" },
+  { code: "JP" },
+  { code: "KR" },
+  { code: "SG" },
+  { code: "MY" },
+  { code: "VN" },
+  { code: "ID" },
+  { code: "PH" },
+  { code: "HK" },
+  { code: "MO" },
+  { code: "TW" },
+  { code: "AE" },
+  { code: "MV" },
+  { code: "AU", comingSoon: true },
+  { code: "US", comingSoon: true },
+  { code: "GB", comingSoon: true },
+  { code: "FR", comingSoon: true },
 ];
 
-function destinationName(code: string): string {
-  return SIM_DESTINATIONS.find((d) => d.code === code)?.name ?? code;
-}
+// 销毁兑换 SIM 的最低选卡张数门槛（产品规则：至少 3 张才能 burn）。
+const MIN_BURN = 3;
 
 function TrafficCardsTab() {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { cards, isLoading, isError, refetch } = useTrafficCards(address);
   const redeem = useRedeemForSim();
@@ -106,13 +108,13 @@ function TrafficCardsTab() {
   }
 
   function openSheet() {
-    if (selectedCount === 0) return;
+    if (selectedCount < MIN_BURN) return;
     resetForm();
     setSheetOpen(true);
   }
 
   const canSubmit =
-    recipient.trim().length > 0 && addressLine.trim().length > 0 && selectedCount > 0;
+    recipient.trim().length > 0 && addressLine.trim().length > 0 && selectedCount >= MIN_BURN;
 
   // 选中的 tokenId（bigint / number 两种形态备用）
   const selectedTokenIds = cards
@@ -149,10 +151,10 @@ function TrafficCardsTab() {
         },
         onError: (err) => {
           if (err instanceof WalletAuthRejectedError) {
-            setSubmitErr("身份签名被取消，SIM 领取未提交");
+            setSubmitErr(t("cards.authCancelled"));
           } else {
             setSubmitErr(
-              err instanceof Error ? err.message.split("\n")[0] : "SIM 领取提交失败",
+              err instanceof Error ? err.message.split("\n")[0] : t("cards.claimFailed"),
             );
           }
         },
@@ -181,13 +183,13 @@ function TrafficCardsTab() {
           <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-sm font-semibold text-text-on-light-primary">
               <Info className="size-4 text-brand-royal" />
-              充值即得流量卡
+              {t("cards.instantTitle")}
             </div>
             <p className="text-xs leading-relaxed text-text-on-light-secondary">
-              充值保证金即时发放流量卡：每 10 USDT 得 1 张「1 天无限流量」卡（10/20/50/100 → 1/2/5/10 张），无需等待。
+              {t("cards.instantDesc")}
             </p>
             <p className="text-[11px] text-text-on-light-muted">
-              勾选多张流量卡，一步销毁即可领取对应天数的 SIM；流量卡不可转卖。
+              {t("cards.instantNote")}
             </p>
           </div>
         </CardContent>
@@ -196,11 +198,13 @@ function TrafficCardsTab() {
       {/* NFT 列表（读链真实数据，可多选） */}
       <div>
         <h3 className="mb-3 text-[13px] font-semibold text-text-primary">
-          我的流量卡{!isLoading && !isError ? `（${cards.length}）` : ""}
+          {!isLoading && !isError
+            ? t("cards.myCardsCount", { count: cards.length })
+            : t("cards.myCards")}
         </h3>
 
         {isLoading && (
-          <div className="py-6 text-center text-xs text-text-secondary">加载流量卡…</div>
+          <div className="py-6 text-center text-xs text-text-secondary">{t("cards.loadingCards")}</div>
         )}
 
         {/* 加载失败 ≠ 真无卡（B6：禁静默空态冒充无卡） */}
@@ -209,7 +213,7 @@ function TrafficCardsTab() {
             <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
               <AlertCircle className="size-8 text-status-danger" strokeWidth={1.5} />
               <p className="text-sm text-text-on-light-secondary">
-                流量卡加载失败，请重试。
+                {t("cards.loadCardsError")}
               </p>
               <Button
                 size="sm"
@@ -218,7 +222,7 @@ function TrafficCardsTab() {
                 onClick={() => refetch()}
               >
                 <RotateCw className="size-4" />
-                重试
+                {t("common.retry")}
               </Button>
             </CardContent>
           </Card>
@@ -228,7 +232,7 @@ function TrafficCardsTab() {
         {!isLoading && !isError && cards.length === 0 && (
           <Card>
             <CardContent className="py-2">
-              <EmptyState icon={CreditCard} message="暂无流量卡。充值保证金即可获得。" />
+              <EmptyState icon={CreditCard} message={t("cards.emptyCards")} />
             </CardContent>
           </Card>
         )}
@@ -268,16 +272,16 @@ function TrafficCardsTab() {
                         </span>
                         <div>
                           <div className="text-xs text-text-on-light-muted">
-                            流量卡 #{card.tokenId.toString()}
+                            {t("cards.cardLabel", { id: card.tokenId.toString() })}
                           </div>
                           <div className="mt-0.5">
                             {isInfiniteData(card.dataAmount) ? (
                               <div>
                                 <span className="text-lg font-bold text-text-on-light-primary">
-                                  无限流量
+                                  {t("cards.unlimitedData")}
                                 </span>
                                 <span className="ml-1.5 text-[11px] text-text-on-light-secondary">
-                                  1 天
+                                  {t("cards.oneDay")}
                                 </span>
                               </div>
                             ) : (
@@ -285,7 +289,7 @@ function TrafficCardsTab() {
                             )}
                           </div>
                           <div className="mt-0.5 text-[10px] text-text-on-light-muted">
-                            发放于 {formatTimestamp(card.createdAt)} · 不可转卖
+                            {t("cards.issuedOn", { date: formatTimestamp(card.createdAt) })}
                           </div>
                         </div>
                       </div>
@@ -295,7 +299,7 @@ function TrafficCardsTab() {
               );
             })}
             <p className="px-1 text-[10px] text-text-secondary">
-              勾选多张流量卡 → 一步销毁领取 SIM（每张 = 1 天）。
+              {t("cards.selectHint")}
             </p>
           </div>
         )}
@@ -304,9 +308,15 @@ function TrafficCardsTab() {
       {/* 底部操作条（选中 > 0 时出现） */}
       {selectedCount > 0 && (
         <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-40 mx-auto max-w-mobile border-t border-surface-card-line bg-surface-card p-4">
-          <Button className="w-full py-3" onClick={openSheet}>
+          <Button
+            className="w-full py-3"
+            onClick={openSheet}
+            disabled={selectedCount < MIN_BURN}
+          >
             <MailPlus className="size-4" />
-            销毁 {selectedCount} 张并领取 SIM（{selectedCount} 天）
+            {selectedCount < MIN_BURN
+              ? t("cards.minBurnHint", { min: MIN_BURN })
+              : t("cards.burnAndRedeem", { count: selectedCount })}
           </Button>
         </div>
       )}
@@ -317,28 +327,28 @@ function TrafficCardsTab() {
           <div className="flex flex-col items-center gap-3 py-4 text-center">
             <CheckCircle2 className="size-10 text-brand-gold" strokeWidth={1.5} />
             <p className="text-base font-semibold text-text-on-light-primary">
-              SIM 领取已提交
+              {t("cards.redeemSubmittedTitle")}
             </p>
             <p className="text-xs text-text-on-light-secondary">
-              已销毁流量卡并记录你的收件信息，SIM 卡将尽快寄出。可在「我的 SIM」查看进度。
+              {t("cards.redeemSubmittedDesc")}
             </p>
             <Button className="mt-2 w-full py-3" onClick={() => closeSheet(false)}>
-              完成
+              {t("common.done")}
             </Button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
               <h2 className="text-base font-bold text-text-on-light-primary">
-                领取 SIM（{selectedCount} 天）
+                {t("cards.redeemTitle", { count: selectedCount })}
               </h2>
               <p className="text-xs text-text-on-light-secondary">
-                将销毁 {selectedCount} 张流量卡兑换 {selectedCount} 天 SIM，填写收件信息后提交。
+                {t("cards.redeemDesc", { count: selectedCount })}
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-on-light-secondary">目的地</label>
+              <label className="text-xs font-medium text-text-on-light-secondary">{t("cards.destination")}</label>
               <select
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
@@ -347,28 +357,28 @@ function TrafficCardsTab() {
               >
                 {SIM_DESTINATIONS.map((d) => (
                   <option key={d.code} value={d.code} disabled={d.comingSoon}>
-                    {d.name}{d.comingSoon ? "（即将开放）" : ""}
+                    {t(`destinations.${d.code}`)}{d.comingSoon ? t("common.comingSoon") : ""}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-on-light-secondary">收件人</label>
+              <label className="text-xs font-medium text-text-on-light-secondary">{t("cards.recipient")}</label>
               <Input
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
-                placeholder="收件人姓名"
+                placeholder={t("cards.recipientPlaceholder")}
                 disabled={busy}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-on-light-secondary">收件地址</label>
+              <label className="text-xs font-medium text-text-on-light-secondary">{t("cards.addressLine")}</label>
               <Input
                 value={addressLine}
                 onChange={(e) => setAddressLine(e.target.value)}
-                placeholder="详细收件地址"
+                placeholder={t("cards.addressPlaceholder")}
                 disabled={busy}
               />
             </div>
@@ -380,12 +390,12 @@ function TrafficCardsTab() {
             <Button type="submit" className="w-full py-3" disabled={!canSubmit || busy}>
               {busy && <Loader2 className="size-4 animate-spin" />}
               {redeem.isPending
-                ? "确认钱包签名…"
+                ? t("cards.btnConfirmWallet")
                 : redeem.isConfirming
-                  ? "链上销毁中…"
+                  ? t("cards.btnBurning")
                   : claimSim.isPending
-                    ? "提交收件信息…"
-                    : `销毁并领取 SIM（${selectedCount} 天）`}
+                    ? t("cards.btnSubmittingInfo")
+                    : t("cards.btnBurnAndRedeem", { count: selectedCount })}
             </Button>
           </form>
         )}
@@ -395,6 +405,7 @@ function TrafficCardsTab() {
 }
 
 function MySimsTab() {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { data: sims, isLoading, isError, refetch } = useMySims(address);
 
@@ -405,27 +416,27 @@ function MySimsTab() {
           <Nfc className="mt-0.5 size-5 shrink-0 text-brand-gold" />
           <div className="space-y-1">
             <div className="text-sm font-semibold text-text-on-light-primary">
-              我的 SIM
+              {t("cards.mySimTitle")}
             </div>
             <p className="text-xs leading-relaxed text-text-on-light-secondary">
-              销毁流量卡领取的 SIM 在此查看，含天数余额与配送状态。
+              {t("cards.mySimDesc")}
             </p>
             <p className="text-[11px] text-text-on-light-muted">
-              全球通 eSIM 即将推出，敬请期待。
+              {t("cards.mySimNote")}
             </p>
           </div>
         </CardContent>
       </Card>
 
       {isLoading && (
-        <div className="py-6 text-center text-xs text-text-secondary">加载我的 SIM…</div>
+        <div className="py-6 text-center text-xs text-text-secondary">{t("cards.loadingSims")}</div>
       )}
 
       {!isLoading && isError && (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
             <AlertCircle className="size-8 text-status-danger" strokeWidth={1.5} />
-            <p className="text-sm text-text-on-light-secondary">SIM 加载失败，请重试。</p>
+            <p className="text-sm text-text-on-light-secondary">{t("cards.loadSimsError")}</p>
             <Button
               size="sm"
               variant="outline"
@@ -433,7 +444,7 @@ function MySimsTab() {
               onClick={() => refetch()}
             >
               <RotateCw className="size-4" />
-              重试
+              {t("common.retry")}
             </Button>
           </CardContent>
         </Card>
@@ -442,7 +453,7 @@ function MySimsTab() {
       {!isLoading && !isError && (!sims || sims.length === 0) && (
         <Card>
           <CardContent className="py-2">
-            <EmptyState icon={Nfc} message="暂无 SIM。销毁流量卡即可领取 SIM。" />
+            <EmptyState icon={Nfc} message={t("cards.emptySims")} />
           </CardContent>
         </Card>
       )}
@@ -455,10 +466,10 @@ function MySimsTab() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-lg font-bold text-text-on-light-primary">
-                      {sim.days} 天
+                      {t("cards.simDays", { days: sim.days })}
                     </span>
                     <span className="ml-2 text-xs text-text-on-light-secondary">
-                      {destinationName(sim.destination)}
+                      {t(`destinations.${sim.destination}`, { defaultValue: sim.destination })}
                     </span>
                   </div>
                   <span
@@ -469,11 +480,14 @@ function MySimsTab() {
                         : "bg-brand-gold/15 text-brand-gold")
                     }
                   >
-                    {sim.status === "confirmed" ? "已确认" : "处理中"}
+                    {sim.status === "confirmed" ? t("cards.simConfirmed") : t("cards.simPending")}
                   </span>
                 </div>
                 <div className="text-[11px] text-text-on-light-muted">
-                  收件人：{sim.recipient || "—"} · {sim.addressLine || "—"}
+                  {t("cards.simRecipient", {
+                    recipient: sim.recipient || "—",
+                    address: sim.addressLine || "—",
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -485,12 +499,13 @@ function MySimsTab() {
 }
 
 export default function Cards() {
+  const { t } = useTranslation();
   return (
     <div className="px-4">
       <Tabs defaultValue="traffic">
         <TabsList variant="line" className="w-full">
-          <TabsTrigger value="traffic">流量卡</TabsTrigger>
-          <TabsTrigger value="sim">我的 SIM</TabsTrigger>
+          <TabsTrigger value="traffic">{t("cards.tabTraffic")}</TabsTrigger>
+          <TabsTrigger value="sim">{t("cards.tabSim")}</TabsTrigger>
         </TabsList>
         <TabsContent value="traffic" className="mt-4">
           <TrafficCardsTab />

@@ -21,7 +21,7 @@ export function useClaimSim(wallet?: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: SimClaimPayload) => {
-      if (!wallet) throw new Error("钱包未连接");
+      if (!wallet) throw new Error("Wallet not connected");
       return simApi.claim(wallet, payload);
     },
     onSuccess: () => {

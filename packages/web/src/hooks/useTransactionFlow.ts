@@ -1,4 +1,5 @@
 // src/hooks/useTransactionFlow.ts
+import { useTranslation } from "react-i18next";
 
 export type TxStatus = "idle" | "pending-signature" | "pending-confirmation" | "success" | "error";
 
@@ -8,40 +9,48 @@ export interface TxState {
   error?: string;
 }
 
-// 合约 revert reason → 中文映射
+/** 极简翻译函数签名（兼容 react-i18next 的 t，测试可传 (k)=>k 或 i18n.t）。 */
+type TFunc = (key: string) => string;
+
+// 合约 revert reason → i18n key 映射（文案在 locales errors.tx.*）。
 const REVERT_MESSAGES: Record<string, string> = {
-  "Not registered": "请先注册账户",
-  "Already registered": "该钱包已注册",
-  "Zero deposit": "充值金额不能为零",
-  "No deposit": "没有可提取的余额",
-  "Service still active": "请先停用服务后再提现",
-  "Has unpaid bills": "请先支付所有账单后再提现",
-  "Not your bill": "该账单不属于您",
-  "Already paid": "该账单已支付",
-  "Insufficient payment": "支付金额不足",
-  "Only oracle": "仅限预言机操作",
+  "Not registered": "errors.tx.notRegistered",
+  "Already registered": "errors.tx.alreadyRegistered",
+  "Zero deposit": "errors.tx.zeroDeposit",
+  "No deposit": "errors.tx.noDeposit",
+  "Service still active": "errors.tx.serviceStillActive",
+  "Has unpaid bills": "errors.tx.hasUnpaidBills",
+  "Not your bill": "errors.tx.notYourBill",
+  "Already paid": "errors.tx.alreadyPaid",
+  "Insufficient payment": "errors.tx.insufficientPayment",
+  "Only oracle": "errors.tx.onlyOracle",
 };
 
-export function parseContractError(error: unknown): string {
-  if (!error) return "未知错误";
+/**
+ * 解析合约/交易错误为已翻译文案。
+ * @param error 任意错误对象。
+ * @param t i18n 翻译函数（调用方在 hook/组件里 useTranslation 拿到）。
+ */
+export function parseContractError(error: unknown, t: TFunc): string {
+  if (!error) return t("errors.tx.unknown");
   const msg = error instanceof Error ? error.message : String(error);
 
   // 尝试匹配 revert reason
   for (const [key, value] of Object.entries(REVERT_MESSAGES)) {
-    if (msg.includes(key)) return value;
+    if (msg.includes(key)) return t(value);
   }
 
   // 用户拒绝签名
   if (msg.includes("User rejected") || msg.includes("user rejected")) {
-    return "交易已取消";
+    return t("errors.tx.cancelled");
   }
 
   // 其他错误
   if (msg.includes("insufficient funds")) {
-    return "余额不足以支付 Gas 费";
+    return t("errors.tx.insufficientGas");
   }
 
-  return "交易失败，请重试";
+  return t("errors.tx.failed");
 }
 
 /**
@@ -60,9 +69,10 @@ export function useTxState(params: {
   error: Error | null;
 }): TxState {
   const { hash, isPending, isConfirming, isSuccess, error } = params;
+  const { t } = useTranslation();
 
   if (error) {
-    return { status: "error", error: parseContractError(error), txHash: hash };
+    return { status: "error", error: parseContractError(error, t), txHash: hash };
   }
   if (isSuccess) {
     return { status: "success", txHash: hash };

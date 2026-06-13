@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { operatorApi } from "../services/api/operatorApi";
@@ -74,6 +75,7 @@ export function useMyNumbers(address?: string) {
 export function useApplyNumber() {
   const queryClient = useQueryClient();
   const { address } = useAccount();
+  const { t } = useTranslation();
   const [txState, setTxState] = useState<TxState>({ status: "idle" });
 
   const applyNumber = async (
@@ -101,8 +103,8 @@ export function useApplyNumber() {
       // 拒签：身份签名被取消（与交易签名/合约 revert 文案区分，design §3.7）。
       const error =
         err instanceof WalletAuthRejectedError
-          ? err.message
-          : parseContractError(err);
+          ? t("errors.authCancelled")
+          : parseContractError(err, t);
       setTxState({ status: "error", error });
     }
   };

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -49,6 +51,7 @@ const EXPLORER_URL =
     .blockExplorers?.default.url;
 
 export default function Deposit() {
+  const { t } = useTranslation();
   const { address, chainId } = useAccount();
   const { data: deposit, refetch: refetchBalance } = useDeposit(address);
   const { data: history } = useDepositHistory(address);
@@ -92,9 +95,9 @@ export default function Deposit() {
       setTierIdx(null);
     } catch (err) {
       if (err instanceof WalletAuthRejectedError) {
-        setRejectMsg("身份签名被取消，操作未提交");
+        setRejectMsg(t("common.authCancelled"));
       } else {
-        setRejectMsg("上报失败，稍后将自动重试");
+        setRejectMsg(t("deposit.reportFailed"));
       }
     }
   };
@@ -111,9 +114,9 @@ export default function Deposit() {
         setWithdrawingIdx(null);
       } catch (err) {
         if (err instanceof WalletAuthRejectedError) {
-          setRejectMsg("身份签名被取消，操作未提交");
+          setRejectMsg(t("common.authCancelled"));
         } else {
-          setRejectMsg("上报失败，稍后将自动重试");
+          setRejectMsg(t("deposit.reportFailed"));
         }
       }
     })();
@@ -155,7 +158,7 @@ export default function Deposit() {
       <Card>
         <CardContent className="text-center py-6">
           <div className="text-[11px] uppercase tracking-wider text-text-on-light-muted">
-            保证金余额
+            {t("deposit.depositBalance")}
           </div>
           <div className="mt-2">
             {deposit ? (
@@ -166,7 +169,7 @@ export default function Deposit() {
           </div>
           {usdtBalance !== undefined && (
             <div className="mt-2 text-xs text-text-on-light-secondary">
-              钱包可用 {formatAmount(usdtBalance)} USDT
+              {t("deposit.walletAvailable", { amount: formatAmount(usdtBalance) })}
             </div>
           )}
         </CardContent>
@@ -177,7 +180,7 @@ export default function Deposit() {
         <CardContent className="py-4 space-y-2">
           <LockCountdown address={address} />
           <p className="text-[11px] text-text-on-light-muted">
-            每笔充值独立锁仓 30 天，各自到期后单独取回
+            {t("deposit.perTrancheLock")}
           </p>
         </CardContent>
       </Card>
@@ -189,9 +192,9 @@ export default function Deposit() {
             <Loader2 className="size-4 mt-0.5 shrink-0 animate-spin text-brand-royal" />
             <div className="text-xs text-text-on-light-secondary space-y-1">
               <p className="font-medium text-text-on-light-primary">
-                {pending.kind === "deposit" ? "充值处理中" : "提现处理中"} · 约 1-2 分钟
+                {pending.kind === "deposit" ? t("deposit.pendingDeposit") : t("deposit.pendingWithdraw")}{t("deposit.pendingDuration")}
               </p>
-              <p>可安全离开本页，到账后余额会自动更新。</p>
+              <p>{t("deposit.pendingSafeLeave")}</p>
               {EXPLORER_URL && (
                 <a
                   href={EXPLORER_URL}
@@ -199,7 +202,7 @@ export default function Deposit() {
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-brand-royal hover:underline"
                 >
-                  在区块浏览器查看 <ExternalLink className="size-3" />
+                  {t("deposit.viewOnExplorer")} <ExternalLink className="size-3" />
                 </a>
               )}
             </div>
@@ -211,7 +214,7 @@ export default function Deposit() {
       <div className="flex gap-2.5">
         <Button onClick={() => openSheet("deposit")} className="flex-1 py-3">
           <ArrowDownToLine className="size-4" />
-          充值
+          {t("deposit.deposit")}
         </Button>
         <Button
           onClick={() => openSheet("withdraw")}
@@ -220,13 +223,13 @@ export default function Deposit() {
           disabled={!hasTranches}
         >
           <ArrowUpFromLine className="size-4" />
-          提现
+          {t("deposit.withdraw")}
         </Button>
       </div>
 
       {/* 历史 */}
       <div>
-        <h3 className="text-[13px] font-semibold mb-3 text-text-primary">交易记录</h3>
+        <h3 className="text-[13px] font-semibold mb-3 text-text-primary">{t("deposit.transactionHistory")}</h3>
         <div className="space-y-2">
           {history?.map((record: DepositRecord) => (
             <Card key={record.id}>
@@ -234,10 +237,10 @@ export default function Deposit() {
                 <div>
                   <div className="text-xs font-semibold text-text-on-light-primary">
                     {record.type === "deposit"
-                      ? "充值"
+                      ? t("deposit.recordDeposit")
                       : record.type === "withdraw"
-                        ? "提现"
-                        : "扣费"}
+                        ? t("deposit.recordWithdraw")
+                        : t("deposit.recordCharge")}
                   </div>
                   <div className="text-[10px] text-text-on-light-muted mt-0.5">
                     {formatDate(record.timestamp)}
@@ -261,7 +264,7 @@ export default function Deposit() {
       {/* Deposit / Withdraw 弹层 */}
       <BottomSheet open={sheetMode !== null} onOpenChange={(o) => !o && setSheetMode(null)}>
         <h2 className="text-lg font-bold mb-4 text-text-on-light-primary">
-          {sheetMode === "deposit" ? "充值保证金" : "提取保证金"}
+          {sheetMode === "deposit" ? t("deposit.sheetTitleDeposit") : t("deposit.sheetTitleWithdraw")}
         </h2>
 
         {rejectMsg && (
@@ -277,7 +280,7 @@ export default function Deposit() {
         {sheetMode === "deposit" && (
           <>
             <p className="mb-3 text-xs text-text-on-light-secondary">
-              选择充值档位，充值后立即获得对应数量的无限流量卡。
+              {t("deposit.tierHint")}
             </p>
             <div className="mb-2 grid grid-cols-2 gap-2.5" data-slot="tier-grid">
               {DEPOSIT_TIERS.map((tier, idx) => {
@@ -300,7 +303,7 @@ export default function Deposit() {
                       {tier.usdt} USDT
                     </span>
                     <span className="mt-0.5 text-[11px] text-text-on-light-secondary">
-                      → 得 {tier.cards} 张无限流量卡
+                      {t("deposit.tierReward", { count: tier.cards })}
                     </span>
                   </button>
                 );
@@ -308,7 +311,7 @@ export default function Deposit() {
             </div>
             {overBalance && (
               <p className="mb-3 text-xs text-status-danger" data-slot="amount-error">
-                超出钱包 USDT 余额
+                {t("deposit.overBalance")}
               </p>
             )}
 
@@ -318,7 +321,7 @@ export default function Deposit() {
                 spender={depositSpender}
                 amount={depositValid && selectedTier ? selectedTier.minUnit : 0n}
                 action={depositAction}
-                actionLabel="存入"
+                actionLabel={t("deposit.actionLabel")}
                 onSuccess={handleDepositSuccess}
                 disabled={!depositValid}
               />
@@ -329,7 +332,7 @@ export default function Deposit() {
         {sheetMode === "withdraw" && (
           <div className="space-y-3">
             <p className="text-sm text-text-on-light-secondary">
-              每笔保证金独立锁仓 30 天，到期后可单独取回本金。
+              {t("deposit.withdrawHint")}
             </p>
             <div className="space-y-2" data-slot="tranche-list">
               {tranches.map((tranche: Tranche, idx: number) => (
@@ -340,10 +343,11 @@ export default function Deposit() {
                   onWithdraw={handleWithdraw}
                   busy={withdrawBusy && withdrawingIdx === idx}
                   disabledAll={withdrawBusy}
+                  t={t}
                 />
               ))}
               {tranches.length === 0 && (
-                <p className="text-xs text-text-on-light-muted">暂无保证金记录。</p>
+                <p className="text-xs text-text-on-light-muted">{t("deposit.noTranches")}</p>
               )}
             </div>
             {withdrawTxState.status === "error" && (
@@ -364,12 +368,14 @@ function TrancheRow({
   onWithdraw,
   busy,
   disabledAll,
+  t,
 }: {
   index: number;
   tranche: Tranche;
   onWithdraw: (index: number) => void;
   busy: boolean;
   disabledAll: boolean;
+  t: TFunction;
 }) {
   const nowSec = Math.floor(Date.now() / 1000);
   const unlocked = nowSec >= Number(tranche.unlockAt);
@@ -378,13 +384,13 @@ function TrancheRow({
   let statusLabel: string;
   let statusClass: string;
   if (tranche.withdrawn) {
-    statusLabel = "已取回";
+    statusLabel = t("deposit.trancheWithdrawn");
     statusClass = "text-text-on-light-muted";
   } else if (unlocked) {
-    statusLabel = "可取回";
+    statusLabel = t("deposit.trancheUnlocked");
     statusClass = "text-status-success";
   } else {
-    statusLabel = `锁定中 · ${unlockDate} 解锁`;
+    statusLabel = t("deposit.trancheLocked", { date: unlockDate });
     statusClass = "text-text-on-light-secondary";
   }
 
@@ -410,7 +416,7 @@ function TrancheRow({
           data-action="withdraw-tranche"
         >
           {busy && <Loader2 className="size-4 animate-spin" />}
-          {busy ? "取回中…" : "取回"}
+          {busy ? t("deposit.trancheWithdrawing") : t("deposit.trancheWithdraw")}
         </Button>
       )}
     </div>

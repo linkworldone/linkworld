@@ -65,29 +65,29 @@ beforeEach(() => {
 describe("History 页（流量卡活动时间线）", () => {
   it("空态：无记录时展示空态文案", () => {
     renderPage();
-    expect(screen.getByText(/暂无记录/)).toBeInTheDocument();
+    expect(screen.getByText(/No records yet/)).toBeInTheDocument();
   });
 
   it("获取记录：50 USDT → 获取 5 张流量卡，副文展示充值金额", () => {
     deposits = [makeDeposit()];
     renderPage();
-    expect(screen.getByText("获取 5 张流量卡")).toBeInTheDocument();
-    expect(screen.getByText(/充值 50\.00 USDT/)).toBeInTheDocument();
+    expect(screen.getByText("Got 5 traffic cards")).toBeInTheDocument();
+    expect(screen.getByText(/Deposited 50\.00 USDT/)).toBeInTheDocument();
   });
 
   it("销毁记录：展示销毁张数 → 领取 SIM、天数·目的地、状态徽章", () => {
     sims = [makeSim()];
     renderPage();
-    expect(screen.getByText("销毁 7 张 → 领取 SIM")).toBeInTheDocument();
-    expect(screen.getByText(/7 天无限流量 · 日本/)).toBeInTheDocument();
+    expect(screen.getByText("Burned 7 → redeemed SIM")).toBeInTheDocument();
+    expect(screen.getByText(/7 days unlimited data · 日本/)).toBeInTheDocument();
     // pending → 处理中
-    expect(screen.getByText("处理中")).toBeInTheDocument();
+    expect(screen.getByText("Processing")).toBeInTheDocument();
   });
 
   it("confirmed SIM 展示「已确认」", () => {
     sims = [makeSim({ status: "confirmed" })];
     renderPage();
-    expect(screen.getByText("已确认")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument();
   });
 
   it("只渲染 type==='deposit' 的获取记录（忽略 withdraw/deduction）", () => {
@@ -97,8 +97,8 @@ describe("History 页（流量卡活动时间线）", () => {
       makeDeposit({ id: "d3", type: "deduction", amount: 20_000_000n }),
     ];
     renderPage();
-    expect(screen.getAllByText(/获取 \d+ 张流量卡/)).toHaveLength(1);
-    expect(screen.getByText("获取 5 张流量卡")).toBeInTheDocument();
+    expect(screen.getAllByText(/Got \d+ traffic cards/)).toHaveLength(1);
+    expect(screen.getByText("Got 5 traffic cards")).toBeInTheDocument();
   });
 
   it("获取与销毁混排，按日期倒序（较新的排前）", () => {
@@ -109,8 +109,8 @@ describe("History 页（流量卡活动时间线）", () => {
       (n) => n.textContent ?? "",
     );
     // SIM(05-20) 在 deposit(05-10) 之前
-    const burnIdx = titles.findIndex((t) => t.includes("销毁"));
-    const acquireIdx = titles.findIndex((t) => t.includes("获取"));
+    const burnIdx = titles.findIndex((t) => t.includes("Burned"));
+    const acquireIdx = titles.findIndex((t) => t.includes("Got"));
     expect(burnIdx).toBeGreaterThanOrEqual(0);
     expect(acquireIdx).toBeGreaterThan(burnIdx);
   });

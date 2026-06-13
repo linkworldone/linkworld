@@ -1,10 +1,12 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { Bell, ChevronLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { shortenAddress } from "@/utils/format";
 import { useUnreadCount } from "@/hooks/useNotification";
 
 export function Header() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { address } = useAccount();
@@ -15,7 +17,7 @@ export function Header() {
     return (
       <header className="px-4 py-3 flex justify-between items-center">
         <div>
-          <div className="text-[11px] text-text-muted">Welcome back</div>
+          <div className="text-[11px] text-text-muted">{t("header.welcomeBack")}</div>
           <div className="text-[15px] font-semibold">{address ? shortenAddress(address) : ""}</div>
         </div>
         <div className="flex items-center gap-3">
@@ -32,10 +34,10 @@ export function Header() {
   }
 
   const pageTitles: Record<string, string> = {
-    "/deposit": "Deposit",
-    "/services": "Services",
-    "/billing": "History",
-    "/notifications": "Notifications",
+    "/deposit": t("nav.deposit"),
+    "/services": t("nav.services"),
+    "/billing": t("nav.history"),
+    "/notifications": t("nav.notifications"),
   };
 
   const isSubPage = location.pathname.includes("/services/") || location.pathname.includes("/billing/");

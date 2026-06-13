@@ -95,7 +95,7 @@ describe("RegionDetail 页（T10）", () => {
     // 弹层内押金本金仍展示 50.00 USDT（AmountDisplay）。
     expect(screen.getAllByText("50.00").length).toBeGreaterThanOrEqual(1);
     // 身份签名提示（§3.7，走 signedPost 意向，无臆造链上付费步骤）。
-    expect(screen.getByText(/不消耗 gas/)).toBeInTheDocument();
+    expect(screen.getByText(/no gas cost/)).toBeInTheDocument();
   });
 
   it("REG-03: 深蓝金换肤——卡用 ui/card(暖米白+金线)，无旧 token，无装饰 emoji 图标", () => {
@@ -119,14 +119,14 @@ describe("RegionDetail 页（T10）", () => {
     fireEvent.click(screen.getByText("Apply for Number"));
     // 拒签态：txState.status="error" + error 文案 → 弹层内展示拒签提示，不出现 pending/成功文案。
     txStatus = "error";
-    txError = "身份签名被取消，操作未提交";
+    txError = "Signature cancelled, action not submitted";
     rerender(
       <MemoryRouter initialEntries={["/region/US"]}>
         <RegionDetail />
       </MemoryRouter>,
     );
     // 拒签提示渲染（对齐 §3.7）。
-    expect(screen.getByText("身份签名被取消，操作未提交")).toBeInTheDocument();
+    expect(screen.getByText("Signature cancelled, action not submitted")).toBeInTheDocument();
     // BottomSheet 经 Portal 渲染到 document.body，按 document 查询 reject-msg slot。
     expect(document.querySelector('[data-slot="reject-msg"]')).not.toBeNull();
     // error 状态下按钮不应处于 Applying...（不进 pending）。

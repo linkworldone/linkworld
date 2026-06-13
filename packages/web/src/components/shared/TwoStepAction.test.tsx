@@ -77,7 +77,7 @@ describe("TwoStepAction 状态机（design §8 / B5）", () => {
 
     const approveBtn = screen.getByRole("button");
     expect(approveBtn).toHaveAttribute("data-action", "approve");
-    expect(approveBtn).toHaveTextContent("授权 USDT");
+    expect(approveBtn).toHaveTextContent("Approve USDT");
 
     fireEvent.click(approveBtn);
     expect(approveWrite).toHaveBeenCalledTimes(1);
@@ -95,7 +95,7 @@ describe("TwoStepAction 状态机（design §8 / B5）", () => {
     expect(btn).toHaveAttribute("data-action", "action");
     expect(btn).toHaveTextContent("存入");
     // Step1 显示「已授权」
-    expect(screen.getByText("已授权")).toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
 
     fireEvent.click(btn);
     expect(action.write).toHaveBeenCalledTimes(1);
@@ -107,7 +107,7 @@ describe("TwoStepAction 状态机（design §8 / B5）", () => {
     allowanceData = 0n; // 链上读尚未刷新到新授权
     approveIsSuccess = true;
     approveHash = "0xAPPROVEHASH";
-    const action = makeAction({ status: "error", error: "交易失败，请重试" });
+    const action = makeAction({ status: "error", error: "Transaction failed, please try again" });
     const { container } = renderTSA({ action });
 
     const root = container.querySelector("[data-slot='two-step-action']");
@@ -116,7 +116,7 @@ describe("TwoStepAction 状态机（design §8 / B5）", () => {
     // 主按钮应为「重试存入」且 data-action=action（不是 approve）。
     const btn = screen.getByRole("button");
     expect(btn).toHaveAttribute("data-action", "action");
-    expect(btn).toHaveTextContent("重试存入");
+    expect(btn).toHaveTextContent("Retry 存入");
 
     fireEvent.click(btn);
     expect(action.write).toHaveBeenCalledTimes(1);

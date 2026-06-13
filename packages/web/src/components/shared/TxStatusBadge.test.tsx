@@ -7,7 +7,7 @@ import { TxStatusBadge } from "./TxStatusBadge";
 describe("TxStatusBadge 三态渲染（BADGE-01）", () => {
   it("pending → 文案『处理中』，且不染绿（无 status-success 类）", () => {
     const { container } = render(<TxStatusBadge status="pending" />);
-    expect(screen.getByText("处理中")).toBeInTheDocument();
+    expect(screen.getByText("Processing")).toBeInTheDocument();
     const badge = container.querySelector("[data-slot='tx-status-badge']");
     expect(badge).toHaveAttribute("data-status", "pending");
     // 不染绿（铁律）：class 不含任何 success 语义类。
@@ -16,7 +16,7 @@ describe("TxStatusBadge 三态渲染（BADGE-01）", () => {
 
   it("confirmed → 文案『已确认』，染绿（success 语义）", () => {
     const { container } = render(<TxStatusBadge status="confirmed" />);
-    expect(screen.getByText("已确认")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument();
     const badge = container.querySelector("[data-slot='tx-status-badge']");
     expect(badge).toHaveAttribute("data-status", "confirmed");
     expect(badge?.className).toMatch(/success/);
@@ -24,7 +24,7 @@ describe("TxStatusBadge 三态渲染（BADGE-01）", () => {
 
   it("failed(revert) → 文案『失败』", () => {
     const { container } = render(<TxStatusBadge status="failed" failureReason="revert" />);
-    expect(screen.getByText("失败")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
     const badge = container.querySelector("[data-slot='tx-status-badge']");
     expect(badge).toHaveAttribute("data-status", "failed");
     expect(badge).toHaveAttribute("data-failure", "revert");
@@ -32,13 +32,13 @@ describe("TxStatusBadge 三态渲染（BADGE-01）", () => {
 
   it("failed(reorg) → 文案区分『已回退』（与 revert 文案不同）", () => {
     const { container } = render(<TxStatusBadge status="failed" failureReason="reorg" />);
-    expect(screen.getByText("已回退")).toBeInTheDocument();
+    expect(screen.getByText("Reverted")).toBeInTheDocument();
     const badge = container.querySelector("[data-slot='tx-status-badge']");
     expect(badge).toHaveAttribute("data-failure", "reorg");
   });
 
   it("failed 缺省 failureReason → 不崩，默认『失败』", () => {
     render(<TxStatusBadge status="failed" />);
-    expect(screen.getByText("失败")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
   });
 });

@@ -49,7 +49,8 @@ export interface SignedPostOpts {
 export class WalletAuthRejectedError extends Error {
   readonly rejected = true as const;
   constructor() {
-    super("身份签名被取消，操作未提交");
+    // 兜底英文 message；真正展示给用户的地方用 t("errors.authCancelled") 覆盖。
+    super("Signature cancelled, action not submitted");
     this.name = "WalletAuthRejectedError";
   }
 }

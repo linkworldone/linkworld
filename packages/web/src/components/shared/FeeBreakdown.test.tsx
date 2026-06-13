@@ -27,7 +27,7 @@ beforeEach(() => {
 describe("FeeBreakdown —— 手续费读链展示（design §3.6）", () => {
   it("读链成功 → 「平台手续费 (1.5%)」+ 费额（formatAmount 6 位）", () => {
     render(<FeeBreakdown amount={100_000_000n} />);
-    expect(screen.getByText(/平台手续费 \(1\.5%\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Platform fee \(1\.5%\)/)).toBeInTheDocument();
     expect(screen.getByText(/1\.50 USDT/)).toBeInTheDocument();
   });
 
@@ -35,7 +35,7 @@ describe("FeeBreakdown —— 手续费读链展示（design §3.6）", () => {
     rate = { label: undefined, isLoading: false, isError: true };
     fee = { fee: undefined, isLoading: false, isError: true };
     const { container } = render(<FeeBreakdown amount={100_000_000n} />);
-    expect(screen.getByText(/平台手续费 \(--\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Platform fee \(--\)/)).toBeInTheDocument();
     // 费额位也是 --。
     expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(1);
     // 不出现任何写死费率文案。

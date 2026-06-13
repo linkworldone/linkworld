@@ -1,5 +1,6 @@
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAccount } from "wagmi";
+import { useTranslation } from "react-i18next";
 import { useUser } from "@/hooks/useUser";
 import { Header } from "./Header";
 import { TabBar } from "./TabBar";
@@ -7,6 +8,7 @@ import { GuardCard } from "@/components/shared/GuardCard";
 import { Wallet, ShieldAlert } from "lucide-react";
 
 export function AppLayout() {
+  const { t } = useTranslation();
   const { address, isConnected } = useAccount();
   const { data: user, isLoading } = useUser(address);
   const location = useLocation();
@@ -16,7 +18,7 @@ export function AppLayout() {
   if (isLoading) {
     return (
       <div className="max-w-mobile mx-auto min-h-screen bg-surface flex items-center justify-center">
-        <div className="text-text-secondary text-sm">Loading...</div>
+        <div className="text-text-secondary text-sm">{t("common.loading")}</div>
       </div>
     );
   }
@@ -32,7 +34,7 @@ export function AppLayout() {
       return (
         <div className="max-w-mobile mx-auto min-h-screen bg-surface">
           <Header />
-          <GuardCard icon={Wallet} title="Deposit Required" message="You need to deposit funds before accessing this feature." actionLabel="Go to Deposit" actionPath="/deposit" />
+          <GuardCard icon={Wallet} title={t("guard.depositRequiredTitle")} message={t("guard.depositRequiredMessage")} actionLabel={t("guard.goToDeposit")} actionPath="/deposit" />
           <TabBar />
         </div>
       );
@@ -45,7 +47,7 @@ export function AppLayout() {
       return (
         <div className="max-w-mobile mx-auto min-h-screen bg-surface">
           <Header />
-          <GuardCard icon={ShieldAlert} title="Account Suspended" message="Please settle your outstanding bills to restore access." actionLabel="Go to Billing" actionPath="/billing" />
+          <GuardCard icon={ShieldAlert} title={t("guard.suspendedTitle")} message={t("guard.suspendedMessage")} actionLabel={t("guard.goToBilling")} actionPath="/billing" />
           <TabBar />
         </div>
       );

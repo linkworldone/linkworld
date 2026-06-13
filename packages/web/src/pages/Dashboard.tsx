@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
+import { useTranslation } from "react-i18next";
 import { Wallet, CreditCard, History, AlertTriangle, type LucideIcon } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { useDeposit } from "@/hooks/useDeposit";
@@ -11,6 +12,7 @@ import { AmountDisplay } from "@/components/shared/AmountDisplay";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { address } = useAccount();
   const { data: user } = useUser(address);
@@ -30,9 +32,9 @@ export default function Dashboard() {
   };
 
   const quickActions: { icon: LucideIcon; label: string; path: string }[] = [
-    { icon: Wallet, label: "充值", path: "/deposit" },
-    { icon: CreditCard, label: "流量卡", path: "/cards" },
-    { icon: History, label: "历史", path: "/billing" },
+    { icon: Wallet, label: t("dashboard.quickDeposit"), path: "/deposit" },
+    { icon: CreditCard, label: t("dashboard.quickCards"), path: "/cards" },
+    { icon: History, label: t("dashboard.quickHistory"), path: "/billing" },
   ];
 
   return (
@@ -41,11 +43,11 @@ export default function Dashboard() {
       <div className="p-4 rounded-2xl bg-gradient-hero ring-1 ring-brand-gold/25">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="text-[10px] text-text-on-dark-muted">账户状态</div>
+            <div className="text-[10px] text-text-on-dark-muted">{t("dashboard.accountStatus")}</div>
             <div className="mt-1.5">{user && <StatusBadge status={user.status} />}</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-text-on-dark-muted">保证金余额</div>
+            <div className="text-[10px] text-text-on-dark-muted">{t("dashboard.depositBalance")}</div>
             <div className="mt-1">
               {deposit && (
                 <AmountDisplay amount={deposit.balance} currency={deposit.currency} size="md" tone="gold-on-dark" />
@@ -53,11 +55,11 @@ export default function Dashboard() {
             </div>
           </div>
           <div>
-            <div className="text-[10px] text-text-on-dark-muted">虚拟号码</div>
+            <div className="text-[10px] text-text-on-dark-muted">{t("dashboard.virtualNumber")}</div>
             <div className="text-sm font-semibold mt-1 text-text-on-dark-primary">{activeNumber?.number || "—"}</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-text-on-dark-muted">地区</div>
+            <div className="text-[10px] text-text-on-dark-muted">{t("dashboard.region")}</div>
             <div className="text-sm font-semibold mt-1 text-text-on-dark-primary">
               {region ? `${regionFlags[region] || ""} ${region}` : "—"}
             </div>
@@ -69,15 +71,15 @@ export default function Dashboard() {
       <Card>
         <CardContent className="flex justify-around">
           <div className="text-center">
-            <div className="text-[10px] text-text-on-light-muted">持有流量卡</div>
+            <div className="text-[10px] text-text-on-light-muted">{t("dashboard.heldCards")}</div>
             <div className="text-[22px] font-extrabold text-text-on-light-primary mt-1 font-data tabular-nums">{heldCards}</div>
-            <div className="text-[10px] text-text-on-light-muted">张 · 无限流量</div>
+            <div className="text-[10px] text-text-on-light-muted">{t("dashboard.cardsUnit")}</div>
           </div>
           <div className="w-px bg-surface-card-line" />
           <div className="text-center">
-            <div className="text-[10px] text-text-on-light-muted">SIM 天数</div>
+            <div className="text-[10px] text-text-on-light-muted">{t("dashboard.simDays")}</div>
             <div className="text-[22px] font-extrabold text-brand-royal mt-1 font-data tabular-nums">{simDays}</div>
-            <div className="text-[10px] text-text-on-light-muted">天 · 已兑换</div>
+            <div className="text-[10px] text-text-on-light-muted">{t("dashboard.simDaysUnit")}</div>
           </div>
         </CardContent>
       </Card>
@@ -104,7 +106,7 @@ export default function Dashboard() {
         <div className="p-3 bg-status-danger/15 border border-status-danger/30 rounded-xl flex items-center gap-2">
           <AlertTriangle className="size-4 shrink-0 text-status-danger" />
           <div className="text-xs text-status-danger">
-            账户已暂停，请联系客服恢复服务。
+            {t("dashboard.suspendedNotice")}
           </div>
         </div>
       )}

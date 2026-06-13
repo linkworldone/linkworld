@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Lock, LockOpen } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useLockExpiry } from "@/hooks/contracts";
 
 /**
@@ -57,6 +58,7 @@ export interface LockCountdownProps {
 }
 
 export function LockCountdown({ address, onStateChange, className }: LockCountdownProps) {
+  const { t } = useTranslation();
   const { data } = useLockExpiry(address);
   const expiry = (data as bigint | undefined) ?? 0n;
 
@@ -91,7 +93,7 @@ export function LockCountdown({ address, onStateChange, className }: LockCountdo
         data-slot="lock-countdown"
         data-status="none"
       >
-        <p className="text-xs text-text-on-light-secondary">暂无锁仓</p>
+        <p className="text-xs text-text-on-light-secondary">{t("lockCountdown.none")}</p>
       </div>
     );
   }
@@ -105,7 +107,7 @@ export function LockCountdown({ address, onStateChange, className }: LockCountdo
       >
         <Lock className="size-4 text-brand-royal" />
         <span className="text-xs font-medium text-text-on-light-primary">
-          锁仓中 · 剩余 {formatRemaining(state.remainingSec)}
+          {t("lockCountdown.remaining", { time: formatRemaining(state.remainingSec) })}
         </span>
       </div>
     );
@@ -120,7 +122,7 @@ export function LockCountdown({ address, onStateChange, className }: LockCountdo
     >
       <LockOpen className="size-4 text-status-success" />
       <span className="text-xs font-medium text-status-success">
-        锁仓已满，可提取本金
+        {t("lockCountdown.unlocked")}
       </span>
     </div>
   );

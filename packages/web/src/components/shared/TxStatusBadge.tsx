@@ -1,4 +1,5 @@
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ export function TxStatusBadge({
   failureReason,
   className,
 }: TxStatusBadgeProps) {
+  const { t } = useTranslation();
   if (status === "pending") {
     return (
       <Badge
@@ -38,7 +40,7 @@ export function TxStatusBadge({
         data-status="pending"
       >
         <Loader2 className="size-3 animate-spin" />
-        处理中
+        {t("txStatus.pending")}
       </Badge>
     );
   }
@@ -54,7 +56,7 @@ export function TxStatusBadge({
         data-status="confirmed"
       >
         <CheckCircle2 className="size-3" />
-        已确认
+        {t("txStatus.confirmed")}
       </Badge>
     );
   }
@@ -70,7 +72,7 @@ export function TxStatusBadge({
       data-failure={failureReason ?? "revert"}
     >
       <XCircle className="size-3" />
-      {isReorg ? "已回退" : "失败"}
+      {isReorg ? t("txStatus.reverted") : t("txStatus.failed")}
     </Badge>
   );
 }

@@ -1,4 +1,5 @@
 import { useAccount } from "wagmi";
+import { useTranslation } from "react-i18next";
 import { useNotifications, useMarkAsRead, useMarkAllAsRead } from "@/hooks/useNotification";
 import { timeAgo } from "@/utils/format";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -14,6 +15,7 @@ const borderColors: Record<Notification["type"], string> = {
 };
 
 export default function Notifications() {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { data: notifications } = useNotifications(address);
   const markAsRead = useMarkAsRead();
@@ -36,18 +38,18 @@ export default function Notifications() {
             onClick={() => address && markAllAsRead.mutate(address)}
             className="text-xs text-brand-royal font-semibold"
           >
-            Mark all read
+            {t("notifications.markAllRead")}
           </button>
         </div>
       )}
 
       {!notifications?.length ? (
-        <EmptyState icon={Bell} message="No notifications yet." />
+        <EmptyState icon={Bell} message={t("notifications.empty")} />
       ) : (
         <>
           {unread.length > 0 && (
             <div>
-              <div className="text-[11px] text-text-muted uppercase tracking-wider mb-2">New</div>
+              <div className="text-[11px] text-text-muted uppercase tracking-wider mb-2">{t("notifications.sectionNew")}</div>
               <div className="space-y-2">
                 {unread.map((notif) => (
                   <button
@@ -67,7 +69,7 @@ export default function Notifications() {
 
           {read.length > 0 && (
             <div>
-              <div className="text-[11px] text-text-muted uppercase tracking-wider mb-2">Earlier</div>
+              <div className="text-[11px] text-text-muted uppercase tracking-wider mb-2">{t("notifications.sectionEarlier")}</div>
               <div className="space-y-2">
                 {read.map((notif) => (
                   <div

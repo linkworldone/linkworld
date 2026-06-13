@@ -58,9 +58,9 @@ describe("LockCountdown 渲染", () => {
     expiryData = BigInt(now + 2 * DAY);
     const onState = vi.fn();
     render(<LockCountdown address={OWNER} onStateChange={onState} />);
-    expect(screen.getByText(/锁仓中/)).toBeInTheDocument();
+    expect(screen.getByText(/Locked/)).toBeInTheDocument();
     // 倒计时含天数
-    expect(screen.getByText(/剩余/)).toBeInTheDocument();
+    expect(screen.getByText(/remaining/)).toBeInTheDocument();
     expect(onState).toHaveBeenCalledWith(expect.objectContaining({ status: "locked" }));
   });
 
@@ -69,7 +69,7 @@ describe("LockCountdown 渲染", () => {
     expiryData = BigInt(now - 10); // 已过期
     const onState = vi.fn();
     render(<LockCountdown address={OWNER} onStateChange={onState} />);
-    expect(screen.getByText(/锁仓已满，可提取本金/)).toBeInTheDocument();
+    expect(screen.getByText(/Lock matured, principal withdrawable/)).toBeInTheDocument();
     expect(onState).toHaveBeenCalledWith(expect.objectContaining({ status: "unlocked" }));
   });
 
@@ -83,6 +83,6 @@ describe("LockCountdown 渲染", () => {
   it("expiry=0 → 无锁仓提示", () => {
     expiryData = 0n;
     render(<LockCountdown address={OWNER} />);
-    expect(screen.getByText(/暂无锁仓|无锁仓/)).toBeInTheDocument();
+    expect(screen.getByText(/No lock/)).toBeInTheDocument();
   });
 });

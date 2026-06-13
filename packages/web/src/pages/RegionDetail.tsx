@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useAccount } from "wagmi";
+import { useTranslation } from "react-i18next";
 import { Wifi, Phone, Wallet, ShieldCheck, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { WalletAuthRejectedError } from "@/services/api/signedPost";
 import { apiClient } from "@/services/api/client";
 
 export default function RegionDetail() {
+  const { t } = useTranslation();
   const { regionCode } = useParams<{ regionCode: string }>();
   const { address } = useAccount();
   const { data: regions } = useRegions();
@@ -58,8 +60,8 @@ export default function RegionDetail() {
       // virtual-number 生成失败 / 身份签名取消（WalletAuthRejected）。
       const msg =
         err instanceof WalletAuthRejectedError
-          ? err.message
-          : "申请失败，请重试";
+          ? t("errors.authCancelled")
+          : t("regionDetail.applyFailed");
       setRejectMsg(msg);
       console.error("Failed to generate virtual number:", err);
     }
@@ -72,7 +74,9 @@ export default function RegionDetail() {
       {/* 页头：navy 画布上，深底文字（gold 国名强调） */}
       <div className="text-center mb-2 pt-2">
         <span className="text-3xl" aria-hidden>{region?.flag}</span>
-        <h2 className="font-display text-lg font-bold mt-1 text-text-on-dark-gold">{region?.name}</h2>
+        <h2 className="font-display text-lg font-bold mt-1 text-text-on-dark-gold">
+          {region ? t(`destinations.${region.code}`, { defaultValue: region.name }) : ""}
+        </h2>
       </div>
 
       {operators?.map((op) => (
@@ -81,49 +85,49 @@ export default function RegionDetail() {
             <div className="flex justify-between items-start">
               <div className="text-sm font-bold text-text-on-light-primary">{op.name}</div>
               <Badge variant={op.isActive ? "default" : "secondary"}>
-                {op.isActive ? "Active" : "Inactive"}
+                {op.isActive ? t("regionDetail.operatorActive") : t("regionDetail.operatorInactive")}
               </Badge>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
                 <div className="flex items-center justify-center gap-1 text-[10px] text-text-on-light-secondary">
-                  <Wifi className="size-3" /> Data Rate
+                  <Wifi className="size-3" /> {t("regionDetail.dataRate")}
                 </div>
                 <div className="text-xs font-semibold text-text-on-light-primary">${op.dataRate}/GB</div>
               </div>
               <div>
                 <div className="flex items-center justify-center gap-1 text-[10px] text-text-on-light-secondary">
-                  <Phone className="size-3" /> Call Rate
+                  <Phone className="size-3" /> {t("regionDetail.callRate")}
                 </div>
                 <div className="text-xs font-semibold text-text-on-light-primary">${op.callRate}/min</div>
               </div>
               <div>
                 <div className="flex items-center justify-center gap-1 text-[10px] text-text-on-light-secondary">
-                  <Wallet className="size-3" /> Min Deposit
+                  <Wallet className="size-3" /> {t("regionDetail.minDeposit")}
                 </div>
                 {/* 卡内（暖米白底）金额 navy（B2）；6 位精度 USDT */}
                 <AmountDisplay amount={op.requiredDeposit} currency="USDT" size="sm" />
               </div>
             </div>
             <Button onClick={() => setSelectedOp(op.id)} className="w-full" disabled={!op.isActive}>
-              Apply for Number
+              {t("regionDetail.applyForNumber")}
             </Button>
           </CardContent>
         </Card>
       ))}
 
       <BottomSheet open={selectedOp !== null} onOpenChange={(o) => !o && setSelectedOp(null)}>
-        <h2 className="font-display text-lg font-bold mb-2 text-text-on-light-primary">Apply for Virtual Number</h2>
+        <h2 className="font-display text-lg font-bold mb-2 text-text-on-light-primary">{t("regionDetail.sheetTitle")}</h2>
         {selectedOperator && (
           <>
             <div className="text-sm text-text-on-light-secondary mb-4">
-              <span aria-hidden>{region?.flag}</span> {region?.name} · {selectedOperator.name}
+              <span aria-hidden>{region?.flag}</span> {region ? t(`destinations.${region.code}`, { defaultValue: region.name }) : ""} · {selectedOperator.name}
             </div>
 
             {/* 费用明细（design §3.6）：押金本金 navy + 平台手续费读链（FeeBreakdown，amount=押金本金）。 */}
             <div className="p-3 bg-surface-input rounded-xl mb-4 space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-text-on-light-secondary">Required Deposit</span>
+                <span className="text-text-on-light-secondary">{t("regionDetail.requiredDeposit")}</span>
                 <AmountDisplay amount={selectedOperator.requiredDeposit} currency="USDT" size="sm" />
               </div>
               {/* 平台手续费读链：calculateFee(押金本金)，禁写死（D12 / B 红线） */}
@@ -133,7 +137,7 @@ export default function RegionDetail() {
             {/* 身份签名提示（design §3.7）：申请走 signedPost 意向，需钱包身份签名（不消耗 gas）。 */}
             <div className="flex items-start gap-2 text-[11px] text-text-on-light-secondary mb-4">
               <ShieldCheck className="size-3.5 mt-0.5 shrink-0 text-brand-royal" />
-              <span>申请将请求一次钱包身份签名以验证身份（不消耗 gas）。</span>
+              <span>{t("regionDetail.signatureHint")}</span>
             </div>
 
             {rejectMsg && (
@@ -144,7 +148,7 @@ export default function RegionDetail() {
             )}
 
             <Button onClick={handleApply} disabled={isApplying} className="w-full py-3">
-              {isApplying ? "Applying..." : "Confirm Application"}
+              {isApplying ? t("regionDetail.applying") : t("regionDetail.confirmApplication")}
             </Button>
           </>
         )}

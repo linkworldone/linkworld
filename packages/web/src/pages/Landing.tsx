@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
+import { useTranslation } from "react-i18next";
 import { Globe } from "lucide-react";
 import { ConnectButton } from "@/components/wallet/ConnectButton";
 import { RegisterSheet } from "@/components/wallet/RegisterSheet";
+import { LanguageToggle } from "@/components/shared/LanguageToggle";
 import { useUser } from "@/hooks/useUser";
 
 export default function Landing() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
   const { data: user, isLoading } = useUser(address);
@@ -27,7 +30,10 @@ export default function Landing() {
         <span className="font-display text-lg font-extrabold text-brand-gold">
           LinkWorld
         </span>
-        <ConnectButton />
+        <div className="flex items-center gap-3">
+          <LanguageToggle />
+          <ConnectButton />
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
@@ -35,36 +41,36 @@ export default function Landing() {
           <Globe className="size-9 text-brand-gold" strokeWidth={1.5} />
         </div>
         <h1 className="text-[32px] font-extrabold leading-tight mb-3">
-          Global Seamless<br />Communication
+          {t("landing.title")}<br />{t("landing.titleLine2")}
         </h1>
         <p className="text-sm text-text-secondary leading-relaxed mb-9">
-          Connect your wallet. Deposit.<br />
-          Get a virtual number.<br />
-          No KYC. Pay after use.
+          {t("landing.subtitleLine1")}<br />
+          {t("landing.subtitleLine2")}<br />
+          {t("landing.subtitleLine3")}
         </p>
-        <ConnectButton label="Get Started" />
+        <ConnectButton label={t("common.getStarted")} />
         <button className="mt-3 text-sm text-text-secondary border border-border rounded-xl px-12 py-3 w-full max-w-[280px]">
-          Learn More
+          {t("common.learnMore")}
         </button>
       </div>
 
       <div className="flex justify-around py-6 border-t border-border">
         <div className="text-center">
-          <div className="text-xl font-extrabold text-brand-gold">50+</div>
-          <div className="text-[11px] text-text-muted mt-0.5">Countries</div>
+          <div className="text-xl font-extrabold text-brand-gold">{t("common.countriesValue")}</div>
+          <div className="text-[11px] text-text-muted mt-0.5">{t("common.countries")}</div>
         </div>
         <div className="text-center">
-          <div className="text-xl font-extrabold text-status-success">1.5%</div>
-          <div className="text-[11px] text-text-muted mt-0.5">Platform Fee</div>
+          <div className="text-xl font-extrabold text-status-success">{t("common.platformFeeValue")}</div>
+          <div className="text-[11px] text-text-muted mt-0.5">{t("common.platformFee")}</div>
         </div>
         <div className="text-center">
-          <div className="text-xl font-extrabold text-brand-gold">0</div>
-          <div className="text-[11px] text-text-muted mt-0.5">KYC Required</div>
+          <div className="text-xl font-extrabold text-brand-gold">{t("common.kycRequiredValue")}</div>
+          <div className="text-[11px] text-text-muted mt-0.5">{t("common.kycRequired")}</div>
         </div>
       </div>
 
       <div className="text-center py-3 text-[10px] text-text-muted">
-        Powered by Arbitrum & Chainlink
+        {t("landing.poweredBy")}
       </div>
 
       {address && (

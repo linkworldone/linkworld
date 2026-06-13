@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useAccount } from "wagmi";
+import { useTranslation } from "react-i18next";
 import { ArrowDownToLine, Flame, History as HistoryIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ type TimelineItem =
   | { kind: "burn"; key: string; date: string; days: number; destination: string; status: SimRecord["status"] };
 
 export default function Billing() {
+  const { t } = useTranslation();
   const { address } = useAccount();
   const { data: deposits } = useDepositHistory(address);
   const { data: sims } = useMySims(address);
@@ -54,7 +56,7 @@ export default function Billing() {
       <div className="px-4">
         <EmptyState
           icon={HistoryIcon}
-          message="暂无记录。充值获取流量卡、销毁兑换 SIM 后这里会显示。"
+          message={t("billing.empty")}
         />
       </div>
     );
@@ -71,10 +73,10 @@ export default function Billing() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-text-on-light-primary">
-                  获取 {item.cards.toString()} 张流量卡
+                  {t("billing.acquireCards", { count: Number(item.cards) })}
                 </div>
                 <div className="text-xs text-text-on-light-secondary mt-0.5">
-                  充值 {formatAmount(item.usdtMinUnit)} USDT
+                  {t("billing.depositedAmount", { amount: formatAmount(item.usdtMinUnit) })}
                 </div>
                 <div className="text-[10px] text-text-muted mt-1.5">{formatDate(item.date)}</div>
               </div>
@@ -89,17 +91,20 @@ export default function Billing() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-text-on-light-primary">
-                    销毁 {item.days} 张 → 领取 SIM
+                    {t("billing.burnRedeem", { count: item.days })}
                   </span>
                   <Badge
                     variant={item.status === "confirmed" ? "secondary" : "outline"}
                     className="text-[10px]"
                   >
-                    {item.status === "confirmed" ? "已确认" : "处理中"}
+                    {item.status === "confirmed" ? t("billing.statusConfirmed") : t("billing.statusPending")}
                   </Badge>
                 </div>
                 <div className="text-xs text-text-on-light-secondary mt-0.5">
-                  {item.days} 天无限流量 · {item.destination}
+                  {t("billing.burnUsage", {
+                    days: item.days,
+                    destination: t(`destinations.${item.destination}`, { defaultValue: item.destination }),
+                  })}
                 </div>
                 <div className="text-[10px] text-text-muted mt-1.5">{formatDate(item.date)}</div>
               </div>

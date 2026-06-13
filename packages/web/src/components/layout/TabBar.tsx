@@ -1,15 +1,17 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, Wallet, History, CreditCard } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const tabs = [
-  { label: "Home", icon: Home, path: "/dashboard" },
-  // Services 暂时隐藏（功能未打通）；恢复时把这项加回，并重新 import Smartphone：{ label: "Services", icon: Smartphone, path: "/services" }
-  { label: "Deposit", icon: Wallet, path: "/deposit" },
-  { label: "History", icon: History, path: "/billing" },
-  { label: "Cards", icon: CreditCard, path: "/cards" },
+  { labelKey: "nav.home", icon: Home, path: "/dashboard" },
+  // Services 暂时隐藏（功能未打通）；恢复时把这项加回，并重新 import Smartphone：{ labelKey: "nav.services", icon: Smartphone, path: "/services" }
+  { labelKey: "nav.deposit", icon: Wallet, path: "/deposit" },
+  { labelKey: "nav.history", icon: History, path: "/billing" },
+  { labelKey: "nav.cards", icon: CreditCard, path: "/cards" },
 ];
 
 export function TabBar() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -30,7 +32,7 @@ export function TabBar() {
               <span className="relative">
                 <Icon className="size-5" strokeWidth={isActive ? 2.25 : 1.75} />
               </span>
-              <span className={`text-[9px] ${isActive ? "font-semibold" : ""}`}>{tab.label}</span>
+              <span className={`text-[9px] ${isActive ? "font-semibold" : ""}`}>{t(tab.labelKey)}</span>
             </button>
           );
         })}

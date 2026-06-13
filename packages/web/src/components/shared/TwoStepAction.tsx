@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ShieldCheck, Loader2, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useApprove, useAllowance } from "@/hooks/contracts/useUsdtContract";
 import { type TxState, useTxState } from "@/hooks/useTransactionFlow";
@@ -74,6 +75,7 @@ export function TwoStepAction({
   disabled = false,
   className,
 }: TwoStepActionProps) {
+  const { t } = useTranslation();
   const allowanceQ = useAllowance(owner, spender);
   const allowance = (allowanceQ.data as bigint | undefined) ?? 0n;
   const allowanceLoaded = allowanceQ.data !== undefined;
@@ -135,15 +137,15 @@ export function TwoStepAction({
   const stepLabel = (p: TwoStepPhase): string => {
     switch (p) {
       case "approve-sign":
-        return "请在钱包中确认授权…";
+        return t("twoStep.confirmApproveInWallet");
       case "approving":
       case "confirming-approval":
-        return "授权确认中…";
+        return t("twoStep.approving");
       case "action-sign":
-        return "请在钱包中确认…";
+        return t("twoStep.confirmInWallet");
       case "acting":
       case "confirming":
-        return "交易确认中…";
+        return t("twoStep.confirming");
       default:
         return "";
     }
@@ -152,7 +154,7 @@ export function TwoStepAction({
   return (
     <div className={className} data-slot="two-step-action" data-phase={phase}>
       {/* Stepper */}
-      <ol className="flex items-center gap-3 mb-4" aria-label="交易步骤">
+      <ol className="flex items-center gap-3 mb-4" aria-label={t("twoStep.stepperLabel")}>
         <li
           className="flex items-center gap-2 text-sm"
           data-step="approve"
@@ -169,7 +171,7 @@ export function TwoStepAction({
             {approveDone ? <Check className="size-3.5" /> : "1"}
           </span>
           <span className={approveDone ? "text-status-success" : "text-text-on-light-primary"}>
-            {approveDone ? "已授权" : "授权 USDT"}
+            {approveDone ? t("twoStep.approved") : t("twoStep.approveUsdt")}
           </span>
         </li>
         <li
@@ -208,7 +210,7 @@ export function TwoStepAction({
           ) : (
             <ShieldCheck className="size-4" />
           )}
-          授权 USDT
+          {t("twoStep.approveUsdt")}
         </Button>
       ) : (
         <Button
@@ -218,7 +220,7 @@ export function TwoStepAction({
           data-action="action"
         >
           {busy && <Loader2 className="size-4 animate-spin" />}
-          {phase === "approved-idle" ? `重试${actionLabel}` : actionLabel}
+          {phase === "approved-idle" ? t("twoStep.retry", { action: actionLabel }) : actionLabel}
         </Button>
       )}
 

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useFeeRate, useCalculateFee } from "@/hooks/contracts";
 import { formatAmount } from "@/utils/format";
 
@@ -35,6 +36,7 @@ function SkeletonBar({ w }: { w: string }) {
 }
 
 export function FeeBreakdown({ amount, fee, className, size = "xs" }: FeeBreakdownProps) {
+  const { t } = useTranslation();
   const rate = useFeeRate();
   // 传入 fee（付账场景）→ 直接展示，不读链；否则用 amount 读链 calculateFee。
   const directFee = fee !== undefined;
@@ -67,7 +69,9 @@ export function FeeBreakdown({ amount, fee, className, size = "xs" }: FeeBreakdo
       className={`flex justify-between ${textSize} ${className ?? ""}`}
       data-slot="fee-breakdown"
     >
-      <span className="text-text-on-light-secondary">平台手续费 ({rateLabel})</span>
+      <span className="text-text-on-light-secondary">
+        {t("feeBreakdown.platformFee")} ({rateLabel})
+      </span>
       <span className="font-data tabular-nums text-text-on-light-primary">{feeText}</span>
     </div>
   );
