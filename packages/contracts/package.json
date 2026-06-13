@@ -8,6 +8,7 @@
     "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
     "deploy:0g-testnet": "hardhat run scripts/deploy.ts --network og_testnet",
     "deploy:0g": "hardhat run scripts/deploy.ts --network og_mainnet",
+    "deploy:arb-sepolia": "hardhat run scripts/deploy.ts --network arbitrum_sepolia",
     "clean": "hardhat clean && rm -rf typechain-types"
   },
   "devDependencies": {

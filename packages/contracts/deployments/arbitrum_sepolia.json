@@ -1,0 +1,38 @@
+{
+  "chainId": 421614,
+  "proxies": {
+    "MockUSDT": "0x85Ffe2f47dF883982A6c98f665670e045fd0bfd9",
+    "FeeManager": "0x1c73baEceE72d0867b046f939Dd27fbbc714332b",
+    "UserRegistry": "0x1820f818dF0dE96d29eA3AA7007785eBE46662D1",
+    "ServiceManager": "0xef3885eDE3DC3eaCb187640C123f22F53F187c69",
+    "TrafficCardNFT": "0x9B40f07d59B0DB1c9C6df4F98C2F543B408e11De",
+    "Payment": "0x76B7FBB715ffD402c1a5284725858898b81004F1",
+    "Deposit": "0x6478901DB1cf6b2d561690f2B631E5A149c506b9",
+    "Oracle": "0xe96E8d3cCc4209a58391A001F617Cc3BcD0Ce898"
+  },
+  "implementations": {
+    "FeeManager": "0x565953A77E6b21DaC6F9fe1835D1dcD0C9278B55",
+    "UserRegistry": "0x3d2F9cD2EE69EB7CF92F791Ce85c205FE4C039ce",
+    "ServiceManager": "0xDd6A8925189408e19752B28E392CA1Bb129313a2",
+    "TrafficCardNFT": "0x3f17EA83F26C4b19Dab8C80c9A87B8F3058dEE3D",
+    "Payment": "0xdB8E0B11892b12f035279f51f0F678C2063724Ec",
+    "Deposit": "0xB78f201232Bb1b853e0DDBC0514b6233aaf5eb5b",
+    "Oracle": "0x7d298bEcF48370e256d74372De3A8344d0a34CDD"
+  },
+  "usdt": "0x85Ffe2f47dF883982A6c98f665670e045fd0bfd9",
+  "usdtDecimals": 6,
+  "abiHash": {
+    "MockUSDT": "0xf9f0204cc1f5d31d3bb598f01426ba412cd309d2d19bc4d4a7695538d71b71da",
+    "FeeManager": "0x75813eaf919f9b6e95ee77044d9c26e3027695cceefb31c9f05d17fd7df948a1",
+    "UserRegistry": "0xca527da9916960e91d34757251357a77f061befb5f3e778e7cdbc748b79675d8",
+    "ServiceManager": "0x8a634a3b4d0e3e5c0b015500b9bcb4d26499f52ccafd06c6c03a687b0259e370",
+    "TrafficCardNFT": "0xac4392c9aaa8f6cf8a87f5447e44e8be48caa574caa32f68cfd5b4497a4ec30c",
+    "Payment": "0xa8579606c85a8c91da901f8400127767da1e93557daf056e11d123b438118356",
+    "Deposit": "0x2b0e5e73da8b969524a75868cae7e04294b651693241f1ec5ee67a3ffc1f90aa",
+    "Oracle": "0x43bdb80e9c6dc56ce0a47fe391f94304552d10f3bf12f2f37ff95d524e572d58"
+  },
+  "storageLayout": {
+    "_note": "Fresh deploy; storage layout baseline for future upgrades.",
+    "manifest": ".openzeppelin/"
+  }
+}
