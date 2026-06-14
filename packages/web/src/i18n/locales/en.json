@@ -18,9 +18,7 @@
   "landing": {
     "title": "Global Seamless",
     "titleLine2": "Communication",
-    "subtitleLine1": "Connect your wallet. Deposit.",
-    "subtitleLine2": "Get a virtual number.",
-    "subtitleLine3": "No KYC. Pay after use.",
+    "subtitle": "Global unrestricted network switching, deposit collateral to obtain an NFT traffic card.",
     "poweredBy": "Powered by Arbitrum & Chainlink"
   },
   "dashboard": {

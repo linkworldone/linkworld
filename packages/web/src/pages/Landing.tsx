@@ -44,9 +44,7 @@ export default function Landing() {
           {t("landing.title")}<br />{t("landing.titleLine2")}
         </h1>
         <p className="text-sm text-text-secondary leading-relaxed mb-9">
-          {t("landing.subtitleLine1")}<br />
-          {t("landing.subtitleLine2")}<br />
-          {t("landing.subtitleLine3")}
+          {t("landing.subtitle")}
         </p>
         <ConnectButton label={t("common.getStarted")} />
         <button className="mt-3 text-sm text-text-secondary border border-border rounded-xl px-12 py-3 w-full max-w-[280px]">

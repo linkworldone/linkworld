@@ -18,9 +18,7 @@
   "landing": {
     "title": "全球无缝",
     "titleLine2": "通信",
-    "subtitleLine1": "连接钱包，缴纳押金。",
-    "subtitleLine2": "获取虚拟号码。",
-    "subtitleLine3": "无需 KYC，用后付费。",
+    "subtitle": "全球无限制网络切换，质押保证金即可获得 NFT 流量卡。",
     "poweredBy": "由 Arbitrum 与 Chainlink 提供支持"
   },
   "dashboard": {
