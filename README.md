@@ -54,7 +54,8 @@ Users can obtain mobile services worldwide by depositing a security bond to rece
 
 ## Future Vision
 
-We aim to build a truly user-owned global mobile network, where anyone can enjoy convenient, affordable, and borderless communication services through decentralized technology. In the future, we will launch a universal global SIM card to further simplify the user experience.
+We are about to launch services for eSIM users and introduce service providers. Users will be able to directly purchase service plans while holding either a physical SIM or an eSIM, making the experience faster and more cost-effective.
+We aim to build a truly user-owned global mobile network, where anyone can enjoy convenient, affordable, and borderless communication services through decentralized technology. In the future, we will launch a universal global SIM card or eSIM to further simplify the user experience.
 
 ## Tech Stack
 
