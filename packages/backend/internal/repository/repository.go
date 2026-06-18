@@ -3,6 +3,8 @@ package repository
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"math/big"
 	"strings"
 	"time"
 
@@ -53,6 +55,21 @@ func (r *UserRepository) CreateIfNotExists(user *models.User) error {
 		return nil
 	}
 	return r.db.Create(user).Error
+}
+
+// UpdateEmail 更新该 wallet 用户的 Email（小写归一化匹配，与 FindByWallet 同口径）。
+// 找不到匹配用户返回 gorm.ErrRecordNotFound（邮箱绑定要求用户已注册）。
+func (r *UserRepository) UpdateEmail(wallet, email string) error {
+	res := r.db.Model(&models.User{}).
+		Where("LOWER(wallet_addr) = LOWER(?)", wallet).
+		Update("email", strings.ToLower(email))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 type OperatorRepository struct {
@@ -420,6 +437,125 @@ func (r *WalletNonceRepository) Consume(wallet, nonce string) bool {
 		return false
 	}
 	return res.RowsAffected == 1
+}
+
+// EmailVerificationRepository 维护邮箱绑定的一次性验证码台账（与 WalletNonceRepository 同安全模式）。
+type EmailVerificationRepository struct {
+	db *gorm.DB
+}
+
+func NewEmailVerificationRepository(db *gorm.DB) *EmailVerificationRepository {
+	return &EmailVerificationRepository{db: db}
+}
+
+// Migrate 自建 email_verifications 表（自包含，不依赖 main.go AutoMigrate 清单——与 nonce/settlement 同策略）。
+func (r *EmailVerificationRepository) Migrate() error {
+	return r.db.AutoMigrate(&models.EmailVerification{})
+}
+
+const (
+	// emailCodeTTL 是验证码有效期（design：10 分钟内有效）。
+	emailCodeTTL = 10 * time.Minute
+	// emailResendInterval 是同一 wallet 重复签发的最小间隔（限流，防刷邮件）。
+	emailResendInterval = 60 * time.Second
+	// emailMaxAttempts 是单条验证码的最大错误尝试次数（≥此值锁死该记录，防爆破）。
+	emailMaxAttempts = 5
+)
+
+// ErrEmailRateLimited 表示距上次签发不足 emailResendInterval（限流，防刷邮件）。
+var ErrEmailRateLimited = errors.New("验证码发送过于频繁，请稍后再试")
+
+// Issue 为 (wallet,email) 签发一个新的 6 位数字验证码（crypto/rand，非 math/rand）。
+// 限流：若该 wallet 存在「未过期且未用」记录且创建不足 60 秒 → 返回 ErrEmailRateLimited（防刷邮件）。
+// 通过后：作废该 wallet 旧的未用记录（Used=true），再插入新记录（Used=false, Attempts=0, 10min 过期）。
+// wallet 统一小写归一化。返回明文 code 供上层发邮件。
+func (r *EmailVerificationRepository) Issue(wallet, email string) (string, error) {
+	w := strings.ToLower(wallet)
+	now := time.Now()
+
+	// 限流：最近一条未过期未用记录创建不足 emailResendInterval 即拒绝。
+	var latest models.EmailVerification
+	err := r.db.Where("wallet = ? AND used = ? AND expires_at > ?", w, false, now).
+		Order("created_at desc").First(&latest).Error
+	if err == nil {
+		if now.Sub(latest.CreatedAt) < emailResendInterval {
+			return "", ErrEmailRateLimited
+		}
+	} else if err != gorm.ErrRecordNotFound {
+		return "", err
+	}
+
+	code, err := generateNumericCode(6)
+	if err != nil {
+		return "", err
+	}
+
+	// 作废该 wallet 旧的未用记录（一个 wallet 同时只有一个有效码）。
+	if err := r.db.Model(&models.EmailVerification{}).
+		Where("wallet = ? AND used = ?", w, false).
+		Update("used", true).Error; err != nil {
+		return "", err
+	}
+
+	rec := &models.EmailVerification{
+		Wallet:    w,
+		Email:     strings.ToLower(email),
+		Code:      code,
+		Used:      false,
+		Attempts:  0,
+		ExpiresAt: now.Add(emailCodeTTL),
+	}
+	if err := r.db.Create(rec).Error; err != nil {
+		return "", err
+	}
+	return code, nil
+}
+
+// Verify 原子校验验证码（一次性台账核心）：仅当
+// (wallet, email, code, used=false, 未过期, attempts<5) 全部满足时，置 Used=true 返回 true；
+// 否则给该 (wallet,email) 最新未用记录 attempts++（防爆破，attempts≥5 即锁死该记录）并返回 false。
+// 用条件 UPDATE 的 RowsAffected 判定，保证并发下同一码只被消费一次。wallet/email 小写归一化。
+func (r *EmailVerificationRepository) Verify(wallet, email, code string) bool {
+	w := strings.ToLower(wallet)
+	e := strings.ToLower(email)
+	now := time.Now()
+
+	res := r.db.Model(&models.EmailVerification{}).
+		Where("wallet = ? AND email = ? AND code = ? AND used = ? AND expires_at > ? AND attempts < ?",
+			w, e, code, false, now, emailMaxAttempts).
+		Update("used", true)
+	if res.Error == nil && res.RowsAffected == 1 {
+		return true
+	}
+
+	// 未命中：给最新一条未用记录 attempts++（限定 wallet+email，避免影响他人/历史记录）。
+	// 用子查询定位最新一条的 id 再自增（gorm Update 不支持 Order+Limit）。
+	var target models.EmailVerification
+	ferr := r.db.Where("wallet = ? AND email = ? AND used = ?", w, e, false).
+		Order("created_at desc").First(&target).Error
+	if ferr == nil {
+		r.db.Model(&models.EmailVerification{}).
+			Where("id = ?", target.ID).
+			Update("attempts", gorm.Expr("attempts + 1"))
+	}
+	return false
+}
+
+// generateNumericCode 用 crypto/rand 生成 n 位十进制数字码（高位可为 0，定长字符串）。
+// 逐位从 [0,10) 均匀取值（rejection-free，10 整除 256 的非整除偏差对 6 位码可忽略——
+// 这里用 big.Int 走 crypto/rand.Int 取严格均匀的 [0,10)，零模偏差）。
+func generateNumericCode(n int) (string, error) {
+	const digits = "0123456789"
+	buf := make([]byte, n)
+	max := big.NewInt(int64(len(digits)))
+	for i := 0; i < n; i++ {
+		idx, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", err
+		}
+		buf[i] = digits[idx.Int64()]
+	}
+	return string(buf), nil
 }
 
 // ChainEventRepository 维护链上事件幂等去重 + 两阶段状态（design §6.3）。

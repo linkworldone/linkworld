@@ -24,8 +24,6 @@
   "dashboard": {
     "accountStatus": "Account Status",
     "depositBalance": "Deposit Balance",
-    "virtualNumber": "Virtual Number",
-    "region": "Region",
     "heldCards": "Traffic Cards Held",
     "cardsUnit": "cards · unlimited data",
     "simDays": "SIM Days",
@@ -182,6 +180,30 @@
   },
   "header": {
     "welcomeBack": "Welcome back"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "customerService": "Support",
+    "logout": "Log out",
+    "supportTitle": "Contact us",
+    "contactEmail": "Email",
+    "contactTelegram": "Telegram",
+    "bindEmail": "Bind Email",
+    "currentEmail": "Current email",
+    "notBound": "Not bound",
+    "emailPlaceholder": "Enter your email",
+    "sendCode": "Send code",
+    "sending": "Sending…",
+    "codePlaceholder": "Enter the 6-digit code",
+    "confirmBind": "Confirm",
+    "binding": "Binding…",
+    "resendCode": "Resend",
+    "invalidEmail": "Invalid email format",
+    "codeSent": "Verification code sent",
+    "bindSuccess": "Email bound successfully",
+    "rateLimited": "Too many requests, please try again later",
+    "invalidCode": "Invalid or expired code"
   },
   "guard": {
     "depositRequiredTitle": "Deposit Required",

@@ -27,7 +27,12 @@ export function Header() {
               <span className="absolute top-1.5 right-1.5 bg-status-danger text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center">{unreadCount}</span>
             )}
           </button>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-royal to-brand-gold" />
+          <button
+            onClick={() => navigate("/settings")}
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-royal to-brand-gold" />
+          </button>
         </div>
       </header>
     );
@@ -38,9 +43,13 @@ export function Header() {
     "/services": t("nav.services"),
     "/billing": t("nav.history"),
     "/notifications": t("nav.notifications"),
+    "/settings": t("settings.title"),
   };
 
-  const isSubPage = location.pathname.includes("/services/") || location.pathname.includes("/billing/");
+  const isSubPage =
+    location.pathname.includes("/services/") ||
+    location.pathname.includes("/billing/") ||
+    location.pathname === "/settings";
   const title = pageTitles[location.pathname] || "";
 
   return (

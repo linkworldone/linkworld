@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Wallet, CreditCard, History, AlertTriangle, type LucideIcon } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { useDeposit } from "@/hooks/useDeposit";
-import { useMyNumbers } from "@/hooks/useOperator";
 import { useTrafficCards } from "@/hooks/contracts";
 import { useMySims } from "@/hooks/useSim";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -17,19 +16,11 @@ export default function Dashboard() {
   const { address } = useAccount();
   const { data: user } = useUser(address);
   const { data: deposit } = useDeposit(address);
-  const { data: numbers } = useMyNumbers(address);
   const { cards } = useTrafficCards(address);
   const { data: sims } = useMySims(address);
 
-  const activeNumber = numbers?.find((n) => n.status === "active");
-  const region = activeNumber?.region;
-
   const heldCards = cards?.length ?? 0;
   const simDays = (sims ?? []).reduce((sum, s) => sum + (s.days ?? 0), 0);
-
-  const regionFlags: Record<string, string> = {
-    JP: "\u{1F1EF}\u{1F1F5}", US: "\u{1F1FA}\u{1F1F8}", GB: "\u{1F1EC}\u{1F1E7}", SG: "\u{1F1F8}\u{1F1EC}", KR: "\u{1F1F0}\u{1F1F7}", DE: "\u{1F1E9}\u{1F1EA}", AU: "\u{1F1E6}\u{1F1FA}", TH: "\u{1F1F9}\u{1F1ED}",
-  };
 
   const quickActions: { icon: LucideIcon; label: string; path: string }[] = [
     { icon: Wallet, label: t("dashboard.quickDeposit"), path: "/deposit" },
@@ -52,16 +43,6 @@ export default function Dashboard() {
               {deposit && (
                 <AmountDisplay amount={deposit.balance} currency={deposit.currency} size="md" tone="gold-on-dark" />
               )}
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] text-text-on-dark-muted">{t("dashboard.virtualNumber")}</div>
-            <div className="text-sm font-semibold mt-1 text-text-on-dark-primary">{activeNumber?.number || "—"}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-[10px] text-text-on-dark-muted">{t("dashboard.region")}</div>
-            <div className="text-sm font-semibold mt-1 text-text-on-dark-primary">
-              {region ? `${regionFlags[region] || ""} ${region}` : "—"}
             </div>
           </div>
         </div>

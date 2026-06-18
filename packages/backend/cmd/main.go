@@ -61,6 +61,11 @@ func main() {
 	if err := nonceRepo.Migrate(); err != nil {
 		log.Fatalf("迁移 wallet_nonces 表失败：%v", err)
 	}
+	// 邮箱验证码台账（与 nonce 同自建表策略）。
+	emailVerificationRepo := repository.NewEmailVerificationRepository(db)
+	if err := emailVerificationRepo.Migrate(); err != nil {
+		log.Fatalf("迁移 email_verifications 表失败：%v", err)
+	}
 
 	userService := services.NewUserService(userRepo)
 	operatorService := services.NewOperatorService(operatorRepo)
@@ -76,6 +81,9 @@ func main() {
 	oracleV2 := services.NewOracleServiceV2(operatorAPI, pricingService, userRepo, userServiceRepo, billRepo, usageRepo)
 	usageService := services.NewUsageService(oracleV2, usageRepo, userRepo, userServiceRepo)
 	simService := services.NewSimService(simRepo, userRepo)
+	// 邮箱绑定：Mailer 从 env 读 SMTP（未配 SMTP_HOST 走 [DEV] 日志降级，本地可测流程）。
+	mailer := services.NewMailer()
+	emailService := services.NewEmailService(userRepo, emailVerificationRepo, mailer)
 
 	// walletAuthChainID 绑定到 WalletAuth EIP-712 domain（防跨链重放，arch-review 🔴 N1）。
 	// 取 deployments.chainId（与 env CHAIN_ID 一致校验后），加载失败时回退 env CHAIN_ID。
@@ -165,7 +173,7 @@ func main() {
 		log.Fatal("无法确定 chainId（deployments.json 与 env CHAIN_ID 均缺失）：WalletAuth 不可用，拒绝启动")
 	}
 
-	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService, virtualGen, oracleV2, usageService, simService, nonceRepo)
+	handler := handlers.NewHandler(userService, operatorService, billingService, oracleService, notificationService, depositService, userServiceService, virtualGen, oracleV2, usageService, simService, emailService, nonceRepo)
 
 	// AdminAuth 中间件（design §6.6）：缺 ADMIN_API_KEY → 启动 fail（管理端点不允许裸奔）。
 	adminAuth, aerr := middleware.NewAdminAuth(os.Getenv("ADMIN_API_KEY"))
@@ -216,6 +224,8 @@ func main() {
 	r.POST("/api/deposit", walletAuth("deposit"), handler.Deposit)      // 意向记录
 	r.POST("/api/withdraw", walletAuth("withdraw"), handler.Withdraw)   // B3：不凭 txHash 记账，仅 pending
 	r.POST("/api/sim/claim", walletAuth("sim/claim"), handler.ClaimSim) // 流量卡销毁兑换 SIM：仅 pending 意向
+	r.POST("/api/email/bind", walletAuth("email/bind"), handler.BindEmail)
+	r.POST("/api/email/verify", walletAuth("email/verify"), handler.VerifyEmail)
 
 	// --- 管理/平台触发端点（AdminAuth：X-Admin-Key 常量时间比较，design §6.6）---
 	r.POST("/api/oracle/monthly-bill", adminAuth, handler.TriggerMonthlyBill)

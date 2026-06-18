@@ -160,6 +160,46 @@ func (s *NotificationService) SendBillEmail(wallet string, bills []models.Bill) 
 	return nil
 }
 
+// EmailService 编排「邮箱绑定 + 验证码验证」：
+//   - RequestBind：签发验证码（含限流）→ 发码邮件。
+//   - ConfirmBind：校验验证码（一次性、防爆破、过期拒绝）→ 通过则更新该 wallet 的 User.Email。
+//
+// 归属 wallet 由调用方从 WalletAuth CtxWallet 取（不信任 body，防越权）。
+type EmailService struct {
+	userRepo         *repository.UserRepository
+	verificationRepo *repository.EmailVerificationRepository
+	mailer           *Mailer
+}
+
+func NewEmailService(userRepo *repository.UserRepository, verificationRepo *repository.EmailVerificationRepository, mailer *Mailer) *EmailService {
+	return &EmailService{
+		userRepo:         userRepo,
+		verificationRepo: verificationRepo,
+		mailer:           mailer,
+	}
+}
+
+// ErrInvalidOrExpiredCode 验证码错误或已过期（含 used/锁死/钱包邮箱不符，统一对外不区分，防探测）。
+var ErrInvalidOrExpiredCode = &ServiceError{"验证码错误或已过期"}
+
+// RequestBind 为 wallet 签发验证码并发送到 email。透传 repo 的限流/错误（如 ErrEmailRateLimited）。
+func (s *EmailService) RequestBind(wallet, email string) error {
+	code, err := s.verificationRepo.Issue(wallet, email)
+	if err != nil {
+		return err
+	}
+	return s.mailer.SendVerificationCode(email, code)
+}
+
+// ConfirmBind 校验验证码；通过则把该 wallet 的 User.Email 更新为 email（小写归一化）。
+// 失败返回 ErrInvalidOrExpiredCode。
+func (s *EmailService) ConfirmBind(wallet, email, code string) error {
+	if !s.verificationRepo.Verify(wallet, email, code) {
+		return ErrInvalidOrExpiredCode
+	}
+	return s.userRepo.UpdateEmail(wallet, email)
+}
+
 type DepositService struct {
 	depositRepo *repository.DepositRepository
 	userRepo    *repository.UserRepository

@@ -24,8 +24,6 @@
   "dashboard": {
     "accountStatus": "账户状态",
     "depositBalance": "保证金余额",
-    "virtualNumber": "虚拟号码",
-    "region": "地区",
     "heldCards": "持有流量卡",
     "cardsUnit": "张 · 无限流量",
     "simDays": "SIM 天数",
@@ -182,6 +180,30 @@
   },
   "header": {
     "welcomeBack": "欢迎回来"
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "customerService": "客服",
+    "logout": "登出",
+    "supportTitle": "联系客服",
+    "contactEmail": "邮件",
+    "contactTelegram": "Telegram",
+    "bindEmail": "绑定邮箱",
+    "currentEmail": "当前邮箱",
+    "notBound": "未绑定",
+    "emailPlaceholder": "请输入邮箱",
+    "sendCode": "发送验证码",
+    "sending": "发送中…",
+    "codePlaceholder": "请输入 6 位验证码",
+    "confirmBind": "确认绑定",
+    "binding": "绑定中…",
+    "resendCode": "重新发送",
+    "invalidEmail": "邮箱格式不正确",
+    "codeSent": "验证码已发送",
+    "bindSuccess": "绑定成功",
+    "rateLimited": "发送过于频繁，请稍后再试",
+    "invalidCode": "验证码错误或已过期"
   },
   "guard": {
     "depositRequiredTitle": "需要充值",

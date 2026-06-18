@@ -11,6 +11,7 @@ const Billing = lazy(() => import("@/pages/Billing"));
 const BillDetail = lazy(() => import("@/pages/BillDetail"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
 const Cards = lazy(() => import("@/pages/Cards"));
+const Settings = lazy(() => import("@/pages/Settings"));
 
 function PageFallback() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/billing/:billId" element={<BillDetail />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/cards" element={<Cards />} />
+          <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
     </Suspense>

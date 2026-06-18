@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -25,6 +26,7 @@ type Handler struct {
 	oracleV2            *services.OracleServiceV2
 	usageService        *services.UsageService
 	simService          *services.SimService
+	emailService        *services.EmailService
 	// nonceRepo 供 GET /api/auth/nonce/:wallet 签发 WalletAuth 一次性 nonce（arch-review 🔴 N1）。
 	nonceRepo *repository.WalletNonceRepository
 }
@@ -41,6 +43,7 @@ func NewHandler(
 	oracleV2 *services.OracleServiceV2,
 	usageService *services.UsageService,
 	simService *services.SimService,
+	emailService *services.EmailService,
 	nonceRepo *repository.WalletNonceRepository,
 ) *Handler {
 	return &Handler{
@@ -55,6 +58,7 @@ func NewHandler(
 		oracleV2:            oracleV2,
 		usageService:        usageService,
 		simService:          simService,
+		emailService:        emailService,
 		nonceRepo:           nonceRepo,
 	}
 }
@@ -74,6 +78,55 @@ func (h *Handler) GetWalletNonce(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"nonce": nonce})
+}
+
+// BindEmailRequest 提交待绑定邮箱（settings 第一步）。wallet 不收 body，取自 WalletAuth CtxWallet。
+type BindEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// VerifyEmailRequest 提交邮箱 + 6 位验证码完成绑定（settings 第二步）。
+type VerifyEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Code  string `json:"code" binding:"required,len=6"`
+}
+
+// BindEmail 发起邮箱绑定：签发 6 位验证码 → 发码邮件（未配 SMTP 走 [DEV] 日志降级）。
+// R1 防越权：归属 wallet 唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body。
+// 限流命中（同 wallet 60 秒内重复请求）→ 429；其余错误 → 400。
+func (h *Handler) BindEmail(c *gin.Context) {
+	var req BindEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	authWallet := c.GetString(middleware.CtxWallet)
+	if err := h.emailService.RequestBind(authWallet, req.Email); err != nil {
+		if errors.Is(err, repository.ErrEmailRateLimited) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "验证码已发送"})
+}
+
+// VerifyEmail 校验验证码并完成绑定：成功后更新该 wallet 的 User.Email。
+// R1 防越权：归属 wallet 唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body。
+// 验证码错误/过期/锁死 → 400「验证码错误或已过期」。
+func (h *Handler) VerifyEmail(c *gin.Context) {
+	var req VerifyEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	authWallet := c.GetString(middleware.CtxWallet)
+	if err := h.emailService.ConfirmBind(authWallet, req.Email, req.Code); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "邮箱绑定成功"})
 }
 
 type RegisterRequest struct {

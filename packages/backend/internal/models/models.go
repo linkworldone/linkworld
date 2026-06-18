@@ -190,3 +190,20 @@ type WalletNonce struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// EmailVerification 是「邮箱绑定」的一次性验证码台账（与 WalletNonce 同安全模式）：
+// 用户在 settings 提交邮箱 → Issue 签发 6 位数字码（crypto/rand）落库（Used=false）→
+// 发码邮件 → 用户输入码 Verify 通过后置 Used=true（消费式，一次性），再由上层更新 User.Email。
+// Wallet 小写归一化（绑定签发者，防跨钱包借码）；ExpiresAt 10 分钟过期；
+// Attempts 记录该记录的错误尝试次数（≥5 锁死，防爆破）。
+type EmailVerification struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	Wallet    string    `gorm:"index;size:42" json:"wallet"`
+	Email     string    `gorm:"index" json:"email"`
+	Code      string    `gorm:"size:6" json:"-"` // 6 位数字码；不出 JSON（防泄露）
+	Used      bool      `gorm:"default:false;index" json:"used"`
+	Attempts  int       `gorm:"default:0" json:"attempts"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

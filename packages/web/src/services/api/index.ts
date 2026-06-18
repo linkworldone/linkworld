@@ -1,4 +1,5 @@
 export { userApi } from "./userApi";
+export { emailApi } from "./emailApi";
 export { operatorApi } from "./operatorApi";
 export { depositApi } from "./depositApi";
 export { billingApi } from "./billingApi";
