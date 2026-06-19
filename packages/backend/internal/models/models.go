@@ -56,18 +56,29 @@ type Sim struct {
 	UserID      uint      `gorm:"index" json:"userId"`
 	Days        uint      `json:"days"`                      // 无限流量天数(=销毁卡数)
 	Destination string    `gorm:"size:8" json:"destination"` // 目的地 code(US/JP/...)
-	Recipient   string    `json:"recipient"`                 // 收件人
-	AddressLine string    `json:"addressLine"`               // 收件地址
+	Recipient   string    `json:"recipient"`                 // 收件人（仅 physical 邮寄需要；esim 可空）
+	AddressLine string    `json:"addressLine"`               // 收件地址（仅 physical 邮寄需要；esim 可空）
 	TxHash      string    `json:"txHash"`
 	Status      string    `gorm:"size:16;index" json:"status"` // pending → confirmed(同押金两阶段)
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	// DeliveryType 交付方式："physical"(实体 SIM 邮寄，需收件人+地址) | "esim"(eSIM，不需地址，生成激活链接)。
+	// 缺省 physical（向后兼容旧前端不传该字段）。
+	DeliveryType string `gorm:"size:8;default:physical" json:"deliveryType"`
+	// ActivationURL 仅 eSIM 有值（后端生成的 mock 激活链接，前端据此展示二维码+URL）；physical 为空。
+	ActivationURL string    `json:"activationUrl"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // Sim.Status 取值常量（同押金两阶段状态机）。
 const (
 	SimStatusPending   = "pending"
 	SimStatusConfirmed = "confirmed"
+)
+
+// Sim.DeliveryType 取值常量。
+const (
+	SimDeliveryEsim     = "esim"
+	SimDeliveryPhysical = "physical"
 )
 
 type Bill struct {

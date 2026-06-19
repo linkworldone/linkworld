@@ -2,6 +2,7 @@ import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useCha
 import { parseUnits } from "viem";
 import { DepositABI, MockUSDTABI } from "../../config/abis";
 import { getContractAddress, getUsdt, getUsdtDecimals } from "../../config/contracts";
+import { localGasOverride } from "./gasOverride";
 
 export function useDepositBalance(address: `0x${string}` | undefined) {
   const chainId = useChainId();
@@ -60,6 +61,7 @@ export function useContractDeposit() {
       abi: DepositABI,
       functionName: "deposit",
       args: [parseUnits(amountUsdt, getUsdtDecimals(chainId))],
+      ...localGasOverride(chainId),
     });
   };
 
@@ -110,6 +112,7 @@ export function useContractWithdraw() {
       abi: DepositABI,
       functionName: "withdraw",
       args: [BigInt(trancheIndex)],
+      ...localGasOverride(chainId),
     });
   };
 

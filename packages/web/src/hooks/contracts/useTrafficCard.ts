@@ -9,6 +9,7 @@ import {
 import { parseAbiItem, type Log } from "viem";
 import { TrafficCardNFTABI } from "../../config/abis";
 import { getContractAddress } from "../../config/contracts";
+import { localGasOverride } from "./gasOverride";
 
 const CARD_MINTED_EVENT = parseAbiItem(
   "event CardMinted(address indexed user, uint256 tokenId, uint256 dataAmount)"
@@ -182,6 +183,7 @@ export function useRedeemForSim() {
       abi: TrafficCardNFTABI,
       functionName: "redeemForSim",
       args: [tokenIds],
+      ...localGasOverride(chainId),
     });
   };
 

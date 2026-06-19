@@ -1,6 +1,8 @@
 package services
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"time"
@@ -342,7 +344,11 @@ func NewSimService(simRepo *repository.SimRepository, userRepo *repository.UserR
 // Claim 记录用户 SIM 兑换 pending 意向（同押金两阶段状态机）。
 // ⚠️ 写 Status=pending——SIM 终态(confirmed)唯一由 event_sync 监听 SimRedeemed 等 K 块回填。
 // days = 销毁卡数（len(tokenIds)），归属 wallet 由调用方从 WalletAuth CtxWallet 取（不信 body）。
-func (s *SimService) Claim(wallet, destination, recipient, addressLine string, days uint, txHash string) (*models.Sim, error) {
+//
+// deliveryType 决定交付方式：
+//   - "esim"：不需收件地址；后端用 crypto/rand 生成 mock 激活链接（ActivationURL），前端据此展示二维码+URL。
+//   - 其余（含空串，按 "physical" 处理）：实体 SIM 邮寄，沿用 recipient/addressLine，ActivationURL 为空。
+func (s *SimService) Claim(wallet, destination, recipient, addressLine, deliveryType string, days uint, txHash string) (*models.Sim, error) {
 	user, err := s.userRepo.FindByWallet(wallet)
 	if err != nil {
 		return nil, err
@@ -351,15 +357,39 @@ func (s *SimService) Claim(wallet, destination, recipient, addressLine string, d
 		UserID:      user.ID,
 		Days:        days,
 		Destination: destination,
-		Recipient:   recipient,
-		AddressLine: addressLine,
 		TxHash:      txHash,
 		Status:      models.SimStatusPending,
 	}
+
+	if deliveryType == models.SimDeliveryEsim {
+		token, err := generateActivationToken()
+		if err != nil {
+			return nil, err
+		}
+		sim.DeliveryType = models.SimDeliveryEsim
+		sim.ActivationURL = "https://esim.linkworld.io/activate?token=" + token
+		// esim 不需收件地址，recipient/addressLine 留空（不校验）。
+	} else {
+		sim.DeliveryType = models.SimDeliveryPhysical
+		sim.Recipient = recipient
+		sim.AddressLine = addressLine
+		// physical 保持现有行为，ActivationURL 留空。
+	}
+
 	if err := s.simRepo.Create(sim); err != nil {
 		return nil, err
 	}
 	return sim, nil
+}
+
+// generateActivationToken 用 crypto/rand 生成 16 字节十六进制 token（mock eSIM 激活令牌，
+// 与 WalletNonceRepository.Issue 同模式：crypto/rand + hex.EncodeToString，禁用 math/rand）。
+func generateActivationToken() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }
 
 // GetByWallet 返回该用户的 SIM 列表。

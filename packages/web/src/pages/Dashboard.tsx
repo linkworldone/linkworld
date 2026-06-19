@@ -31,7 +31,7 @@ export default function Dashboard() {
   return (
     <div className="px-4 space-y-3">
       {/* 账户状态卡（navy 渐变深底，文字 on-dark，金额 gold-on-dark） */}
-      <div className="p-4 rounded-2xl bg-gradient-hero ring-1 ring-brand-gold/25">
+      <div className="mt-4 p-4 rounded-2xl bg-gradient-hero ring-1 ring-brand-gold/25">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="text-[10px] text-text-on-dark-muted">{t("dashboard.accountStatus")}</div>

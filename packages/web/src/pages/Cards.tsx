@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   Check,
   Loader2,
+  Smartphone,
+  QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,12 +22,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BottomSheet } from "@/components/shared/BottomSheet";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { AmountDisplay } from "@/components/shared/AmountDisplay";
+import { EsimActivation } from "@/components/shared/EsimActivation";
 import {
   useTrafficCards,
   useRedeemForSim,
   type TrafficCardItem,
 } from "@/hooks/contracts";
 import { useMySims, useClaimSim } from "@/hooks/useSim";
+import type { SimDeliveryType, SimRecord } from "@/services/api/simApi";
 import { WalletAuthRejectedError } from "@/services/api/signedPost";
 
 function formatTimestamp(ts: bigint): string {
@@ -80,11 +84,15 @@ function TrafficCardsTab() {
 
   // 收件表单
   const [destination, setDestination] = useState(SIM_DESTINATIONS[0].code);
+  // 交付方式：默认 eSIM（扫码激活，无需邮寄地址）。
+  const [deliveryType, setDeliveryType] = useState<SimDeliveryType>("esim");
   const [recipient, setRecipient] = useState("");
   const [addressLine, setAddressLine] = useState("");
   // 流程状态：idle | redeeming(链上) | claiming(后端) | done | error
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // 兑换成功后拿到的 SIM 记录（esim 含 activationUrl，用于渲染二维码）。
+  const [claimedSim, setClaimedSim] = useState<SimRecord | null>(null);
 
   const selectedCount = selected.size;
 
@@ -102,8 +110,10 @@ function TrafficCardsTab() {
     setRecipient("");
     setAddressLine("");
     setDestination(SIM_DESTINATIONS[0].code);
+    setDeliveryType("esim");
     setSubmitErr(null);
     setDone(false);
+    setClaimedSim(null);
     redeem.reset();
   }
 
@@ -113,8 +123,11 @@ function TrafficCardsTab() {
     setSheetOpen(true);
   }
 
+  // esim 只需选够卡数；physical 还需收件人 + 地址。
   const canSubmit =
-    recipient.trim().length > 0 && addressLine.trim().length > 0 && selectedCount >= MIN_BURN;
+    selectedCount >= MIN_BURN &&
+    (deliveryType === "esim" ||
+      (recipient.trim().length > 0 && addressLine.trim().length > 0));
 
   // 选中的 tokenId（bigint / number 两种形态备用）
   const selectedTokenIds = cards
@@ -135,16 +148,19 @@ function TrafficCardsTab() {
     if (claimSim.isPending || done) return;
     const txHash = redeem.hash;
     const tokenIds = selectedTokenIds.map((id) => Number(id));
+    const isEsim = deliveryType === "esim";
     claimSim.mutate(
       {
         destination,
-        recipient: recipient.trim(),
-        addressLine: addressLine.trim(),
+        deliveryType,
+        recipient: isEsim ? "" : recipient.trim(),
+        addressLine: isEsim ? "" : addressLine.trim(),
         tokenIds,
         txHash,
       },
       {
-        onSuccess: () => {
+        onSuccess: (sim) => {
+          setClaimedSim(sim);
           setDone(true);
           setSelected(new Set());
           refetch();
@@ -324,18 +340,31 @@ function TrafficCardsTab() {
       {/* 收件信息弹窗 */}
       <BottomSheet open={sheetOpen} onOpenChange={closeSheet}>
         {done ? (
-          <div className="flex flex-col items-center gap-3 py-4 text-center">
-            <CheckCircle2 className="size-10 text-brand-gold" strokeWidth={1.5} />
-            <p className="text-base font-semibold text-text-on-light-primary">
-              {t("cards.redeemSubmittedTitle")}
-            </p>
-            <p className="text-xs text-text-on-light-secondary">
-              {t("cards.redeemSubmittedDesc")}
-            </p>
-            <Button className="mt-2 w-full py-3" onClick={() => closeSheet(false)}>
-              {t("common.done")}
-            </Button>
-          </div>
+          claimedSim?.deliveryType === "esim" && claimedSim.activationUrl ? (
+            <div className="flex flex-col items-center gap-4 py-2 text-center">
+              <CheckCircle2 className="size-10 text-brand-gold" strokeWidth={1.5} />
+              <p className="text-base font-semibold text-text-on-light-primary">
+                {t("cards.esimReadyTitle")}
+              </p>
+              <EsimActivation activationUrl={claimedSim.activationUrl} />
+              <Button className="mt-2 w-full py-3" onClick={() => closeSheet(false)}>
+                {t("common.done")}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-4 text-center">
+              <CheckCircle2 className="size-10 text-brand-gold" strokeWidth={1.5} />
+              <p className="text-base font-semibold text-text-on-light-primary">
+                {t("cards.redeemSubmittedTitle")}
+              </p>
+              <p className="text-xs text-text-on-light-secondary">
+                {t("cards.redeemSubmittedDesc")}
+              </p>
+              <Button className="mt-2 w-full py-3" onClick={() => closeSheet(false)}>
+                {t("common.done")}
+              </Button>
+            </div>
+          )
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
@@ -363,25 +392,64 @@ function TrafficCardsTab() {
               </select>
             </div>
 
+            {/* 交付方式：eSIM（扫码激活）/ 实体邮寄 */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-on-light-secondary">{t("cards.recipient")}</label>
-              <Input
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-                placeholder={t("cards.recipientPlaceholder")}
-                disabled={busy}
-              />
+              <label className="text-xs font-medium text-text-on-light-secondary">{t("cards.deliveryMethod")}</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { value: "esim" as const, label: t("cards.esim"), icon: Smartphone },
+                    { value: "physical" as const, label: t("cards.physicalMail"), icon: MailPlus },
+                  ]
+                ).map(({ value, label, icon: Icon }) => {
+                  const active = deliveryType === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => !busy && setDeliveryType(value)}
+                      disabled={busy}
+                      aria-pressed={active}
+                      className={
+                        "flex h-11 items-center justify-center gap-1.5 rounded-md border text-sm font-medium transition-colors disabled:opacity-50 " +
+                        (active
+                          ? "border-brand-royal bg-brand-royal/10 text-brand-royal"
+                          : "border-surface-card-line bg-surface-input text-text-on-light-secondary")
+                      }
+                    >
+                      <Icon className="size-4" />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-on-light-secondary">{t("cards.addressLine")}</label>
-              <Input
-                value={addressLine}
-                onChange={(e) => setAddressLine(e.target.value)}
-                placeholder={t("cards.addressPlaceholder")}
-                disabled={busy}
-              />
-            </div>
+            {deliveryType === "esim" ? (
+              <p className="text-[11px] text-text-on-light-muted">{t("cards.esimNoAddressNote")}</p>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-text-on-light-secondary">{t("cards.recipient")}</label>
+                  <Input
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value)}
+                    placeholder={t("cards.recipientPlaceholder")}
+                    disabled={busy}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-text-on-light-secondary">{t("cards.addressLine")}</label>
+                  <Input
+                    value={addressLine}
+                    onChange={(e) => setAddressLine(e.target.value)}
+                    placeholder={t("cards.addressPlaceholder")}
+                    disabled={busy}
+                  />
+                </div>
+              </>
+            )}
 
             {submitErr && (
               <p className="text-center text-[11px] text-status-danger">{submitErr}</p>
@@ -408,6 +476,8 @@ function MySimsTab() {
   const { t } = useTranslation();
   const { address } = useAccount();
   const { data: sims, isLoading, isError, refetch } = useMySims(address);
+  // 查看 eSIM 二维码弹窗（点击 eSIM 记录的「查看」打开）。
+  const [viewSim, setViewSim] = useState<SimRecord | null>(null);
 
   return (
     <div className="space-y-4">
@@ -483,17 +553,45 @@ function MySimsTab() {
                     {sim.status === "confirmed" ? t("cards.simConfirmed") : t("cards.simPending")}
                   </span>
                 </div>
-                <div className="text-[11px] text-text-on-light-muted">
-                  {t("cards.simRecipient", {
-                    recipient: sim.recipient || "—",
-                    address: sim.addressLine || "—",
-                  })}
-                </div>
+                {sim.deliveryType === "esim" ? (
+                  sim.activationUrl ? (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setViewSim(sim)}
+                    >
+                      <QrCode className="size-3.5" />
+                      {t("cards.viewEsim")}
+                    </Button>
+                  ) : null
+                ) : (
+                  <div className="text-[11px] text-text-on-light-muted">
+                    {t("cards.simRecipient", {
+                      recipient: sim.recipient || "—",
+                      address: sim.addressLine || "—",
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* 查看 eSIM 二维码弹窗 */}
+      <BottomSheet open={!!viewSim} onOpenChange={(open) => !open && setViewSim(null)}>
+        {viewSim && (
+          <div className="flex flex-col items-center gap-4 py-2 text-center">
+            <p className="text-base font-semibold text-text-on-light-primary">
+              {t("cards.esimReadyTitle")}
+            </p>
+            <EsimActivation activationUrl={viewSim.activationUrl} />
+            <Button className="mt-2 w-full py-3" onClick={() => setViewSim(null)}>
+              {t("common.done")}
+            </Button>
+          </div>
+        )}
+      </BottomSheet>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"linkworld-backend/internal/middleware"
+	"linkworld-backend/internal/models"
 	"linkworld-backend/internal/repository"
 	"linkworld-backend/internal/services"
 
@@ -305,25 +306,41 @@ func (h *Handler) PayBill(c *gin.Context) {
 // SimClaimRequest 「流量卡销毁兑换 SIM」claim 意向（新玩法）。
 // tokenIds 为前端勾选销毁的流量卡 NFT（每张=1 天），days = len(tokenIds)。
 // txHash 为链上 redeemForSim 交易哈希（意向追溯；SIM confirmed 终态唯一由 event_sync 监听 SimRedeemed 回填）。
+//
+// deliveryType 决定交付方式："physical"(实体邮寄，需 recipient+addressLine) | "esim"(不需地址，后端生成激活链接)。
+// 缺省（不传）按 "physical" 处理（向后兼容旧前端）。recipient/addressLine 改为条件校验（见 ClaimSim），
+// 故此处不再用 binding:"required"——physical 缺地址在 handler 内显式拒绝，esim 允许为空。
 type SimClaimRequest struct {
-	Destination string   `json:"destination" binding:"required"`
-	Recipient   string   `json:"recipient" binding:"required"`
-	AddressLine string   `json:"addressLine" binding:"required"`
-	TokenIDs    []uint64 `json:"tokenIds" binding:"required,min=1"`
-	TxHash      string   `json:"txHash"`
+	Destination  string   `json:"destination" binding:"required"`
+	Recipient    string   `json:"recipient"`
+	AddressLine  string   `json:"addressLine"`
+	DeliveryType string   `json:"deliveryType"`
+	TokenIDs     []uint64 `json:"tokenIds" binding:"required,min=1"`
+	TxHash       string   `json:"txHash"`
 }
 
 // ClaimSim 接收 SIM 兑换 pending 意向（WalletAuth 保护，action "sim/claim"）。
 // ⚠️ 只落 Status=pending 意向——SIM confirmed 终态唯一由 event_sync 监听链上 SimRedeemed 等 K 块回填。
 // R1 防越权：归属 wallet 唯一取自 WalletAuth 已验证钱包（CtxWallet），不信任 body。
+// 交付方式：deliveryType=="esim" 不要求地址（后端生成激活链接）；否则按 physical 处理并要求 recipient+addressLine。
 func (h *Handler) ClaimSim(c *gin.Context) {
 	var req SimClaimRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	// deliveryType 缺省按 physical 处理（向后兼容旧前端）。
+	deliveryType := req.DeliveryType
+	if deliveryType == "" {
+		deliveryType = models.SimDeliveryPhysical
+	}
+	// physical 邮寄要求收件人+地址；esim 不要求（按交付方式条件校验）。
+	if deliveryType == models.SimDeliveryPhysical && (req.Recipient == "" || req.AddressLine == "") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "recipient and addressLine are required for physical delivery"})
+		return
+	}
 	authWallet := c.GetString(middleware.CtxWallet)
-	sim, err := h.simService.Claim(authWallet, req.Destination, req.Recipient, req.AddressLine, uint(len(req.TokenIDs)), req.TxHash)
+	sim, err := h.simService.Claim(authWallet, req.Destination, req.Recipient, req.AddressLine, deliveryType, uint(len(req.TokenIDs)), req.TxHash)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

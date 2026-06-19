@@ -1,6 +1,7 @@
 import { useWriteContract, useWaitForTransactionReceipt, useChainId } from "wagmi";
 import { PaymentABI } from "../../config/abis";
 import { getContractAddress } from "../../config/contracts";
+import { localGasOverride } from "./gasOverride";
 
 export function useContractPayBill() {
   const chainId = useChainId();
@@ -16,6 +17,7 @@ export function useContractPayBill() {
       abi: PaymentABI,
       functionName: "payBill",
       args: [billId],
+      ...localGasOverride(chainId),
     });
   };
 

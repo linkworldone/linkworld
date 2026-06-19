@@ -6,6 +6,7 @@ import {
 } from "wagmi";
 import { MockUSDTABI } from "../../config/abis";
 import { getUsdt } from "../../config/contracts";
+import { localGasOverride } from "./gasOverride";
 
 /**
  * 读 USDT(ERC20) 对某 spender 的授权额度。
@@ -47,6 +48,7 @@ export function useApprove() {
       functionName: "approve",
       // exact amount —— 绝不传 MaxUint256/infinite。
       args: [spender, amount],
+      ...localGasOverride(chainId),
     });
   };
 

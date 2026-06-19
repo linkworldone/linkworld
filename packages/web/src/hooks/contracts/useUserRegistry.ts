@@ -2,6 +2,7 @@ import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 
 import { useChainId } from "wagmi";
 import { getContractAddress } from "@/config/contracts";
 import { UserRegistryABI } from "@/config/abis";
+import { localGasOverride } from "./gasOverride";
 
 /* ------------------------------------------------------------------ */
 /*  Read: isRegistered                                                */
@@ -38,6 +39,7 @@ export function useContractRegister() {
       abi: UserRegistryABI,
       functionName: "register",
       args: [email],
+      ...localGasOverride(chainId),
     });
   }
 
