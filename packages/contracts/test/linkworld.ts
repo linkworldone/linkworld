@@ -438,6 +438,49 @@ it("TC-04  getUserCardCount zero initially", async function () {
       ).to.be.revertedWith("Length mismatch");
     });
   });
+
+  describe("TrafficCardNFT eSIM", function () {
+    beforeEach(deployAndWire);
+
+    it("ESIM-01  setSmDpAddress stores address", async function () {
+      await trafficCardNFT.setSmDpAddress("https://sm-dp.linkworld.io/qr");
+      expect(await trafficCardNFT.smDpAddress()).to.equal("https://sm-dp.linkworld.io/qr");
+    });
+
+    it("ESIM-02  burn emits ESimRedeemed with activationCode", async function () {
+      await trafficCardNFT.setSmDpAddress("https://sm-dp.linkworld.io/qr");
+      const tx = await trafficCardNFT.mint(user1.address, 1024, "https://example.com/0");
+      const receipt = await tx.wait();
+      const tokenId = receipt.logs.find(l => l.fragment?.name === "CardMinted")?.args?.tokenId || 0n;
+      const burnTx = await trafficCardNFT.connect(user1).burn(tokenId);
+      const burnReceipt = await burnTx.wait();
+      const event = burnReceipt.logs.find(l => l.fragment?.name === "ESimRedeemed");
+      expect(event).to.not.be.undefined;
+    });
+
+    it("ESIM-03  getActivationCode returns stored code after burn", async function () {
+      await trafficCardNFT.setSmDpAddress("https://sm-dp.linkworld.io/qr");
+      const tx = await trafficCardNFT.mint(user1.address, 1024, "https://example.com/1");
+      const receipt = await tx.wait();
+      const tokenId = receipt.logs.find(l => l.fragment?.name === "CardMinted")?.args?.tokenId || 0n;
+      await trafficCardNFT.connect(user1).burn(tokenId);
+      expect(await trafficCardNFT.getActivationCode(tokenId)).to.not.equal("");
+    });
+
+    it("ESIM-04  redeemForSim emits ESimRedeemed for each card", async function () {
+      await trafficCardNFT.setSmDpAddress("https://sm-dp.linkworld.io/qr");
+      const tx1 = await trafficCardNFT.mint(user1.address, 1024, "https://example.com/2");
+      const receipt1 = await tx1.wait();
+      const id1 = receipt1.logs.find(l => l.fragment?.name === "CardMinted")?.args?.tokenId || 0n;
+      const tx2 = await trafficCardNFT.mint(user1.address, 2048, "https://example.com/3");
+      const receipt2 = await tx2.wait();
+      const id2 = receipt2.logs.find(l => l.fragment?.name === "CardMinted")?.args?.tokenId || 0n;
+      const tx = await trafficCardNFT.connect(user1).redeemForSim([id1, id2]);
+      const receipt = await tx.wait();
+      const events = receipt.logs.filter(l => l.fragment?.name === "ESimRedeemed");
+      expect(events.length).to.equal(2);
+    });
+  });
 });
 
 

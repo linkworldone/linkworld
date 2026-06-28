@@ -2,80 +2,115 @@
   "manifestVersion": "3.2",
   "proxies": [
     {
-      "address": "0x46A37B515058AAc4100037cf0291529066960104",
-      "txHash": "0x4c45ec4b73e244e5d2d3a65aa4bfe10e0e6cd79d75bee085a3cd140c16c60d80",
+      "address": "0x95B0792b7d3b1f23E7C422D2588967D5d6cA0dbc",
+      "txHash": "0x2a823ea8ff2c02ff2f6edf7faa7a49975b15a0c3c5443beff06e8eca7e2b2c25",
       "kind": "uups"
     },
     {
-      "address": "0xABdAE095405Babab3A1D03F30c85c4BafAE4C236",
-      "txHash": "0x28afb94a77e0fe1aa054b8931e88751b03e1a496d45aec492eb4fdd2dea57c0b",
+      "address": "0xf031EB721D5BD3F2f5637dF5D05E6Eb87a6341bd",
+      "txHash": "0x187629c0325b75d35a0199bd3772b9d50cff3e756b478dd700273c47fdfb3eea",
       "kind": "uups"
     },
     {
-      "address": "0x859De1c9543cb80f3cB9A55e2Ac690fA2b70f314",
-      "txHash": "0xbeb12466321157adfdc6f66263c81b164410a218b8830bb51605a5cdc4473f0e",
+      "address": "0x854B05D2e8D0539EE5496c31faDabC80ee027194",
+      "txHash": "0x6a6e479dfccb52975ea6e5cadeb09f381f6d7713bdd141fae2aa879f33d528a6",
       "kind": "uups"
     },
     {
-      "address": "0xC795D0B5f37c365f3aB35d9265fbDB0A985cb683",
-      "txHash": "0x9fdbb926de7c737af3d0c311bcfff5f60a151655f5e8c8a7697b184e9b225056",
+      "address": "0x76E47FCadb7B2608fEEb0E6B30D0F0eab1Ef0696",
+      "txHash": "0xb3d2b18bbb55cef455b7f5b10ca36b515ed009521d84d1087e27a9f688978750",
       "kind": "uups"
     },
     {
-      "address": "0x2c496068577719B096faA15dDcdf76F9543Fa2e1",
-      "txHash": "0xd244360f6b812cabf9608b0749cb339c82eb10459dc58d7850a5ea8e524c6ef1",
+      "address": "0x492bFaBC91f97E05E15920314CD9F90501300446",
+      "txHash": "0x22825b221feb91de6b6ab03966377bed6900030b4ef491a9dd955fc165a2d507",
       "kind": "uups"
     },
     {
-      "address": "0x2db016b079a38e6bBDF67230afa64F6a130ea148",
-      "txHash": "0x64649d4b2f08df4bc397fd6f7e395d2954f2e8b99f4fcf12373b8993733e0176",
+      "address": "0xE0D6e8e91cD3af9eC15bD6f9a26f58a811b3dA58",
+      "txHash": "0x10c1e36f0a90eec169b3a08b811030b99fcfa3acc7835cfaf969dde25df0503d",
       "kind": "uups"
     },
     {
-      "address": "0x3755Ce7d04f3F74f9B20298fC03a79e5ae890A7D",
-      "txHash": "0x8471a6a1a910586b3011c472b43cabcd42699c59cb374701c15f713e7540b6dd",
+      "address": "0xd68e2b0994e14011f8F2C7cA8637fC6E54C48f43",
+      "txHash": "0x1218a6f0daf68a94387bf729c57ae314c6378b45a7242ee539c12b281e002911",
       "kind": "uups"
     },
     {
-      "address": "0x1c73baEceE72d0867b046f939Dd27fbbc714332b",
-      "txHash": "0xe869804141e08981411fac803b0aeed5774cbf8da1aa8cfec884b3bc5d4774c3",
+      "address": "0x4284fb3002865ec1666411810b578254BB154045",
+      "txHash": "0x6d519cf0a67af10fe40c3e7b683f6d51c65e37b53fa3a48d3508161047cda892",
       "kind": "uups"
     },
     {
-      "address": "0x1820f818dF0dE96d29eA3AA7007785eBE46662D1",
-      "txHash": "0xfaf09a24ac7d313c79c0046f9e35dff46f2105be6e24be6cb66291fc48e71060",
+      "address": "0x08083869FdB9d7a497716323539BFcA1e7E71715",
+      "txHash": "0xcd44d4b4995840474950567b92293dc366fa7f5b79f1ccaf488d1bc7e3a77024",
       "kind": "uups"
     },
     {
-      "address": "0xef3885eDE3DC3eaCb187640C123f22F53F187c69",
-      "txHash": "0x10d752f8ce3a8816bb6f6b35525603f8f280578860bffc256f0f874491f990eb",
+      "address": "0x89FB5a004EEbC1064ee7587b6415B10E49EB9F99",
+      "txHash": "0x92982aea8d3c56b84a0d404cdfc6e012f45423a8afbfeb65cc358c20da88be3d",
       "kind": "uups"
     },
     {
-      "address": "0x9B40f07d59B0DB1c9C6df4F98C2F543B408e11De",
-      "txHash": "0x390a16f7742efb6ae5ec9b853186db524e65e1ffec4d057bce23a83d234d0c45",
+      "address": "0x875DF316908a380dAbFB8C73cf938f2F4702956c",
+      "txHash": "0xf7b5db0937c2be8b231c7b87a6b8b44a6ab6373c2fc9d640a0d69d3e4edd7377",
       "kind": "uups"
     },
     {
-      "address": "0x76B7FBB715ffD402c1a5284725858898b81004F1",
-      "txHash": "0x78873811f96099f4e24d5f691abf5890cec6835bbe50e37b326308f3ffd4728f",
+      "address": "0x06ba507d7dF6568F049D4cd5CC903B0293Ebe907",
+      "txHash": "0x866647c257e1c0a6e894fa04dc04752a9a0e163a9292268beed4fac29f75a99d",
       "kind": "uups"
     },
     {
-      "address": "0x6478901DB1cf6b2d561690f2B631E5A149c506b9",
-      "txHash": "0xe0a3da916347ce889db65aabb60ac211cafa787deb7fc979d8b069c43e84268f",
+      "address": "0x909699be6653796b57faC6f6973aBe4C32CB9C3a",
+      "txHash": "0x2340a6cdc48ed2a5819325f75edabe2ec56ea2a8153639715b88b28b2f81bb81",
       "kind": "uups"
     },
     {
-      "address": "0xe96E8d3cCc4209a58391A001F617Cc3BcD0Ce898",
-      "txHash": "0x4fa32e23422934bf61729de4686a88a4d23a3140d44122e135db9ff591664ce9",
+      "address": "0x6f5361625707F31BC23294B24C95a867ac5eD4E3",
+      "txHash": "0x705b76e6c9b625c7ea02a329a56b88d4010a0de662421f377f3938c068b4f0d9",
+      "kind": "uups"
+    },
+    {
+      "address": "0x3FcF6Efa1a499b9562Bf4D1e6198cf05F2E33e36",
+      "txHash": "0xe0003c3ab7959e75c79e47602c701d612643b1be5383349be60921e13efe0697",
+      "kind": "uups"
+    },
+    {
+      "address": "0x5914aF1a358Ba423853D538eA56ce56aB9430B6a",
+      "txHash": "0x6f7fcb3ea3c20b0a6f265368e16b133b626b37a36e95be31d24a6b4634c53033",
+      "kind": "uups"
+    },
+    {
+      "address": "0x5e3C2DE326c70Fb6F119483585ac028E3A440Fa2",
+      "txHash": "0x30a852e3afcba2dc10f1eefd849e95ab3d625635db6ff4bea4953141988f73bc",
+      "kind": "uups"
+    },
+    {
+      "address": "0xF846C25D1CB86ced7C59F4B8EcA8F07eE8610568",
+      "txHash": "0x4de778c21ae4c32b2ea9d10e7b13b66497c9b2aa0e409722726966bf7e183705",
+      "kind": "uups"
+    },
+    {
+      "address": "0x4774a4e02E1E50D8CFc84f7f87bE676775F1809c",
+      "txHash": "0x23e941c18db1b2232b3130ea92a70496c12fd7ac794f8738590d392d09b9d75b",
+      "kind": "uups"
+    },
+    {
+      "address": "0xf4507effcd5B0d85b4AEe7C687EB837F657e83a4",
+      "txHash": "0x1a9285c4d80d33ec93cca51a4b6a117f3767ef263cd876eec6ba3ede94d1e2a4",
+      "kind": "uups"
+    },
+    {
+      "address": "0x750ac948080fE3AB5154427e13EbA6a016e4C674",
+      "txHash": "0xbf3aeef384bbe38e76fa357c21c26232b1e5d4f9f9773ff895ce2d23752f84d1",
       "kind": "uups"
     }
   ],
   "impls": {
     "c91406b5f347209db650678726d10099db3e5171ab74539f8f2a4487518f07e5": {
-      "address": "0x565953A77E6b21DaC6F9fe1835D1dcD0C9278B55",
-      "txHash": "0x634e75ac876f0addd5ce6a11ff34312cce6a00bbc6f713d2872576244f8f97e9",
+      "address": "0x0dAB99d484ACbc630D388D651539db99BD0a6C2a",
+      "txHash": "0x33c5055a3c41149b117e54b410e2f418a00669fc762beafbddb5fa296f9ddf5e",
       "layout": {
         "solcVersion": "0.8.27",
         "storage": [
@@ -169,8 +204,8 @@
       }
     },
     "a5a4529c20b7f9c2484e9af3ad201119ede3d8caf21714d04db4d5ddbf815ea0": {
-      "address": "0x3d2F9cD2EE69EB7CF92F791Ce85c205FE4C039ce",
-      "txHash": "0xdea6278abeaebc9ce73bf4b1265745b24fa9efeb7e58d78ed15f70edfb34a364",
+      "address": "0x94B80609f3F1de8408fa375C102a5359E448EfCc",
+      "txHash": "0x81069887b8215dec94c475f3fff571f78c1c907d8160ccbf6b056afc6ea88d53",
       "layout": {
         "solcVersion": "0.8.27",
         "storage": [
@@ -450,8 +485,8 @@
       }
     },
     "f48e8bf90b8117cbbc83c8f8505f8032c0388cae7c6e9f2d37e19e80a2471beb": {
-      "address": "0xDd6A8925189408e19752B28E392CA1Bb129313a2",
-      "txHash": "0xfc35036232fb887d4a955fc846b130d82bd45bb78307c18d28675f3ea3450428",
+      "address": "0xC8e38575c780EeC17B3d22B14b8cd78570F5363A",
+      "txHash": "0x076fcf292853a2ec0baa2edd775ec6110063cdbedfd6c5a814ad3d21d34b6d49",
       "layout": {
         "solcVersion": "0.8.27",
         "storage": [
@@ -636,9 +671,9 @@
         }
       }
     },
-    "0c06ec4a75ad34a31a92a52402115e7c2f6c410c947065bb5ff573705862b6a8": {
-      "address": "0x3f17EA83F26C4b19Dab8C80c9A87B8F3058dEE3D",
-      "txHash": "0x435ea215ab5e4ec6ba17c71744eaeb5514e2a4b110ea5de11c019c19b5bc4b7a",
+    "8dfe9aab81802df04958f63eb600cb5c2025af6398185df9a6c20dfe196f46aa": {
+      "address": "0xCfEC9F5fB6862F5aB6D3c88801Ea734020BFe6fb",
+      "txHash": "0x1489928b6812c7528e32bf9ff4e2ae435950f347ae752ab9e5cdc92fa30f548b",
       "layout": {
         "solcVersion": "0.8.27",
         "storage": [
@@ -648,15 +683,15 @@
             "slot": "0",
             "type": "t_uint256",
             "contract": "TrafficCardNFT",
-            "src": "contracts\\TrafficCardNFT.sol:11"
+            "src": "contracts\\TrafficCardNFT.sol:12"
           },
           {
             "label": "_cardInfo",
             "offset": 0,
             "slot": "1",
-            "type": "t_mapping(t_uint256,t_struct(CardInfo)13741_storage)",
+            "type": "t_mapping(t_uint256,t_struct(CardInfo)11930_storage)",
             "contract": "TrafficCardNFT",
-            "src": "contracts\\TrafficCardNFT.sol:12"
+            "src": "contracts\\TrafficCardNFT.sol:13"
           },
           {
             "label": "_userCardCount",
@@ -664,7 +699,7 @@
             "slot": "2",
             "type": "t_mapping(t_address,t_uint256)",
             "contract": "TrafficCardNFT",
-            "src": "contracts\\TrafficCardNFT.sol:13"
+            "src": "contracts\\TrafficCardNFT.sol:14"
           },
           {
             "label": "depositContract",
@@ -672,15 +707,31 @@
             "slot": "3",
             "type": "t_address",
             "contract": "TrafficCardNFT",
-            "src": "contracts\\TrafficCardNFT.sol:14"
+            "src": "contracts\\TrafficCardNFT.sol:15"
           },
           {
             "label": "_deductionCredits",
             "offset": 0,
             "slot": "4",
-            "type": "t_mapping(t_address,t_struct(DeductionCredit)12970_storage)",
+            "type": "t_mapping(t_address,t_struct(DeductionCredit)11168_storage)",
             "contract": "TrafficCardNFT",
-            "src": "contracts\\TrafficCardNFT.sol:20"
+            "src": "contracts\\TrafficCardNFT.sol:21"
+          },
+          {
+            "label": "_activationCodes",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_mapping(t_uint256,t_string_storage)",
+            "contract": "TrafficCardNFT",
+            "src": "contracts\\TrafficCardNFT.sol:25"
+          },
+          {
+            "label": "_smDpAddress",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_string_storage",
+            "contract": "TrafficCardNFT",
+            "src": "contracts\\TrafficCardNFT.sol:26"
           }
         ],
         "types": {
@@ -808,15 +859,15 @@
             "label": "uint64",
             "numberOfBytes": "8"
           },
-          "t_mapping(t_address,t_struct(DeductionCredit)12970_storage)": {
+          "t_mapping(t_address,t_struct(DeductionCredit)11168_storage)": {
             "label": "mapping(address => struct TrafficCardNFT.DeductionCredit)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint256,t_struct(CardInfo)13741_storage)": {
+          "t_mapping(t_uint256,t_struct(CardInfo)11930_storage)": {
             "label": "mapping(uint256 => struct ITrafficCardNFT.CardInfo)",
             "numberOfBytes": "32"
           },
-          "t_struct(CardInfo)13741_storage": {
+          "t_struct(CardInfo)11930_storage": {
             "label": "struct ITrafficCardNFT.CardInfo",
             "members": [
               {
@@ -840,7 +891,7 @@
             ],
             "numberOfBytes": "96"
           },
-          "t_struct(DeductionCredit)12970_storage": {
+          "t_struct(DeductionCredit)11168_storage": {
             "label": "struct TrafficCardNFT.DeductionCredit",
             "members": [
               {
@@ -952,8 +1003,8 @@
       }
     },
     "52cf18cbcb09de789730a84865150937d243aea0c5351e9c0890a9e45533bf89": {
-      "address": "0xdB8E0B11892b12f035279f51f0F678C2063724Ec",
-      "txHash": "0xa8dd6bf702513976788b496b7457bf4ab509d333d0f6adf403b46a15d5ac8c41",
+      "address": "0x57d048d0a40dFaA55BcF16496E68Dc7d4973E7fa",
+      "txHash": "0xbcb3a28bcbaa8f3a953c315668fb36c77a71d69bfafc233690c4bab81b0616d6",
       "layout": {
         "solcVersion": "0.8.27",
         "storage": [
@@ -1175,8 +1226,8 @@
       }
     },
     "bee0f8145760b9e85f44b8a6d08c86f500ee6514ff9eced2dfeaf4defc932974": {
-      "address": "0xB78f201232Bb1b853e0DDBC0514b6233aaf5eb5b",
-      "txHash": "0x30775d20dfe443d33e25671f729f7e8dfeb92d4e7849b24028a1f9dd65e05614",
+      "address": "0xec68F79Ef2E5274CB3Ce131f26A2F2AafB2835b6",
+      "txHash": "0x63618990642600ed84c8fbb04b9dc921982d5cb69a60778822908bfafd778723",
       "layout": {
         "solcVersion": "0.8.27",
         "storage": [
@@ -1184,7 +1235,7 @@
             "label": "userRegistry",
             "offset": 0,
             "slot": "0",
-            "type": "t_contract(IUserRegistry)13864",
+            "type": "t_contract(IUserRegistry)11631",
             "contract": "Deposit",
             "src": "contracts\\Deposit.sol:21"
           },
@@ -1192,7 +1243,7 @@
             "label": "trafficCardNFT",
             "offset": 0,
             "slot": "1",
-            "type": "t_contract(ITrafficCardNFT)13822",
+            "type": "t_contract(ITrafficCardNFT)11589",
             "contract": "Deposit",
             "src": "contracts\\Deposit.sol:25"
           },
@@ -1208,7 +1259,7 @@
             "label": "_tranches",
             "offset": 0,
             "slot": "3",
-            "type": "t_mapping(t_address,t_array(t_struct(Tranche)13406_storage)dyn_storage)",
+            "type": "t_mapping(t_address,t_array(t_struct(Tranche)11417_storage)dyn_storage)",
             "contract": "Deposit",
             "src": "contracts\\Deposit.sol:28"
           },
@@ -1216,7 +1267,7 @@
             "label": "usdt",
             "offset": 0,
             "slot": "4",
-            "type": "t_contract(IERC20)3176",
+            "type": "t_contract(IERC20)2661",
             "contract": "Deposit",
             "src": "contracts\\Deposit.sol:34"
           }
@@ -1264,27 +1315,27 @@
             "label": "uint64",
             "numberOfBytes": "8"
           },
-          "t_array(t_struct(Tranche)13406_storage)dyn_storage": {
+          "t_array(t_struct(Tranche)11417_storage)dyn_storage": {
             "label": "struct IDeposit.Tranche[]",
             "numberOfBytes": "32"
           },
-          "t_contract(IERC20)3176": {
+          "t_contract(IERC20)2661": {
             "label": "contract IERC20",
             "numberOfBytes": "20"
           },
-          "t_contract(ITrafficCardNFT)13822": {
+          "t_contract(ITrafficCardNFT)11589": {
             "label": "contract ITrafficCardNFT",
             "numberOfBytes": "20"
           },
-          "t_contract(IUserRegistry)13864": {
+          "t_contract(IUserRegistry)11631": {
             "label": "contract IUserRegistry",
             "numberOfBytes": "20"
           },
-          "t_mapping(t_address,t_array(t_struct(Tranche)13406_storage)dyn_storage)": {
+          "t_mapping(t_address,t_array(t_struct(Tranche)11417_storage)dyn_storage)": {
             "label": "mapping(address => struct IDeposit.Tranche[])",
             "numberOfBytes": "32"
           },
-          "t_struct(Tranche)13406_storage": {
+          "t_struct(Tranche)11417_storage": {
             "label": "struct IDeposit.Tranche",
             "members": [
               {
@@ -1346,8 +1397,8 @@
       }
     },
     "67a768ada2db1636038cad6db32cf856f2fa2302f67f37554cd87cdb6726b28f": {
-      "address": "0x7d298bEcF48370e256d74372De3A8344d0a34CDD",
-      "txHash": "0x13c4b84966bb25055a3e1929ac69512f1d5f9712449a8c664e7a2229ce73d77f",
+      "address": "0x4ad858173Cffe4e8fDB04D51953fA11f25B0808d",
+      "txHash": "0x4c5945bd87e67426231c04761d01d639cad56c167ce556818032a25ec27db34b",
       "layout": {
         "solcVersion": "0.8.27",
         "storage": [
@@ -1418,6 +1469,177 @@
           "t_contract(IPayment)2202": {
             "label": "contract IPayment",
             "numberOfBytes": "20"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin\\contracts-upgradeable\\access\\OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin\\contracts\\proxy\\utils\\Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin\\contracts\\proxy\\utils\\Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "c61efa3da1d451591502918867754dbf5e12271b23b00ad571bb7c2f78260d4a": {
+      "address": "0xEBd531889C7727B4Ac763Ae19eE028df82D5E465",
+      "txHash": "0xd06cc8aa2cf169905d8374bd96fdc173ff2721243769e0f7562eb9d7650e70d4",
+      "layout": {
+        "solcVersion": "0.8.27",
+        "storage": [
+          {
+            "label": "userRegistry",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IUserRegistry)9811",
+            "contract": "Deposit",
+            "src": "contracts\\Deposit.sol:21"
+          },
+          {
+            "label": "trafficCardNFT",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(ITrafficCardNFT)9769",
+            "contract": "Deposit",
+            "src": "contracts\\Deposit.sol:25"
+          },
+          {
+            "label": "oracle",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "Deposit",
+            "src": "contracts\\Deposit.sol:26"
+          },
+          {
+            "label": "_tranches",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_address,t_array(t_struct(Tranche)9450_storage)dyn_storage)",
+            "contract": "Deposit",
+            "src": "contracts\\Deposit.sol:28"
+          },
+          {
+            "label": "usdt",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_contract(IERC20)1181",
+            "contract": "Deposit",
+            "src": "contracts\\Deposit.sol:34"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)303_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_struct(Tranche)9450_storage)dyn_storage": {
+            "label": "struct IDeposit.Tranche[]",
+            "numberOfBytes": "32"
+          },
+          "t_contract(IERC20)1181": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_contract(ITrafficCardNFT)9769": {
+            "label": "contract ITrafficCardNFT",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IUserRegistry)9811": {
+            "label": "contract IUserRegistry",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_array(t_struct(Tranche)9450_storage)dyn_storage)": {
+            "label": "mapping(address => struct IDeposit.Tranche[])",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Tranche)9450_storage": {
+            "label": "struct IDeposit.Tranche",
+            "members": [
+              {
+                "label": "amount",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "unlockAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "withdrawn",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
           }
         },
         "namespaces": {

@@ -56,6 +56,11 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
         trafficCardNFT = ITrafficCardNFT(_trafficCardNFT);
     }
 
+    /// @notice 设置 SM-DP 地址（转发给 TrafficCardNFT）
+    function setSmDpAddress(string calldata _addr) external onlyOwner {
+        trafficCardNFT.setSmDpAddress(_addr);
+    }
+
     /// @notice 用户分档充值（仅 10/20/50/100 USDT），充值即按比例发卡，并新增一笔 30 天独立锁。
     /// @dev 需先 approve(deposit, amount)。CEI：先收款 + 记账，再 mint（mint 有 onERC721Received 回调，靠 nonReentrant 兜底）。
     /// @param amount 存入的 USDT 数量（最小单位）。按 IERC20Metadata.decimals() 折算后必须等于 10/20/50/100 档。
@@ -157,6 +162,14 @@ contract Deposit is IDeposit, OwnableUpgradeable, ReentrancyGuardTransient, UUPS
             }
         }
         return earliest;
+    }
+
+    /// @notice 升级 TrafficCardNFT 实现合约（仅部署者可调用）
+    function upgradeTrafficCardNFT(address _newImpl) external onlyOwner {
+        (bool success, ) = address(trafficCardNFT).call(
+            abi.encodeWithSignature("upgradeTo(address)", _newImpl)
+        );
+        require(success, "Upgrade failed");
     }
 
     /// @inheritdoc UUPSUpgradeable

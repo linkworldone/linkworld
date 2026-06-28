@@ -1,25 +1,17 @@
 {
-  "_note": "Arbitrum Sepolia (421614) 部署清单。合约 1/3 真·上链前，proxies/usdt 为占位零地址（待 PR#1 上链后用 scripts/sync-deployments.sh 从 packages/contracts/deployments/arbitrum_sepolia.json 回填）。本地联调用 packages/contracts/deployments/hardhat.json (31337)。键名对齐 hardhat.json 范式：proxies/usdt/usdtDecimals/abiHash。",
   "chainId": 421614,
   "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
   "proxies": {
-    "FeeManager": "0x0000000000000000000000000000000000000000",
-    "UserRegistry": "0x0000000000000000000000000000000000000000",
-    "ServiceManager": "0x0000000000000000000000000000000000000000",
-    "TrafficCardNFT": "0x0000000000000000000000000000000000000000",
-    "Payment": "0x0000000000000000000000000000000000000000",
-    "Deposit": "0x0000000000000000000000000000000000000000",
-    "Oracle": "0x0000000000000000000000000000000000000000"
+    "MockUSDT": "0x23CF28aa6882F114e7a27c493F7e9b8d0B87910C",
+    "FeeManager": "0x3FcF6Efa1a499b9562Bf4D1e6198cf05F2E33e36",
+    "UserRegistry": "0x5914aF1a358Ba423853D538eA56ce56aB9430B6a",
+    "ServiceManager": "0x5e3C2DE326c70Fb6F119483585ac028E3A440Fa2",
+    "TrafficCardNFT": "0xF846C25D1CB86ced7C59F4B8EcA8F07eE8610568",
+    "Payment": "0x4774a4e02E1E50D8CFc84f7f87bE676775F1809c",
+    "Deposit": "0xf4507effcd5B0d85b4AEe7C687EB837F657e83a4",
+    "Oracle": "0x750ac948080fE3AB5154427e13EbA6a016e4C674"
   },
-  "usdt": "0x0000000000000000000000000000000000000000",
+  "usdt": "0x23CF28aa6882F114e7a27c493F7e9b8d0B87910C",
   "usdtDecimals": 6,
-  "abiHash": {
-    "FeeManager": "0x75813eaf919f9b6e95ee77044d9c26e3027695cceefb31c9f05d17fd7df948a1",
-    "UserRegistry": "0xca527da9916960e91d34757251357a77f061befb5f3e778e7cdbc748b79675d8",
-    "ServiceManager": "0x8a634a3b4d0e3e5c0b015500b9bcb4d26499f52ccafd06c6c03a687b0259e370",
-    "TrafficCardNFT": "0x577afd95d7df9591abc2a78e5c0f5db78b86626f20b0f292b2089c718434ae60",
-    "Payment": "0xa8579606c85a8c91da901f8400127767da1e93557daf056e11d123b438118356",
-    "Deposit": "0x2b0e5e73da8b969524a75868cae7e04294b651693241f1ec5ee67a3ffc1f90aa",
-    "Oracle": "0xd1d0f83aaff6bb08fb11bbcefa961d55ceef7b6d6f8fe86b272772b20c25f359"
-  }
+  "smDpAddress": "https://sm-dp.linkworld.io/qr"
 }

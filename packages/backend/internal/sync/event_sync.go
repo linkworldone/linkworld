@@ -373,6 +373,8 @@ func (s *EventSync) dispatch(lg types.Log) error {
 		return s.processCardMinted(lg)
 	case s.addrTrafficNFT != nil && lg.Address == *s.addrTrafficNFT && topic0 == blockchain.SimRedeemedTopic:
 		return s.processSimRedeemed(lg)
+	case s.addrTrafficNFT != nil && lg.Address == *s.addrTrafficNFT && topic0 == blockchain.ESimRedeemedTopic:
+		return s.processESimRedeemed(lg)
 	}
 	return nil
 }
@@ -528,6 +530,21 @@ func (s *EventSync) processSimRedeemed(lg types.Log) error {
 		s.reconcileOrCreateSim(uid, uint(ev.DaysCount.Uint64()), lg)
 	}
 	return s.recordEvent("SimRedeemed", lg, true, 0)
+}
+
+// processESimRedeemed eSIM 兑换事件落库，更新 SIM 记录的激活码和激活链接。
+// 解析 ESimRedeemed(user, tokenId, activationCode, smDpAddress)，按 txHash 关联 SIM 记录。
+func (s *EventSync) processESimRedeemed(lg types.Log) error {
+	ev, err := s.trafficNFTF.ParseESimRedeemed(lg)
+	if err != nil {
+		return err
+	}
+	txHash := lg.TxHash.Hex()
+	activationCode := ev.ActivationCode
+	smDpAddress := ev.SmDpAddress
+	activationURL := "LPKG://" + activationCode + "@" + smDpAddress
+	s.simRepo.UpdateByTxHash(txHash, activationCode, activationURL, ev.TokenId.Uint64())
+	return s.recordEvent("ESimRedeemed", lg, false, 0)
 }
 
 // reconcileOrCreateSim SIM 兑换事件落库的单一对账回填（避免「意向 + 链上事件」双记录）。

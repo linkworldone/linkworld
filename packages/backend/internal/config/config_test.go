@@ -169,7 +169,7 @@ func TestResolveRPCURL(t *testing.T) {
 }
 
 // TestRealDeploymentsJSON 校验仓库内真实 configs/deployments.json：
-// chainId=421614、7 个 proxies 全为占位零地址、usdt 占位、usdtDecimals=6、无 0G 残留。
+// chainId=421614、7 个 proxies 为真实地址、usdt 为真实地址、usdtDecimals=6。
 func TestRealDeploymentsJSON(t *testing.T) {
 	d, err := LoadDeployments("../../configs/deployments.json")
 	if err != nil {
@@ -182,7 +182,7 @@ func TestRealDeploymentsJSON(t *testing.T) {
 	if d.RpcURL == "https://evm-testnet.0g.ai" {
 		t.Error("rpcUrl 仍是 0G 残留")
 	}
-	wantContracts := []string{"FeeManager", "UserRegistry", "ServiceManager", "TrafficCardNFT", "Payment", "Deposit", "Oracle"}
+	wantContracts := []string{"MockUSDT", "FeeManager", "UserRegistry", "ServiceManager", "TrafficCardNFT", "Payment", "Deposit", "Oracle"}
 	if len(d.Proxies) != len(wantContracts) {
 		t.Fatalf("Proxies len = %d, want %d", len(d.Proxies), len(wantContracts))
 	}
@@ -192,17 +192,14 @@ func TestRealDeploymentsJSON(t *testing.T) {
 			t.Errorf("Proxies 缺 %s", name)
 			continue
 		}
-		if !IsPlaceholder(addr) {
-			t.Errorf("Proxies[%s] = %s，本轮应为占位零地址（待 PR#1 上链回填）", name, addr.Hex())
+		if IsPlaceholder(addr) {
+			t.Errorf("Proxies[%s] = %s，本轮应为真实地址", name, addr.Hex())
 		}
 	}
-	if !IsPlaceholder(d.Usdt) {
-		t.Errorf("usdt = %s，本轮应为占位零地址", d.Usdt.Hex())
+	if IsPlaceholder(d.Usdt) {
+		t.Errorf("usdt = %s，本轮应为真实地址", d.Usdt.Hex())
 	}
 	if d.UsdtDecimals != 6 {
 		t.Errorf("UsdtDecimals = %d, want 6", d.UsdtDecimals)
-	}
-	if len(d.PlaceholderContracts()) != len(wantContracts) {
-		t.Errorf("PlaceholderContracts len = %d, want %d（全占位）", len(d.PlaceholderContracts()), len(wantContracts))
 	}
 }

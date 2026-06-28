@@ -23,4 +23,6 @@ interface IDeposit {
 
     function setOracle(address _oracle) external;
     function setTrafficCardNFT(address _trafficCardNFT) external;
+    function setSmDpAddress(string calldata _addr) external;
+    function upgradeTrafficCardNFT(address _newImpl) external;
 }

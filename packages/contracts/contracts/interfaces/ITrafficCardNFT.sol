@@ -10,8 +10,8 @@ interface ITrafficCardNFT {
 
     event CardMinted(address indexed user, uint256 tokenId, uint256 dataAmount);
     event CardDestroyed(address indexed user, uint256 tokenId, uint256 dataAmount);
-    /// @notice 销毁流量卡兑换 SIM 天数（daysCount = 销毁卡数，每卡 1 天）
     event SimRedeemed(address indexed user, uint256 daysCount, uint256[] tokenIds);
+    event ESimRedeemed(address indexed user, uint256 tokenId, string activationCode, string smDpAddress);
 
     function mint(address to, uint256 dataAmount, string calldata tokenURI) external returns (uint256);
     function mintBatch(
@@ -23,4 +23,6 @@ interface ITrafficCardNFT {
     function redeemForSim(uint256[] calldata tokenIds) external returns (uint256 daysCount);
     function getCardInfo(uint256 tokenId) external view returns (CardInfo memory);
     function getUserCardCount(address user) external view returns (uint256);
+    function setSmDpAddress(string calldata _addr) external;
+    function smDpAddress() external view returns (string memory);
 }

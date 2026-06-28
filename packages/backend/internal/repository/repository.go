@@ -633,3 +633,14 @@ func (r *SimRepository) FindByUserID(userID uint) ([]models.Sim, error) {
 	err := r.db.Where("user_id = ?", userID).Order("created_at desc").Find(&sims).Error
 	return sims, err
 }
+
+// UpdateByTxHash 更新 SIM 的激活码和激活链接（由 ESimRedeemed 事件调用，按 txHash 匹配）。
+func (r *SimRepository) UpdateByTxHash(txHash string, activationCode, activationURL string, tokenId uint64) error {
+	return r.db.Model(&models.Sim{}).
+		Where("tx_hash = ? AND delivery_type = ?", txHash, models.SimDeliveryEsim).
+		Updates(map[string]interface{}{
+			"activation_code": activationCode,
+			"activation_url":  activationURL,
+			"token_id":        tokenId,
+		}).Error
+}

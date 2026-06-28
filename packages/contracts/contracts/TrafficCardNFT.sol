@@ -5,8 +5,9 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/ITrafficCardNFT.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+using Strings for uint256;
 
-/// @title TrafficCardNFT - traffic card voucher
 contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorageUpgradeable, UUPSUpgradeable {
     uint256 private _nextTokenId;
     mapping(uint256 => CardInfo) private _cardInfo;
@@ -19,6 +20,22 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
     }
     mapping(address => DeductionCredit) private _deductionCredits;
     uint256 public constant DEDUCTION_VALIDITY = 30 days;
+
+    // eSIM redemption - new variables appended at end for UUPS upgrade compatibility
+    mapping(uint256 => string) private _activationCodes;
+    string private _smDpAddress;
+
+    function setSmDpAddress(string calldata _addr) external onlyOwner {
+        _smDpAddress = _addr;
+    }
+
+    function smDpAddress() external view returns (string memory) {
+        return _smDpAddress;
+    }
+
+    function _generateActivationCode(uint256 tokenId) private view returns (string memory) {
+        return Strings.toString(uint256(keccak256(abi.encodePacked(tokenId, block.timestamp))) % 1000000);
+    }
 
     modifier onlyDeposit() {
         require(msg.sender == depositContract, "Not deposit");
@@ -59,20 +76,30 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
     }
 
     function burn(uint256 tokenId) external {
+        string memory activationCode = _generateActivationCode(tokenId);
+        _activationCodes[tokenId] = activationCode;
         _redeem(tokenId);
         uint256[] memory ids = new uint256[](1);
         ids[0] = tokenId;
         emit SimRedeemed(msg.sender, 1, ids);
+        emit ESimRedeemed(msg.sender, tokenId, activationCode, _smDpAddress);
     }
 
     function redeemForSim(uint256[] calldata tokenIds) external returns (uint256 daysCount) {
         require(tokenIds.length > 0, "No cards");
         for (uint256 i = 0; i < tokenIds.length; i++) {
+            string memory activationCode = _generateActivationCode(tokenIds[i]);
+            _activationCodes[tokenIds[i]] = activationCode;
             _redeem(tokenIds[i]);
+            emit ESimRedeemed(msg.sender, tokenIds[i], activationCode, _smDpAddress);
         }
         daysCount = tokenIds.length;
         emit SimRedeemed(msg.sender, daysCount, tokenIds);
         return daysCount;
+    }
+
+    function getActivationCode(uint256 tokenId) external view returns (string memory) {
+        return _activationCodes[tokenId];
     }
 
     function _redeem(uint256 tokenId) internal {
@@ -86,7 +113,7 @@ contract TrafficCardNFT is ITrafficCardNFT, OwnableUpgradeable, ERC721URIStorage
     }
 
     function getCardInfo(uint256 tokenId) external view returns (CardInfo memory) {
-        require(tokenId < _nextTokenId, "Card not found");
+        require(_cardInfo[tokenId].createdAt > 0, "Card not found");
         return _cardInfo[tokenId];
     }
 

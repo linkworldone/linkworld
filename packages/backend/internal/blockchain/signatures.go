@@ -43,6 +43,9 @@ var (
 	// TrafficCardApplied(uint256 indexed billId)（桩事件，仅记录不改金额）
 	TrafficCardAppliedTopic = common.HexToHash("0x6ee1062e7611525ff44a2bea1e6ccffff047903a965c69aa96334ad680cd8701")
 
+	// ESimRedeemed(address indexed user, uint256 tokenId, string activationCode, string smDpAddress)
+	ESimRedeemedTopic = common.HexToHash("0x05ee3a1aa9b5412da9d4c0680a87e47a6014024f963aeaa94bc6d831d4d03cf4")
+
 	// UsageDataSubmitted(address indexed user, uint256 operatorId, uint256 amount)
 	// 只有 user indexed；operatorId/amount 在 data 区（design §6.3 解码歧义澄清）。
 	UsageDataSubmittedTopic = common.HexToHash("0x02511b012a361a308c6f48148bcde643071e85e39257f525372ff1161aaf7c9b")
