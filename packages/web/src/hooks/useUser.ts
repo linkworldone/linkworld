@@ -44,10 +44,7 @@ export function useRegister() {
   });
 
   // 合约交易成功后自动触发后端同步
-  useEffect(() => {
-    if (contractRegister.isSuccess && address && emailRef.current) {
-      backendSync.mutate({ wallet: address, email: emailRef.current });
-    }
+ refactor: allow wallet-only registration
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contractRegister.isSuccess, address]);
 
