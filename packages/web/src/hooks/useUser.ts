@@ -44,7 +44,6 @@ export function useRegister() {
   });
 
   // 合约交易成功后自动触发后端同步
- refactor: allow wallet-only registration
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contractRegister.isSuccess, address]);
 
