@@ -132,7 +132,7 @@ func (h *Handler) VerifyEmail(c *gin.Context) {
 
 type RegisterRequest struct {
 	Wallet  string `json:"wallet" binding:"required"`
-	Email   string `json:"email" binding:"required,email"`
+	Email string `json:"email"`
 	TokenID uint   `json:"token_id"`
 }
 
