@@ -132,7 +132,7 @@ func (h *Handler) VerifyEmail(c *gin.Context) {
 
 type RegisterRequest struct {
 	Wallet  string `json:"wallet" binding:"required"`
-	Email string `json:"email"`
+	// Email string `json:"email"` // TODO: 暂不开放邮箱提交，后续版本再接入
 	TokenID uint   `json:"token_id"`
 }
 
@@ -143,7 +143,8 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	err := h.userService.Register(req.Wallet, req.Email, req.TokenID)
+	// 邮箱暂不提交，传空字符串（后续版本再接入）
+	err := h.userService.Register(req.Wallet, "", req.TokenID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
