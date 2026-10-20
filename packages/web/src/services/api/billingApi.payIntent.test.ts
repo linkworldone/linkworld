@@ -28,7 +28,8 @@ function makeApiBill(over: Record<string, unknown> = {}) {
     platform_fee: "1500000",
     traffic_card_deduction: "0",
     is_paid: false,
-    created_at: "2026-06-01T00:00:00.000Z",
+    // 默认创建时间取当前时刻，避免固定的旧日期让 unpaid 用例变成 overdue。
+    created_at: new Date().toISOString(),
     ...over,
   };
 }
