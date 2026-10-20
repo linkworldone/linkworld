@@ -23,6 +23,7 @@ import (
 	"linkworld-backend/internal/middleware"
 	"linkworld-backend/internal/models"
 	"linkworld-backend/internal/repository"
+	"linkworld-backend/internal/services"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/gin-gonic/gin"
@@ -90,13 +91,60 @@ func e2eSignedReq(method, path, body, wallet, nonce, action, sig string) *http.R
 // e2eRouter 装配「WalletAuth 中间件 + 受保护端点」的真实路由（与 main.go §6.6 挂载方式一致）。
 func e2eRouter(db *gorm.DB) (*gin.Engine, *repository.WalletNonceRepository) {
 	h := t7Handler(db)
+	h.userService = services.NewUserService(repository.NewUserRepository(db))
 	nonceRepo := repository.NewWalletNonceRepository(db)
 
 	r := gin.New()
 	// 每端点绑定各自 action（与 main.go 一致）。
 	r.POST("/api/bills/pay", middleware.NewWalletAuth(nonceRepo, e2eChainID, "bills/pay"), h.PayBill)
 	r.POST("/api/withdraw", middleware.NewWalletAuth(nonceRepo, e2eChainID, "withdraw"), h.Withdraw)
+	r.POST("/api/register", middleware.NewWalletAuth(nonceRepo, e2eChainID, "register"), h.Register)
 	return r, nonceRepo
+}
+
+func TestE2E_RegisterRequiresMatchingWalletSignatureAndIsIdempotent(t *testing.T) {
+	db := e2eDB(t)
+	r, nonceRepo := e2eRouter(db)
+	key, wallet := e2eKey(t)
+
+	issueAndSign := func() (string, string) {
+		t.Helper()
+		nonce, err := nonceRepo.Issue(wallet)
+		if err != nil {
+			t.Fatalf("issue nonce: %v", err)
+		}
+		return nonce, e2eSign(t, key, wallet, nonce, "register")
+	}
+	body := `{"wallet":"` + wallet + `"}`
+	nonce, signature := issueAndSign()
+	request := func(body, nonce, signature string) *httptest.ResponseRecorder {
+		t.Helper()
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, e2eSignedReq(http.MethodPost, "/api/register", body, wallet, nonce, "register", signature))
+		return w
+	}
+
+	if w := request(body, nonce, signature); w.Code != http.StatusOK {
+		t.Fatalf("valid signed registration should succeed, got %d body=%s", w.Code, w.Body.String())
+	}
+	if w := request(body, nonce, signature); w.Code != http.StatusUnauthorized {
+		t.Fatalf("replayed registration signature should be rejected, got %d", w.Code)
+	}
+
+	_, otherWallet := e2eKey(t)
+	nonce, signature = issueAndSign()
+	if w := request(`{"wallet":"`+otherWallet+`"}`, nonce, signature); w.Code != http.StatusUnauthorized {
+		t.Fatalf("signed wallet must match registration body, got %d", w.Code)
+	}
+
+	nonce, signature = issueAndSign()
+	if w := request(body, nonce, signature); w.Code != http.StatusOK {
+		t.Fatalf("retry after an indexed registration should be idempotent, got %d body=%s", w.Code, w.Body.String())
+	}
+	user, err := repository.NewUserRepository(db).FindByWallet(wallet)
+	if err != nil || user == nil {
+		t.Fatalf("registered wallet should be persisted: user=%v err=%v", user, err)
+	}
 }
 
 // --- E2E-AUTH-01：有效签名穿过中间件到达 PayBill，写意向不置 IsPaid ---

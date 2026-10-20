@@ -31,6 +31,7 @@ const EIP712_DOMAIN_VERSION = "1";
 
 // 写端点 action 取值（对齐 main.go walletAuth("…") 绑定）。
 export type WalletAuthAction =
+  | "register"
   | "deposit"
   | "withdraw"
   | "bills/pay"

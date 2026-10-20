@@ -47,6 +47,8 @@ go.work
 
 # Backend specific
 packages/backend/data/
+*.sqlite
+*.sqlite-*
 packages/backend/config.local.yaml
 packages/backend/*.exe
 packages/backend/linkworld-backend

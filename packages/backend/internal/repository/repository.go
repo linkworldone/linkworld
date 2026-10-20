@@ -49,10 +49,20 @@ func (r *UserRepository) DB() *gorm.DB {
 	return r.db
 }
 
-// CreateIfNotExists 幂等创建用户（UserRegistered 事件可能重放）。已存在则不报错。
-func (r *UserRepository) CreateIfNotExists(user *models.User) error {
-	if r.Exists(user.WalletAddr) {
-		return nil
+// SyncFromChain 按链上 UserRegistered 事件创建或刷新用户资料。
+// 链上事件是 tokenID/email 的事实来源，需覆盖 API 先建的临时资料。
+func (r *UserRepository) SyncFromChain(user *models.User) error {
+	existing, err := r.FindByWallet(user.WalletAddr)
+	if err == nil {
+		return r.db.Model(existing).Updates(map[string]any{
+			"email":         user.Email,
+			"token_id":      user.TokenID,
+			"is_active":     user.IsActive,
+			"registered_at": user.RegisteredAt,
+		}).Error
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
 	return r.db.Create(user).Error
 }
@@ -267,98 +277,7 @@ func (r *BillRepository) SetOnChainID(onChainBillID uint64, txHash string, userI
 }
 
 // MarkPaidByOnChainID 唯一置 IsPaid 的路径（design §4.3/B2，仅 event_sync 确认后调用）。
-func (r *BillRepository) MarkPaidByOnChainID(onChainBillID uint64, txHash string) error {
-	now := time.Now()
-	return r.db.Model(&models.Bill{}).
-		Where("on_chain_bill_id = ?", onChainBillID).
-		Updates(map[string]interface{}{
-			"is_paid": true,
-			"paid_at": now,
-			"tx_hash": txHash,
-		}).Error
-}
-
-// CreateConfirmed 幂等记一笔已确认的资金记录（deposit/withdraw，design §4.3 单一对账路径）。
-// 由 (tx_hash, type, user_id) 去重，重复事件不重复落库。
-func (r *DepositRepository) CreateConfirmed(d *models.Deposit) error {
-	d.Status = models.DepositStatusConfirmed
-	var count int64
-	r.db.Model(&models.Deposit{}).
-		Where("tx_hash = ? AND type = ? AND user_id = ?", d.TxHash, d.Type, d.UserID).
-		Count(&count)
-	if count > 0 {
-		return nil
-	}
-	return r.db.Create(d).Error
-}
-
-// SyncStateRepository 维护 event_sync 断点续传游标（design §6.3）。
-type SyncStateRepository struct {
-	db *gorm.DB
-}
-
-func NewSyncStateRepository(db *gorm.DB) *SyncStateRepository {
-	return &SyncStateRepository{db: db}
-}
-
-// Get 返回指定链的游标；无记录返回 (nil, nil)。
-func (r *SyncStateRepository) Get(chainID uint64) (*models.SyncState, error) {
-	var s models.SyncState
-	err := r.db.Where("chain_id = ?", chainID).First(&s).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &s, nil
-}
-
-// Save upsert 游标（last block + blockHash）。
-func (r *SyncStateRepository) Save(chainID, lastBlock uint64, blockHash string) error {
-	var s models.SyncState
-	err := r.db.Where("chain_id = ?", chainID).First(&s).Error
-	if err == gorm.ErrRecordNotFound {
-		return r.db.Create(&models.SyncState{ChainID: chainID, LastBlock: lastBlock, BlockHash: blockHash}).Error
-	}
-	if err != nil {
-		return err
-	}
-	s.LastBlock = lastBlock
-	s.BlockHash = blockHash
-	return r.db.Save(&s).Error
-}
-
-// SettlementBatchRepository 维护月度结算分批的幂等记录（design §4.1/§6.1，幂等键 month+batchIndex）。
-type SettlementBatchRepository struct {
-	db *gorm.DB
-}
-
-func NewSettlementBatchRepository(db *gorm.DB) *SettlementBatchRepository {
-	return &SettlementBatchRepository{db: db}
-}
-
-// Migrate 自建 settlement_batches 表（自包含，不依赖 main.go 的 AutoMigrate 清单——与 event_sync 同策略）。
-func (r *SettlementBatchRepository) Migrate() error {
-	return r.db.AutoMigrate(&models.SettlementBatch{})
-}
-
-// Get 返回 (month, batchIndex) 的批次记录；无记录返回 (nil, nil)。
-func (r *SettlementBatchRepository) Get(month string, batchIndex int) (*models.SettlementBatch, error) {
-	var b models.SettlementBatch
-	err := r.db.Where("month = ? AND batch_index = ?", month, batchIndex).First(&b).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &b, nil
-}
-
-// Save upsert 批次记录（按 month+batchIndex 幂等键）。
-func (r *SettlementBatchRepository) Save(b *models.SettlementBatch) error {
-	var existing models.SettlementBatch
+func (r *BillRepository) MarkPaidByOnChainI…784 tokens truncated…ls.SettlementBatch
 	err := r.db.Where("month = ? AND batch_index = ?", b.Month, b.BatchIndex).First(&existing).Error
 	if err == gorm.ErrRecordNotFound {
 		return r.db.Create(b).Error

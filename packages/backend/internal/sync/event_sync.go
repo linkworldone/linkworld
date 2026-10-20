@@ -412,7 +412,7 @@ func (s *EventSync) processUserRegistered(lg types.Log) error {
 		IsActive:     true,
 		RegisteredAt: time.Now(),
 	}
-	if err := s.userRepo.CreateIfNotExists(user); err != nil {
+	if err := s.userRepo.SyncFromChain(user); err != nil {
 		return err
 	}
 	return s.recordEvent("UserRegistered", lg, false, 0)

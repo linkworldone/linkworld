@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"linkworld-backend/internal/blockchain"
 	"linkworld-backend/internal/blockchain/bindings"
@@ -26,7 +27,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Operator{},
 		&models.Deposit{},
@@ -34,7 +35,9 @@ func main() {
 		&models.UserService{},
 		&models.UsageData{},
 		&models.Sim{},
-	)
+	); err != nil {
+		log.Fatalf("database migration failed: %v", err)
+	}
 
 	// Seed operators if empty —— 显式写 ID=链上 operatorId(1..11)（design §4.5 / arch-review）。
 	// operatorId 固定映射：models.Operator.ID == 链上 operatorId，不靠 name 比对。
@@ -44,7 +47,9 @@ func main() {
 	if count == 0 {
 		for _, op := range services.SeedOperators() {
 			op := op // 显式主键，逐个 Create（GORM 允许指定 ID）
-			db.Create(&op)
+			if err := db.Create(&op).Error; err != nil {
+				log.Fatalf("seed operator %d failed: %v", op.ID, err)
+			}
 		}
 		log.Println("Seeded 11 operators（ID=链上 operatorId 1..11，固定映射）")
 	}
@@ -90,7 +95,11 @@ func main() {
 	var walletAuthChainID uint64
 
 	// Initialize blockchain sync (optional - runs in background)
-	if deployments, err := config.LoadDeployments("configs/deployments.json"); err == nil {
+	deploymentsPath := os.Getenv("DEPLOYMENTS_PATH")
+	if deploymentsPath == "" {
+		deploymentsPath = "configs/deployments.json"
+	}
+	if deployments, err := config.LoadDeployments(deploymentsPath); err == nil {
 		walletAuthChainID = deployments.ChainID
 		// RPC 单一优先级（design §6.5）：deployments.json.rpcUrl 为准，env RPC_URL 覆盖。
 		rpcURL := deployments.ResolveRPCURL(os.Getenv("RPC_URL"))
@@ -191,7 +200,7 @@ func main() {
 	// CORS 收口（arch-review/design §7.1）：固定 origin 白名单，禁 "*" + credentials；
 	// AllowHeaders 放行 WalletAuth/AdminAuth 自定义鉴权头。
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"},
+		AllowOrigins: allowedOrigins(),
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{
 			"Content-Type", "Authorization",
@@ -203,7 +212,7 @@ func main() {
 	}))
 
 	// --- 公开读端点（无需鉴权，design §6.6）---
-	r.POST("/api/register", handler.Register)
+	r.POST("/api/register", walletAuth("register"), handler.Register)
 	r.GET("/api/user/:wallet", handler.GetUser)
 	r.GET("/api/operators", handler.GetOperators)
 	r.GET("/api/service/:wallet", handler.GetUserService)
@@ -232,7 +241,40 @@ func main() {
 	r.POST("/api/usage/submit", adminAuth, handler.SubmitUsage) // + binding max= 范围校验（B4）
 	r.POST("/api/notification/send", adminAuth, handler.SendNotification)
 
-	r.Run(":8080")
+	listenAddr := strings.TrimSpace(os.Getenv("SERVER_ADDR"))
+	if listenAddr == "" {
+		listenAddr = "127.0.0.1:" + getEnv("SERVER_PORT", "8080")
+	}
+	if err := r.Run(listenAddr); err != nil {
+		log.Fatalf("HTTP server failed: %v", err)
+	}
+}
+
+func allowedOrigins() []string {
+	raw := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	if raw == "" {
+		return []string{"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"}
+	}
+
+	origins := make([]string, 0)
+	for _, origin := range strings.Split(raw, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		if origin == "*" {
+			log.Fatal("CORS_ALLOWED_ORIGINS must contain exact origins, not *")
+		}
+		origins = append(origins, origin)
+	}
+	return origins
+}
+
+func getEnv(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
 }
 
 // parseUint64 解析 env 字符串为 uint64；空或非法返回 0（视为「未设置」，由调用方决定是否强制）。
