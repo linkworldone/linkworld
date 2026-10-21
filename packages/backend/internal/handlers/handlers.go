@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"linkworld-backend/internal/middleware"
@@ -131,9 +132,7 @@ func (h *Handler) VerifyEmail(c *gin.Context) {
 }
 
 type RegisterRequest struct {
-	Wallet  string `json:"wallet" binding:"required"`
-	// Email string `json:"email"` // TODO: 暂不开放邮箱提交，后续版本再接入
-	TokenID uint   `json:"token_id"`
+	Wallet string `json:"wallet" binding:"required"`
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -143,9 +142,20 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	authWalletValue, ok := c.Get(middleware.CtxWallet)
+	authWallet, walletOK := authWalletValue.(string)
+	if !ok || !walletOK || !strings.EqualFold(authWallet, req.Wallet) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: wallet does not match signature"})
+		return
+	}
+
 	// 邮箱暂不提交，传空字符串（后续版本再接入）
-	err := h.userService.Register(req.Wallet, "", req.TokenID)
+	err := h.userService.Register(req.Wallet, "", 0)
 	if err != nil {
+		if errors.Is(err, services.ErrAlreadyRegistered) {
+			c.JSON(http.StatusOK, gin.H{"message": "User already registered"})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

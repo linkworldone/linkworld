@@ -1,0 +1,26 @@
+{
+  "chainId": 31337,
+  "rpcUrl": "http://127.0.0.1:8545",
+  "proxies": {
+    "MockUSDT": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "FeeManager": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "UserRegistry": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "ServiceManager": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+    "TrafficCardNFT": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "Payment": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "Deposit": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+    "Oracle": "0x9A676e781A523b5d0C0e43731313A708CB607508"
+  },
+  "usdt": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "usdtDecimals": 6,
+  "abiHash": {
+    "MockUSDT": "0xf9f0204cc1f5d31d3bb598f01426ba412cd309d2d19bc4d4a7695538d71b71da",
+    "FeeManager": "0x75813eaf919f9b6e95ee77044d9c26e3027695cceefb31c9f05d17fd7df948a1",
+    "UserRegistry": "0xca527da9916960e91d34757251357a77f061befb5f3e778e7cdbc748b79675d8",
+    "ServiceManager": "0x8a634a3b4d0e3e5c0b015500b9bcb4d26499f52ccafd06c6c03a687b0259e370",
+    "TrafficCardNFT": "0xda9ba4dc1a0c3720d8578da1806eaba6d10d375d725759af872ee31e1a33f5b0",
+    "Payment": "0xa8579606c85a8c91da901f8400127767da1e93557daf056e11d123b438118356",
+    "Deposit": "0x4802fe33721596dd5843668455d7650f655ade51c549e8d87582618d039e47d1",
+    "Oracle": "0x43bdb80e9c6dc56ce0a47fe391f94304552d10f3bf12f2f37ff95d524e572d58"
+  }
+}

@@ -95,6 +95,7 @@ describe("signedPost — WalletAuth EIP-712（AUTH-01/02/03）", () => {
 
   it("AUTH-02: action 绑定正确（withdraw/bills/pay/service 各端点 action 对齐后端）", async () => {
     const cases: Array<[string, WalletAuthAction]> = [
+      ["/api/register", "register"],
       ["/api/withdraw", "withdraw"],
       ["/api/bills/pay", "bills/pay"],
       ["/api/service/activate", "service/activate"],

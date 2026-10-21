@@ -3,7 +3,7 @@ import arbitrumSepoliaDeployment from "./deployments/arbitrum_sepolia.json";
 
 // 单一出口：合约地址 / USDT / 精度统一从 deployments/<net>.json 读，杜绝手抄漂移。
 // 31337 取 deployments/hardhat.json；421614 取 deployments/arbitrum_sepolia.json
-//（真·上链未执行 → 当前为零地址占位，待合约上链回填）。
+// Arbitrum Sepolia 部署地址来自 packages/contracts/deployments/arbitrum_sepolia.json。
 
 type ContractName =
   | "UserRegistry"
@@ -47,34 +47,72 @@ export const CONTRACTS: Record<number, ContractAddresses> = {
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export function getContractAddress(
-  chainId: number,
-  name: ContractName
+chainId: number,
+name: ContractName
 ): `0x${string}` {
+const addresses = CONTRACTS[chainId];
+if (!addresses) {
+throw new Error(`No contract addresses for chainId ${chainId}`);
+}
+
+const addr = addresses[name];
+if (
+!addr ||
+addr.toLowerCase() === ZERO_ADDRESS.toLowerCase()
+) {
+throw new Error(`Contract ${name} not deployed on chainId ${chainId}`);
+}
+
+return addr;
+}
+
+/** 不抛错地检查合约地址是否已配置；未配置时返回 undefined。 */
+export function getOptionalContractAddress(
+chainId: number,
+name: ContractName
+): `0x${string}` | undefined {
+try {
+return getContractAddress(chainId, name);
+} catch {
+return undefined;
+}
+}
+
+/** 不抛错地检查 USDT 地址是否已配置；未配置时返回 undefined。 */
+export function getOptionalUsdtAddress(
+chainId: number
+): `0x${string}` | undefined {
+try {
+return getUsdt(chainId);
+} catch {
+return undefined;
+}
+}
+
+/** 获取当前网络的 USDT 地址；未配置或为零地址时抛出错误。 */
+export function getUsdt(chainId: number): `0x${string}` {
   const addresses = CONTRACTS[chainId];
-  if (!addresses)
+
+  if (!addresses) {
     throw new Error(`No contract addresses for chainId ${chainId}`);
-  const addr = addresses[name];
-  if (!addr || addr === ZERO_ADDRESS) {
-    throw new Error(`Contract ${name} not deployed on chainId ${chainId}`);
   }
+
+  const addr = addresses.usdt;
+
+  if (!addr || addr.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
+    throw new Error(`USDT not deployed on chainId ${chainId}`);
+  }
+
   return addr;
 }
 
-/** USDT(ERC20) 合约地址；零地址（未部署）抛错保护。 */
-export function getUsdt(chainId: number): `0x${string}` {
-  const addresses = CONTRACTS[chainId];
-  if (!addresses)
-    throw new Error(`No contract addresses for chainId ${chainId}`);
-  if (!addresses.usdt || addresses.usdt === ZERO_ADDRESS) {
-    throw new Error(`USDT not deployed on chainId ${chainId}`);
-  }
-  return addresses.usdt;
-}
-
-/** USDT 精度（本轮 MockUSDT = 6）。从 deployments 读，不硬编码。 */
+/** 获取当前网络的 USDT 小数位数。 */
 export function getUsdtDecimals(chainId: number): number {
   const addresses = CONTRACTS[chainId];
-  if (!addresses)
+
+  if (!addresses) {
     throw new Error(`No contract addresses for chainId ${chainId}`);
+  }
+
   return addresses.usdtDecimals;
 }

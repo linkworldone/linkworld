@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "LinkWorld - Global Seamless Communication Platform",
+  "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev:web": "pnpm -F @linkworld/web dev",
     "build:web": "pnpm -F @linkworld/web build",
@@ -11,17 +12,7 @@
     "clean": "pnpm -r exec rm -rf node_modules dist .turbo"
   },
   "engines": {
-    "node": ">=18",
-    "pnpm": ">=8"
-  },
-  "pnpm": {
-    "onlyBuiltDependenciesCanIgnoreRoots": true,
-    "onlyBuiltDependencies": [
-      "bufferutil",
-      "esbuild",
-      "keccak",
-      "secp256k1",
-      "utf-8-validate"
-    ]
+    "node": ">=22",
+    "pnpm": ">=11"
   }
 }

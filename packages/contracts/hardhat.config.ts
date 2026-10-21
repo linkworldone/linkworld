@@ -17,6 +17,7 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
+    localhost: { url: "http://127.0.0.1:8545", chainId: 31337 },
     hardhat: {
       chainId: 31337,
       // 持续出块：交易即时打包(auto) + 每 4 秒出一个空块(interval)，让后端 event_sync 的 K=5 确认块能凑齐、

@@ -57,6 +57,30 @@ func TestLoadDeployments_ParsesProxiesKey(t *testing.T) {
 	}
 }
 
+func TestInitDBRequiresExplicitPassword(t *testing.T) {
+	t.Setenv("DB_DRIVER", "postgres")
+	t.Setenv("DB_PASSWORD", "")
+	if _, err := InitDB(); err == nil {
+		t.Fatal("InitDB must reject a missing DB_PASSWORD instead of using a default")
+	}
+}
+
+func TestInitDBSupportsLocalSQLiteWithoutPassword(t *testing.T) {
+	t.Setenv("DB_DRIVER", "sqlite")
+	t.Setenv("DB_SQLITE_PATH", filepath.Join(t.TempDir(), "linkworld.sqlite"))
+	db, err := InitDB()
+	if err != nil {
+		t.Fatalf("InitDB with SQLite: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get SQLite connection: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close SQLite connection: %v", err)
+	}
+}
+
 // TestLoadDeployments_ParsesExtendedFields 验证 struct 扩展字段 Usdt/UsdtDecimals/AbiHash
 // 正确反序列化 + ChainID/RpcURL。
 func TestLoadDeployments_ParsesExtendedFields(t *testing.T) {

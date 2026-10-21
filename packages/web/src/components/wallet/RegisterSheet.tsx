@@ -1,9 +1,6 @@
 import { useEffect } from "react";
 
 import { Drawer } from "vaul";
-
-import { useTranslation } from "react-i18next";
-
 import { Button } from "@/components/ui/button";
 
 import { useRegister } from "@/hooks/useUser";
@@ -21,8 +18,6 @@ export function RegisterSheet({
   onClose,
   onSuccess,
 }: RegisterSheetProps) {
-  const { t } = useTranslation();
-
   const { register, backendSync, isContractPending } = useRegister();
 
   useEffect(() => {
@@ -72,10 +67,19 @@ export function RegisterSheet({
             disabled={isContractPending || backendSync.isPending}
             className="w-full py-3"
           >
-            {isContractPending || backendSync.isPending
-              ? "Creating your identity..."
-              : "Continue with Wallet"}
+            {isContractPending
+              ? "Confirming your identity..."
+              : backendSync.isPending
+                ? "Syncing your profile..."
+                : backendSync.isError
+                  ? "Retry wallet signature"
+                  : "Continue with Wallet"}
           </Button>
+          {backendSync.isError && (
+            <p role="status" className="mt-2 text-xs text-status-danger">
+              Your on-chain registration is complete. Sign the wallet message to finish syncing your profile.
+            </p>
+          )}
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

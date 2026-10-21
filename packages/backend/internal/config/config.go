@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -99,10 +102,32 @@ func (d *Deployments) ResolveRPCURL(envRPCURL string) string {
 }
 
 func InitDB() (*gorm.DB, error) {
+	driver := strings.ToLower(getEnv("DB_DRIVER", "postgres"))
+	if driver == "sqlite" {
+		path := getEnv("DB_SQLITE_PATH", "./data/linkworld-dev.sqlite")
+		if dir := filepath.Dir(path); dir != "." {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return nil, fmt.Errorf("create SQLite data directory: %w", err)
+			}
+		}
+		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+		if err != nil {
+			return nil, err
+		}
+		log.Println("SQLite connected successfully")
+		return db, nil
+	}
+	if driver != "postgres" && driver != "postgresql" {
+		return nil, fmt.Errorf("unsupported DB_DRIVER %q (supported: postgres, sqlite)", driver)
+	}
+
 	host := getEnv("DB_HOST", "127.0.0.1")
 	port := getEnv("DB_PORT", "5432")
 	user := getEnv("DB_USER", "postgres")
-	password := getEnv("DB_PASSWORD", "linkworld")
+	password := os.Getenv("DB_PASSWORD")
+	if password == "" {
+		return nil, fmt.Errorf("DB_PASSWORD must be set; refusing to use an insecure default")
+	}
 	dbname := getEnv("DB_NAME", "linkworld")
 
 	dsn := "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=" + dbname + " sslmode=disable"

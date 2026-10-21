@@ -6,6 +6,7 @@ import {
   getUsdtDecimals,
 } from "./contracts";
 import hardhatDeployment from "./deployments/hardhat.json";
+import arbitrumDeployment from "./deployments/arbitrum_sepolia.json";
 
 // T12 31337 配置加载守门（CFG-01..04）。
 // 本地 hardhat node 在本分支因 contracts toolchain 未装而跑不起（见 stage-test-done.md），
@@ -31,6 +32,15 @@ describe("config/contracts 单一出口（CFG-01..04）", () => {
     expect(getUsdt(31337)).toBe(hardhatDeployment.usdt);
   });
 
+  it("CFG-05: 421614 使用已部署的 Arbitrum Sepolia 地址", () => {
+    const names = ["UserRegistry", "FeeManager", "Deposit", "ServiceManager", "Payment", "Oracle", "TrafficCardNFT"] as const;
+    for (const name of names) {
+      expect(getContractAddress(421614, name)).toBe(arbitrumDeployment.proxies[name]);
+      expect(getContractAddress(421614, name)).not.toBe("0x0000000000000000000000000000000000000000");
+    }
+    expect(getUsdt(421614)).toBe(arbitrumDeployment.usdt);
+    expect(getUsdtDecimals(421614)).toBe(6);
+  });
   it("CFG-02: getUsdtDecimals(31337) === 6（精度红线根来源，从 deployments 读不硬编码）", () => {
     expect(getUsdtDecimals(31337)).toBe(6);
     expect(getUsdtDecimals(31337)).toBe(hardhatDeployment.usdtDecimals);

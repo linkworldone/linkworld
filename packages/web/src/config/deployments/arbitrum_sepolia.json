@@ -1,15 +1,15 @@
 {
-  "_note": "占位文件：合约真·上链(421614)未执行，packages/contracts/deployments/arbitrum_sepolia.json 不存在。上链后用真实部署产物覆盖本文件（proxies/usdt/usdtDecimals/abiHash）。getContractAddress 对全 0 地址抛错保护，端到端 Arbitrum 验收阻塞于合约先上链。",
   "chainId": 421614,
   "proxies": {
-    "FeeManager": "0x0000000000000000000000000000000000000000",
-    "UserRegistry": "0x0000000000000000000000000000000000000000",
-    "ServiceManager": "0x0000000000000000000000000000000000000000",
-    "TrafficCardNFT": "0x0000000000000000000000000000000000000000",
-    "Payment": "0x0000000000000000000000000000000000000000",
-    "Deposit": "0x0000000000000000000000000000000000000000",
-    "Oracle": "0x0000000000000000000000000000000000000000"
+    "FeeManager": "0x3FcF6Efa1a499b9562Bf4D1e6198cf05F2E33e36",
+    "UserRegistry": "0x5914aF1a358Ba423853D538eA56ce56aB9430B6a",
+    "ServiceManager": "0x5e3C2DE326c70Fb6F119483585ac028E3A440Fa2",
+    "TrafficCardNFT": "0xF846C25D1CB86ced7C59F4B8EcA8F07eE8610568",
+    "Payment": "0x4774a4e02E1E50D8CFc84f7f87bE676775F1809c",
+    "Deposit": "0xf4507effcd5B0d85b4AEe7C687EB837F657e83a4",
+    "Oracle": "0x750ac948080fE3AB5154427e13EbA6a016e4C674"
   },
-  "usdt": "0x0000000000000000000000000000000000000000",
-  "usdtDecimals": 6
+  "usdt": "0x23CF28aa6882F114e7a27c493F7e9b8d0B87910C",
+  "usdtDecimals": 6,
+  "smDpAddress": "https://sm-dp.linkworld.io/qr"
 }

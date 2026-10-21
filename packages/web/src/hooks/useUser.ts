@@ -71,6 +71,13 @@ export function useRegister() {
 
   const register = (email: string) => {
     emailRef.current = email;
+    // The chain transaction may already be final when the backend signature or
+    // API request fails. Retry only the signed profile sync; never submit a
+    // second on-chain registration for the same wallet.
+    if (contractRegister.isSuccess && address) {
+      backendSync.mutate({ wallet: address, email });
+      return;
+    }
     contractRegister.register(email);
   };
 

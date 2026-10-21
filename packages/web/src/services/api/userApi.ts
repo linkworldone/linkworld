@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { signedPost } from "./signedPost";
 import type { User } from "../../types";
 
 // 后端 response 类型
@@ -35,13 +36,13 @@ export const userApi = {
 
   async register(
     wallet: string,
-    email: string,
-    tokenId?: number,
+    _email: string,
+    _tokenId?: number,
   ): Promise<void> {
-    await apiClient.post("/api/register", {
-      wallet,
-      email,
-      token_id: tokenId || 0,
-    });
+    await signedPost(
+      "/api/register",
+      { wallet },
+      { wallet, action: "register" },
+    );
   },
 };

@@ -173,6 +173,8 @@ describe("Cards 页 — 流量卡多选销毁领 SIM", () => {
     fireEvent.click(screen.getByText(/Traffic Card #11/));
     // 打开弹窗
     fireEvent.click(screen.getByText(/Burn 3 and redeem SIM/));
+    // 收件字段只用于实体卡；默认 eSIM 无需邮寄信息。
+    fireEvent.click(screen.getByText("Physical Mail"));
     fireEvent.change(screen.getByPlaceholderText("Recipient name"), { target: { value: "Alice" } });
     fireEvent.change(screen.getByPlaceholderText("Full shipping address"), {
       target: { value: "123 Main St" },
@@ -201,6 +203,8 @@ describe("Cards 页 — 流量卡多选销毁领 SIM", () => {
     fireEvent.click(screen.getByText(/Traffic Card #8/));
     fireEvent.click(screen.getByText(/Traffic Card #11/));
     fireEvent.click(screen.getByText(/Burn 3 and redeem SIM/));
+    // 该用例验证实体邮寄的收件信息提交链路。
+    fireEvent.click(screen.getByText("Physical Mail"));
     fireEvent.change(screen.getByPlaceholderText("Recipient name"), { target: { value: "Bob" } });
     fireEvent.change(screen.getByPlaceholderText("Full shipping address"), {
       target: { value: "9 Park Ave" },
