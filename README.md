@@ -15,11 +15,11 @@ Our vision is to create a universal connectivity layer where anyone can access m
 If you prefer not to run the project locally, you can access our demo interface here:
 
 Demo:
-https://95-216-168-246.sslip.io/dashboard
+https://186.244.215.115/
 
 For testing purposes:
 
-- You may use any email address and verification code.
+
 - Please contact our team to receive testnet tokens.
 - Connect your wallet to interact with the demo.
 - If the interface does not update after connecting your wallet, please refresh the page.
