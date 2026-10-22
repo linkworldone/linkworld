@@ -1,306 +1,72 @@
 # LinkWorld
 
-## Wallet-native global connectivity for a borderless world
+### Borderless connectivity, built around people who move across borders.
 
-LinkWorld is building a blockchain-powered global connectivity platform that connects telecom service providers with Web3 users.
+LinkWorld is an early-stage project exploring a simpler way to connect telecom operators with Web3 users, frequent travelers, and people who need reliable connectivity across countries.
 
-Users can access mobile data services worldwide through a wallet-based digital identity, without managing multiple local accounts, payment methods, or SIM cards across different countries.
+Our long-term goal is a platform where users can discover regional mobile plans, connect with operators, and pay only for the connectivity they use. We believe communication should be easy to access and every payment should bring real value.
 
-Our vision is to create a universal connectivity layer where anyone can access mobile services anywhere in the world.
+> **Project status:** LinkWorld is an early prototype. The demo currently runs on Arbitrum Sepolia and uses test assets. It does not provide real mobile connectivity or commercial eSIM/SIM service yet.
 
----
+## Demo
 
-# Live Demo
+[Open the LinkWorld demo](https://186.244.215.115/)
 
-If you prefer not to run the project locally, you can access our demo interface here:
+The demo uses the **Arbitrum Sepolia testnet**. Please do not use mainnet assets.
 
-Demo:
-https://186.244.215.115/
+## Try the testnet demo
 
-For testing purposes:
+1. Install and unlock MetaMask, then connect a wallet.
+2. Switch MetaMask to **Arbitrum Sepolia** (chain ID `421614`).
+3. Make sure the wallet has enough **Arbitrum Sepolia ETH** to pay transaction fees. Sepolia ETH on Ethereum's Sepolia network is a different network; bridge it to Arbitrum Sepolia if needed. Test ETH has no intended real-world value.
+4. The deposit flow uses the project's **MockUSDT** test token. To request MockUSDT, email [linkworldone@outlook.com](mailto:linkworldone@outlook.com) and include your **public wallet address**. Never send a seed phrase, private key, password, or recovery code.
+5. Choose a deposit tier and review every MetaMask transaction carefully. The demo's intended test flow is to approve the required USDT amount, then deposit.
 
+### If approval succeeds but deposit fails
 
-- Please contact our team to receive testnet tokens.
-- Connect your wallet to interact with the demo.
-- If the interface does not update after connecting your wallet, please refresh the page.
+A successful approval and a successful deposit are separate transactions. If the deposit transaction fails:
 
-Note:
-This is a test environment. No real mobile connectivity services are provided yet.
+- Check that MetaMask is still on Arbitrum Sepolia and that the wallet is registered in the demo.
+- Read the error shown in MetaMask before retrying.
+- If MetaMask reports that the maximum fee is below the block's base fee, use MetaMask's suggested fee or refresh the estimate. As a troubleshooting example, a maximum fee **above 0.025 Gwei** may help when the current base fee is near that value. Network fees change; this is not a guaranteed or permanent setting.
+- Keep the priority fee at or below the maximum fee, and review the token approval amount before confirming. It should match the amount you intend to deposit; do not approve an unexpectedly large amount.
+- If the transaction still fails, send the team the public transaction hash and error message. Never share wallet secrets.
 
----
+## Current test deposit model
 
-# The Problem
+For this testnet prototype, the intended deposit tiers are **10, 20, 50, and 100 MockUSDT**. The current product concept is **10 USDT for one unlimited-data eSIM/SIM usage card for one day**, with a choice of supported country or region. Availability in the demo is for product testing only; no real connectivity is delivered yet.
 
-Global communication is still limited by borders.
+This is an initial experiment, not our final model. We are exploring a more useful platform that connects operators and users, and eventually offers Web3 users and frequent travelers flexible, pay-later connectivity and communication plans—with transparent pricing and less wasted spend.
 
-Today, travelers, remote workers, international students, and global builders face:
+## What we are building
 
-- Expensive roaming costs
-- Repeated SIM card purchases
-- Fragmented telecom providers
-- Different payment systems in every country
-- Complicated account registration processes
+- A wallet-connected interface for discovering and managing connectivity services
+- A way for telecom operators to list and serve users across borders
+- On-chain payment and digital service entitlement experiments
+- A foundation for flexible regional data and communication plans
 
-Although the internet is global, mobile connectivity remains geographically restricted.
+## Technology
 
----
+- **Frontend:** React, TypeScript, Vite
+- **Wallet and chain integration:** wagmi, RainbowKit, viem
+- **Backend:** Go, Gin, GORM; SQLite and PostgreSQL support
+- **Smart contracts:** Solidity, Hardhat, OpenZeppelin
+- **Network:** Arbitrum Sepolia for the public test demo
 
-# Our Solution
+## Development status
 
-LinkWorld creates a bridge between telecom operators and global digital users.
+LinkWorld is at an early testing stage. The demo is useful for exploring the interface and testnet transaction flow, but it should not be treated as a production service. Contract addresses, test token availability, and network conditions may change as development continues.
 
-Through blockchain-based identity and settlement infrastructure, users can:
+## Contact
 
-- Access mobile connectivity services globally
-- Manage connectivity rights through their wallet
-- Pay with crypto-native payments
-- Switch between supported regions and operators
+Questions, feedback, operator partnerships, and tester feedback are welcome:
 
-LinkWorld does not replace telecom operators.
+- **Email:** [linkworldone@outlook.com](mailto:linkworldone@outlook.com)
+- **X:** [@Mandyzix](https://x.com/Mandyzix)
+- **Telegram:** [@linkworldteam](https://t.me/linkworldteam)
 
-Instead, we provide a new distribution and access layer for global connectivity.
-
----
-
-# How It Works
-
-## 1. Operator Service Integration
-
-LinkWorld integrates with telecom service providers and obtains mobile service inventory, including:
-
-- eSIM services
-- Physical SIM cards
-- Mobile data packages
-- Virtual number services
+We're just getting started. Thank you for trusting us, trying the demo, and helping us improve. If you have an idea, find a problem, or want to work with us, please reach out.
 
 ---
 
-## 2. Connectivity Pass
-
-Users deposit funds to activate a Connectivity Pass.
-
-The Connectivity Pass represents the user's right to access mobile services.
-
-Each pass contains:
-
-- Service quota
-- Activation status
-- Usage information
-- Blockchain-based ownership record
-
-The Connectivity Pass is implemented as an NFT to enable transparent ownership and management.
-
----
-
-## 3. Redeem Connectivity Service
-
-When users activate a mobile service:
-
-- The Connectivity Pass is redeemed
-- The corresponding mobile service is provided
-- Users receive eSIM activation or physical SIM delivery depending on the service type
-
----
-
-## 4. Global Connectivity Experience
-
-Users can manage their mobile services through:
-
-- Wallet identity
-- Blockchain payments
-- LinkWorld platform
-
-No need to create multiple accounts with different providers.
-
----
-
-# Why Blockchain?
-
-Traditional telecom services rely on:
-
-- Country-based accounts
-- Centralized identity systems
-- Local payment infrastructure
-
-Blockchain enables:
-
-## Wallet-based Digital Identity
-
-Users can access services through a portable digital identity.
-
-## Global Crypto Payments
-
-Users can pay for connectivity services using blockchain-native payments.
-
-## Transparent Ownership
-
-Digital connectivity rights can be represented and managed onchain.
-
-## Open Connectivity Marketplace
-
-Telecom providers can reach global Web3 users through a unified platform.
-
----
-
-# Connectivity Pass Model
-
-Connectivity Pass is a digital representation of mobile service rights.
-
-Unlike speculative NFTs, Connectivity Pass focuses on real-world utility:
-
-- Mobile data access
-- Service activation
-- Digital ownership
-- Cross-border portability
-
----
-
-# Initial Target Users
-
-## Web3 Builders & Global Digital Users
-
-Our first users include:
-
-### Hackathon Participants
-
-People traveling internationally for:
-
-- ETHGlobal
-- Web3 conferences
-- Developer events
-
-### Digital Nomads
-
-Remote workers who frequently move between countries.
-
-### Crypto-native Users
-
-Users already familiar with:
-
-- Wallets
-- Crypto payments
-- Digital identity
-
----
-
-# Current Status
-
-## Prototype Completed
-
-✅ Frontend application built with React + TypeScript + Vite
-
-✅ Backend architecture developed with Go
-
-✅ Solidity smart contracts implemented
-
-✅ EVM-compatible blockchain integration completed
-
-✅ NFT-based Connectivity Pass mechanism tested
-
-✅ Wallet connection implemented
-
-✅ Tested on Arbitrum testnet and Ethereum testnet
-
----
-
-# Roadmap
-
-## Phase 1 — MVP Validation (2026)
-
-Goals:
-
-- Integrate eSIM service providers
-- Connect telecom service APIs
-- Launch MVP
-- Recruit first 100 external testers
-- Collect user feedback
-
----
-
-## Phase 2 — Service Expansion
-
-Goals:
-
-- Support more countries and regions
-- Expand telecom partnerships
-- Improve user experience
-- Enable more payment options
-
----
-
-## Phase 3 — Global Connectivity Network
-
-Vision:
-
-Build a universal connectivity layer where users can access mobile services anywhere through their digital identity.
-
----
-
-# Technology Stack
-
-## Frontend
-
-- React
-- TypeScript
-- Vite
-
-## Backend
-
-- Go
-
-## Blockchain
-
-- Solidity
-- EVM-compatible chains
-
-## Infrastructure
-
-- Smart contracts
-- Wallet authentication
-- Blockchain-based digital assets
-
----
-
-# Team
-
-## LinkWorld Team
-
-We are building a new generation of global connectivity infrastructure.
-
-### Founder
-
-Responsible for:
-
-- Product strategy
-- Web3 ecosystem
-- Business development
-
-### Engineering Team
-
-Responsible for:
-
-- Frontend development
-- Backend infrastructure
-- Blockchain implementation
-
----
-
-# Contact
-
-X:
-@Mandyzix
-
-Telegram:
-@linkworldteam
-
-Email:
-linkworldone@outlook.com
-
-
----
-
-# Vision
-
-Communication should not be limited by borders.
-
-LinkWorld aims to create a user-owned, globally accessible connectivity layer powered by blockchain technology.
+*LinkWorld is an experimental project. Testnet tokens are not real money, and the demo does not guarantee mobile service, coverage, or commercial availability.*
