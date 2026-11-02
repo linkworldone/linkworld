@@ -4,12 +4,6 @@
     "getStarted": "立即开始",
     "learnMore": "了解更多",
     "loading": "加载中...",
-    "countries": "覆盖国家",
-    "countriesValue": "50+",
-    "platformFee": "平台费率",
-    "platformFeeValue": "1.5%",
-    "kycRequired": "无需 KYC",
-    "kycRequiredValue": "0",
     "retry": "重试",
     "done": "完成",
     "comingSoon": "（即将开放）",
@@ -19,7 +13,7 @@
     "title": "全球无缝",
     "titleLine2": "通信",
     "subtitle": "全球无限制网络切换，质押保证金即可获得 NFT 流量卡。",
-    "poweredBy": "由 Arbitrum 与 Chainlink 提供支持"
+    "valueProposition": "连接运营商与全球用户，让跨境通信更简单、更灵活。"
   },
   "dashboard": {
     "accountStatus": "账户状态",
