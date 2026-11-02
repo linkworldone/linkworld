@@ -4,12 +4,6 @@
     "getStarted": "Get Started",
     "learnMore": "Learn More",
     "loading": "Loading...",
-    "countries": "Countries",
-    "countriesValue": "50+",
-    "platformFee": "Platform Fee",
-    "platformFeeValue": "1.5%",
-    "kycRequired": "KYC Required",
-    "kycRequiredValue": "0",
     "retry": "Retry",
     "done": "Done",
     "comingSoon": " (Coming Soon)",
@@ -19,7 +13,7 @@
     "title": "Global Seamless",
     "titleLine2": "Communication",
     "subtitle": "Global unrestricted network switching, deposit collateral to obtain an NFT traffic card.",
-    "poweredBy": "Powered by Arbitrum & Chainlink"
+    "valueProposition": "Connecting operators and users to make cross-border connectivity simpler and more flexible."
   },
   "dashboard": {
     "accountStatus": "Account Status",
