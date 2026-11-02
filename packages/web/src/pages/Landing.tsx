@@ -52,23 +52,8 @@ export default function Landing() {
         </button>
       </div>
 
-      <div className="flex justify-around py-6 border-t border-border">
-        <div className="text-center">
-          <div className="text-xl font-extrabold text-brand-gold">{t("common.countriesValue")}</div>
-          <div className="text-[11px] text-text-muted mt-0.5">{t("common.countries")}</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xl font-extrabold text-status-success">{t("common.platformFeeValue")}</div>
-          <div className="text-[11px] text-text-muted mt-0.5">{t("common.platformFee")}</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xl font-extrabold text-brand-gold">{t("common.kycRequiredValue")}</div>
-          <div className="text-[11px] text-text-muted mt-0.5">{t("common.kycRequired")}</div>
-        </div>
-      </div>
-
-      <div className="text-center py-3 text-[10px] text-text-muted">
-        {t("landing.poweredBy")}
+      <div className="text-center py-6 px-6 border-t border-border text-sm text-text-secondary leading-relaxed">
+        {t("landing.valueProposition")}
       </div>
 
       {address && (
