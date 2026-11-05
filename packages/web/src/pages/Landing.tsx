@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useTranslation } from "react-i18next";
 import { Globe } from "lucide-react";
@@ -47,9 +47,6 @@ export default function Landing() {
           {t("landing.subtitle")}
         </p>
         <ConnectButton label={t("common.getStarted")} />
-        <Link to="/solana-checkout" className="mt-3 inline-flex w-full max-w-[280px] items-center justify-center rounded-xl bg-brand-royal px-5 py-3 text-sm font-semibold text-white">
-          {t("landing.solanaCheckout")}
-        </Link>
         <button className="mt-3 text-sm text-text-secondary border border-border rounded-xl px-12 py-3 w-full max-w-[280px]">
           {t("common.learnMore")}
         </button>
