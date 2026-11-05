@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 
 const Landing = lazy(() => import("@/pages/Landing"));
+const SolanaCheckout = lazy(() => import("@/pages/SolanaCheckout"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Deposit = lazy(() => import("@/pages/Deposit"));
 const Services = lazy(() => import("@/pages/Services"));
@@ -26,6 +27,7 @@ export default function App() {
     <Suspense fallback={<PageFallback />}>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/solana-checkout" element={<SolanaCheckout />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/deposit" element={<Deposit />} />
