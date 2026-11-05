@@ -14,6 +14,24 @@ Our long-term goal is a platform where users can discover regional mobile plans,
 
 The demo uses the **Arbitrum Sepolia testnet**. Please do not use mainnet assets.
 
+
+## Solana Devnet payment demo
+
+The landing page links to a separate **Solana Devnet USDC checkout**. This adds the Solana payment path requested in our hackathon feedback while keeping the existing Arbitrum Sepolia prototype available.
+
+- **Network:** Solana Devnet
+- **Payment:** 10 Devnet USDC (6 decimals)
+- **Devnet USDC mint:** `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
+- **Team receiving wallet:** `BEuTBCN3EygdmxRQXcWuYYXAUcwXtVnPbPSTvsgDz5Lc`
+- **Fees:** the payer also needs Devnet SOL
+
+Open the demo from the landing page and scan its Solana Pay QR code with a Solana wallet configured for Devnet, or open the payment link in a compatible wallet. The page watches Devnet for the unique payment reference and only shows success when it finds a confirmed SPL-token transfer with the expected USDC mint, exact amount, and recipient token account. The transaction can then be inspected in Solana Explorer.
+
+Get test funds from the [Solana Devnet SOL faucet](https://faucet.solana.com/) and [Circle USDC faucet](https://faucet.circle.com/) (select Solana Devnet). Faucet availability and eligibility can vary.
+
+> **Demo limitation:** this checkout demonstrates and verifies a testnet payment in the browser. It does not yet issue or activate a real eSIM, and the demo receipt is not a production fulfillment record. Do not send mainnet tokens.
+
+
 ## Try the testnet demo
 
 1. Install and unlock MetaMask, then connect a wallet.
@@ -51,7 +69,7 @@ This is an initial experiment, not our final model. We are exploring a more usef
 - **Wallet and chain integration:** wagmi, RainbowKit, viem
 - **Backend:** Go, Gin, GORM; SQLite and PostgreSQL support
 - **Smart contracts:** Solidity, Hardhat, OpenZeppelin
-- **Network:** Arbitrum Sepolia for the public test demo
+- **Networks:** Arbitrum Sepolia for the existing prototype; Solana Devnet for the USDC payment demo
 
 ## Development status
 
