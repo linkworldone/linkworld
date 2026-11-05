@@ -7,7 +7,7 @@ const RPC = "https://api.devnet.solana.com";
 const USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 const RECEIVER = "BEuTBCN3EygdmxRQXcWuYYXAUcwXtVnPbPSTvsgDz5Lc";
 const AMOUNT_USDC = 10;
-const LAMPORTS_PER_USDC = 1_000_000n;
+const TOKEN_UNITS = 10_000_000n;
 
 type RpcResponse<T> = { result?: T; error?: { message?: string } };
 type SignatureInfo = { signature: string; err: unknown | null };
@@ -16,6 +16,7 @@ type ParsedTransaction = {
   meta?: { err: unknown | null };
   transaction?: { message?: { instructions?: ParsedInstruction[] } };
 };
+type ParsedTokenAccount = { value: null | { data?: { parsed?: { info?: { mint?: string; owner?: string } } } } };
 
 function base58(bytes: Uint8Array): string {
   const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -46,7 +47,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
-  if (!response.ok) throw new Error("Devnet RPC is temporarily unavailable.");
+  if (!response.ok) throw new Error("Solana Devnet RPC is temporarily unavailable.");
   const body = (await response.json()) as RpcResponse<T>;
   if (body.error) throw new Error(body.error.message || "Devnet RPC request failed.");
   if (body.result === undefined) throw new Error("Devnet RPC returned no result.");
@@ -73,7 +74,7 @@ export default function SolanaCheckout() {
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let seen = new Set<string>();
+    const seen = new Set<string>();
 
     const check = async () => {
       try {
@@ -82,24 +83,38 @@ export default function SolanaCheckout() {
           if (seen.has(item.signature)) continue;
           seen.add(item.signature);
           if (item.err) continue;
+
           const tx = await rpc<ParsedTransaction | null>("getTransaction", [
             item.signature,
             { encoding: "jsonParsed", commitment: "confirmed", maxSupportedTransactionVersion: 0 },
           ]);
           if (!tx || tx.meta?.err) continue;
           const instructions = tx.transaction?.message?.instructions ?? [];
-          const valid = instructions.some((ix) => {
-            if (ix.program !== "spl-token" || ix.parsed?.type !== "transferChecked") return false;
+
+          for (const ix of instructions) {
+            if (ix.program !== "spl-token" || ix.parsed?.type !== "transferChecked") continue;
             const info = ix.parsed.info ?? {};
-            const tokenAmount = info.tokenAmount as { amount?: string; decimals?: number } | undefined;
-            return info.mint === USDC_MINT &&
-              info.destination === receiverTokenAccount &&
-              tokenAmount?.amount === String(BigInt(AMOUNT_USDC) * LAMPORTS_PER_USDC) &&
-              tokenAmount?.decimals === 6;
-          });
-          if (valid) {
-            if (active) setConfirmedSignature(item.signature);
-            return;
+            const amount = info.tokenAmount as { amount?: string; decimals?: number } | undefined;
+            const destination = info.destination;
+            if (
+              info.mint !== USDC_MINT ||
+              amount?.amount !== String(TOKEN_UNITS) ||
+              amount?.decimals !== 6 ||
+              typeof destination !== "string"
+            ) continue;
+
+            const account = await rpc<ParsedTokenAccount>("getAccountInfo", [
+              destination,
+              { encoding: "jsonParsed", commitment: "confirmed" },
+            ]);
+            const accountInfo = account.value?.data?.parsed?.info;
+            if (accountInfo?.mint === USDC_MINT && accountInfo.owner === RECEIVER) {
+              if (active) {
+                setError("");
+                setConfirmedSignature(item.signature);
+              }
+              return;
+            }
           }
         }
         if (active) timer = setTimeout(check, 3000);
@@ -111,22 +126,7 @@ export default function SolanaCheckout() {
       }
     };
 
-    let receiverTokenAccount = "";
-    rpc<Array<{ pubkey: string }>>("getTokenAccountsByOwner", [
-      RECEIVER,
-      { mint: USDC_MINT },
-      { encoding: "jsonParsed" },
-    ]).then((accounts) => {
-      if (!accounts.length) throw new Error("The receiving wallet has no Devnet USDC account yet. Ask the team to initialize it first.");
-      receiverTokenAccount = accounts[0].pubkey;
-      if (active) check();
-    }).catch((cause) => {
-      if (active) {
-        setError(cause instanceof Error ? cause.message : "Could not prepare the payment.");
-        setChecking(false);
-      }
-    });
-
+    void check();
     return () => {
       active = false;
       if (timer) clearTimeout(timer);
@@ -170,7 +170,7 @@ export default function SolanaCheckout() {
           {error && <p className="mt-2 text-status-danger">{error}</p>}
         </div>
         <p className="mt-5 text-xs text-text-muted">
-          Need test funds? Get Devnet SOL for fees and Devnet USDC from the official faucets.
+          Use a Solana wallet with Devnet enabled. You need Devnet SOL for fees and Devnet USDC for payment.
         </p>
         <div className="mt-2 flex justify-center gap-4 text-xs">
           <a className="underline" href="https://faucet.solana.com/" target="_blank" rel="noreferrer">SOL faucet</a>
