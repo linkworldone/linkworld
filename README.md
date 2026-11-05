@@ -21,7 +21,7 @@ The landing page links to a separate **Solana Devnet USDC checkout**. This adds 
 
 - **Network:** Solana Devnet
 - **Payment:** 10 Devnet USDC (6 decimals)
-- **Devnet USDC mint:** `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
+- **Devnet USDC mint:** `4zMMC9srt5i5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
 - **Team receiving wallet:** `BEuTBCN3EygdmxRQXcWuYYXAUcwXtVnPbPSTvsgDz5Lc`
 - **Fees:** the payer also needs Devnet SOL
 
