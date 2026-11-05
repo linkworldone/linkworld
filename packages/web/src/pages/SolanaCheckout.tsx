@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle2, ExternalLink, Loader2, Wallet } from "lucide-r
 import { QRCodeSVG } from "qrcode.react";
 
 const RPC = "https://api.devnet.solana.com";
-const USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+const USDC_MINT = "4zMMC9srt5i5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 const RECEIVER = "BEuTBCN3EygdmxRQXcWuYYXAUcwXtVnPbPSTvsgDz5Lc";
 const AMOUNT_USDC = 10;
 const TOKEN_UNITS = 10_000_000n;
